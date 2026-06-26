@@ -11,7 +11,9 @@ macportseda/
     │   └── Portfile
     ├── cudd/
     │   └── Portfile
-    └── netgen-lvs/
+    ├── netgen-lvs/
+    │   └── Portfile
+    └── klayout/
         └── Portfile
 ```
 
@@ -88,3 +90,18 @@ Ports live under a category directory (`cad`) as MacPorts expects.
 - The build uses the `tcllibrary` / `install-tcl-real` make targets directly
   because netgen's default targets pipe through `make.log`/`install.log`, which
   hide output and can mask failures by always exiting 0.
+
+## klayout notes
+
+- KLayout (`KLayout/klayout` tag `v0.30.9`), Qt6 GUI with Ruby + Python
+  scripting. Long build (~100 MB source + full Qt link).
+- Uses a bespoke `build.sh` (qmake-based) that builds and installs every
+  artefact into one self-contained directory. The Portfile drives the phases by
+  hand: `build.sh` stages into `${workpath}` with the final RPATH
+  (`${prefix}/lib/klayout`) baked in, and destroot copies the tree into
+  `${prefix}/lib/klayout`, symlinking the tools (`klayout`, `strm*`) into
+  `${prefix}/bin`.
+- The libgit2-based package manager is disabled (`-nolibgit2`) to keep the
+  external-library surface small; it is irrelevant to layout/DRC.
+- NOT yet build-verified — most likely points to iterate are the Qt6 qmake
+  handshake, Ruby/Python auto-detection in `build.sh`, and macOS RPATH.

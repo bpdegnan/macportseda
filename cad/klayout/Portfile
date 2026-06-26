@@ -1,0 +1,106 @@
+# -*- coding: utf-8; mode: tcl; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- vim:fenc=utf-8:ft=tcl:et:sw=4:ts=4:sts=4
+
+PortSystem          1.0
+PortGroup           github 1.0
+PortGroup           qt6 1.0
+
+github.setup        KLayout klayout 0.30.9 v
+name                klayout
+
+# Fetch the git archive via its fully-qualified refs/tags URL (the github
+# portgroup otherwise defaults to the release-asset URL). Tag is v${version};
+# the tarball extracts to klayout-${version}.
+master_sites        https://github.com/KLayout/klayout/archive/refs/tags/
+distname            v${version}
+worksrcdir          ${github.project}-${version}
+
+categories          cad
+license             GPL-3
+maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+
+description         GDS/OASIS layout viewer and editor with DRC/LVS scripting
+long_description    KLayout is a high-performance VLSI layout viewer and editor \
+                    for the GDS and OASIS formats, with Ruby- and \
+                    Python-scriptable DRC and LVS engines. It is widely used \
+                    with open PDKs such as Sky130.
+
+homepage            https://www.klayout.de/
+
+checksums           rmd160  ca3af9ef4dcc5bdd60b72201d36f6f7657e89ddc \
+                    sha256  1add437923d6ffef1ba6c8f93858fb6e6f4636e224e0871050058da91242c647 \
+                    size    103935378
+
+# Qt6 (qtbase is implied by the portgroup). qttools provides QtUiTools and the
+# Designer libraries; qtsvg and qtmultimedia cover the remaining Qt modules
+# KLayout links by default. QtXml/QtPrintSupport are part of qtbase in Qt6.
+qt6.depends_lib-append \
+                    qtsvg \
+                    qttools \
+                    qtmultimedia \
+                    qt5compat
+
+# Scripting interpreters (KLayout's DRC/LVS decks are Ruby/Python) plus zlib.
+set py_branch       3.12
+set rb_branch       3.4
+depends_lib-append  port:python[string map {. {}} ${py_branch}] \
+                    port:ruby[string map {. {}} ${rb_branch}] \
+                    port:zlib
+
+# KLayout uses a bespoke build.sh that runs qmake, builds, and installs every
+# artefact (the klayout binary, shared libraries and plugins) into one
+# self-contained directory. There is no standard configure/make-install split,
+# so the phases are driven by hand: build.sh stages into ${workpath} with the
+# final runtime RPATH baked in, and destroot copies the staged tree into
+# ${prefix}/lib/klayout, symlinking the tools into ${prefix}/bin.
+set klayout_dir     ${prefix}/lib/klayout
+use_configure       no
+universal_variant   no
+
+depends_build-append \
+                    port:pkgconfig
+
+build {
+    xinstall -d ${workpath}/klayout-stage
+    # build.sh's Python library auto-detection mis-joins LIBDIR and the
+    # (relative, framework-style) LDLIBRARY for the MacPorts python framework,
+    # yielding a bogus doubled path. Point -pylib at the real dylib symlink.
+    system -W ${worksrcpath} "./build.sh \
+        -qmake ${qt6.dir}/bin/qmake \
+        -ruby ${prefix}/bin/ruby${rb_branch} \
+        -python ${prefix}/bin/python${py_branch} \
+        -pylib ${frameworks_dir}/Python.framework/Versions/${py_branch}/lib/libpython${py_branch}.dylib \
+        -build ${workpath}/klayout-build \
+        -bin ${workpath}/klayout-stage \
+        -rpath ${klayout_dir} \
+        -nolibgit2 \
+        -release \
+        -option -j${build.jobs}"
+}
+
+destroot {
+    xinstall -d ${destroot}${klayout_dir}
+    copy {*}[glob -directory ${workpath}/klayout-stage *] ${destroot}${klayout_dir}
+
+    # Expose the tools in ${prefix}/bin. The GUI binary lives inside the macOS
+    # .app bundle that build.sh produces; the strm* utilities are top-level
+    # executables.
+    xinstall -d ${destroot}${prefix}/bin
+    system "ln -s ${klayout_dir}/klayout.app/Contents/MacOS/klayout ${destroot}${prefix}/bin/klayout"
+    foreach tool [glob -nocomplain -tails -directory ${destroot}${klayout_dir} strm*] {
+        if {[file isfile ${destroot}${klayout_dir}/${tool}]} {
+            system "ln -s ${klayout_dir}/${tool} ${destroot}${prefix}/bin/${tool}"
+        }
+    }
+
+    # build.sh bakes a Linux-style RPATH but leaves the inter-library install
+    # names as bare leaf names (libklayout_*.dylib, plus the libcif/libgds2/...
+    # streamer plugins). On macOS, LC_RPATH does not resolve bare names, so
+    # every klayout<->klayout link dangles and rev-upgrade reports them broken.
+    # The helper rewrites those references (and each library's own id) to
+    # @rpath/<name>; the LC_RPATH (${klayout_dir} and the plugin dirs) that
+    # build.sh already embedded in every binary then resolves them.
+    #
+    # Run via system (not a Tcl post-destroot with exec): MacPorts' trace-mode
+    # sandbox blocks raw Tcl exec of otool/file, but system is sandbox-aware.
+    system "/bin/bash ${filespath}/fix-install-names.sh ${destroot}${klayout_dir}"
+}
