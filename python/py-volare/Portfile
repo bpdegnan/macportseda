@@ -1,0 +1,50 @@
+# -*- coding: utf-8; mode: tcl; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- vim:fenc=utf-8:ft=tcl:et:sw=4:ts=4:sts=4
+
+PortSystem          1.0
+PortGroup           python 1.0
+
+name                py-volare
+version             0.20.6
+revision            0
+
+categories-append   cad
+license             Apache-2
+supported_archs     noarch
+platforms           {darwin any}
+maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+
+description         Version manager and builder for open-source PDKs
+long_description    Volare is a version manager (and builder) for builds of \
+                    open-source PDKs such as Sky130 and GF180MCU. It fetches \
+                    prebuilt PDK tarballs by version so that EDA flows can pin \
+                    a known-good process design kit.
+
+homepage            https://github.com/chipfoundry/volare
+
+checksums           rmd160  ac6da251ceb765764c1bb28b606400a3f897ea8b \
+                    sha256  a2ebd9b8a81de144dbc352eab71670e7e4b3e4713272387479a75935569e076a \
+                    size    23468
+
+python.versions     311 312 313
+python.default_version 312
+
+# Built with poetry-core (the portgroup pulls in the backend).
+python.pep517_backend   poetry
+
+if {${name} ne ${subport}} {
+    depends_lib-append      port:py${python.version}-click \
+                            port:py${python.version}-httpx \
+                            port:py${python.version}-pcpp \
+                            port:py${python.version}-yaml \
+                            port:py${python.version}-rich \
+                            port:py${python.version}-zstandard
+
+    # Provide an unsuffixed `volare` for the default Python version.
+    if {${python.version} eq ${python.default_version}} {
+        post-destroot {
+            ln -s volare-${python.branch} ${destroot}${prefix}/bin/volare
+        }
+    }
+
+    livecheck.type          none
+}

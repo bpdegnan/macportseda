@@ -15,6 +15,13 @@ macportseda/
     │   └── Portfile
     └── klayout/
         └── Portfile
+python/
+├── py-pcpp/
+│   └── Portfile
+├── py-zstandard/
+│   └── Portfile
+└── py-volare/
+    └── Portfile
 ```
 
 Ports live under a category directory (`cad`) as MacPorts expects.
@@ -103,5 +110,14 @@ Ports live under a category directory (`cad`) as MacPorts expects.
   `${prefix}/bin`.
 - The libgit2-based package manager is disabled (`-nolibgit2`) to keep the
   external-library surface small; it is irrelevant to layout/DRC.
-- NOT yet build-verified — most likely points to iterate are the Qt6 qmake
-  handshake, Ruby/Python auto-detection in `build.sh`, and macOS RPATH.
+
+## py-volare notes (PDK version manager)
+
+- `py-volare` is a Python package; it pulls in two helper ports that were also
+  missing from MacPorts: `py-pcpp` (pure Python) and `py-zstandard` (builds a C
+  extension against its own bundled zstd, no external dependency). All three
+  default to Python 3.12 to match the rest of the tree.
+- The `volare` executable is installed as `volare-3.12`; the default-version
+  subport also symlinks an unsuffixed `volare` into `${prefix}/bin`.
+- Largely redundant if you already have your PDKs installed; useful for pinning
+  PDK versions or fetching new builds.

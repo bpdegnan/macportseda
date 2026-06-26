@@ -1,0 +1,34 @@
+# -*- coding: utf-8; mode: tcl; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- vim:fenc=utf-8:ft=tcl:et:sw=4:ts=4:sts=4
+
+PortSystem          1.0
+PortGroup           python 1.0
+
+name                py-zstandard
+version             0.25.0
+revision            0
+
+categories-append   archivers
+license             BSD
+maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+
+description         Python bindings to the Zstandard (zstd) compression library
+long_description    zstandard provides Python bindings to the Zstandard (zstd) \
+                    compression library. This port builds the C extension \
+                    against zstd's C sources bundled in the distribution, so \
+                    it has no external zstd dependency.
+
+homepage            https://github.com/indygreg/python-zstandard
+
+checksums           rmd160  f193ddc52f3cb4f0e4b6359e8ca604be899a38c3 \
+                    sha256  7713e1179d162cf5c7906da876ec2ccb9c3a9dcbdffef0cc7f70c3667a205f0b \
+                    size    711513
+
+# Not noarch: builds a C extension (zstd is compiled from the bundled sources).
+python.versions     311 312 313
+python.default_version 312
+
+if {${name} ne ${subport}} {
+    depends_build-append    port:py${python.version}-setuptools
+
+    livecheck.type          none
+}
