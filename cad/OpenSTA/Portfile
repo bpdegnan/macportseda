@@ -45,9 +45,10 @@ depends_build-append \
 
 # tcl       command interpreter (required)
 # eigen3    linear algebra (required, header-only)
-# libfmt10  provides the fmt library OpenSTA falls back to when the toolchain
-#           lacks std::format; depending on it avoids an in-build network
-#           FetchContent of fmt, which the MacPorts build sandbox blocks.
+# libfmt10  provides the fmt library OpenSTA uses when the toolchain lacks
+#           std::format. Without it OpenSTA's CMake clones fmt via FetchContent
+#           (network mid-build) and then installs that fmt into the prefix,
+#           squatting on the canonical fmt paths. See fmt_DIR below.
 depends_lib-append  port:tcl \
                     port:eigen3 \
                     port:libfmt10
@@ -59,11 +60,18 @@ depends_lib-append  port:tcl \
 # Tcl readline support is forced OFF here so the build does not silently link a
 # tclreadline that happens to be installed without declaring it; the +readline
 # variant turns it on with the dependency declared.
+# The MacPorts libfmt10 port installs its CMake package config into a versioned
+# subdir (${prefix}/lib/libfmt10/cmake/fmt) that is off CMake's default search
+# path, so find_package(fmt) misses it and OpenSTA falls back to FetchContent.
+# Point fmt_DIR at it directly so the installed fmt is used and nothing is
+# fetched or installed at build time. (Update the path if the libfmt
+# dependency version changes.)
 configure.args-append \
                     -DBISON_EXECUTABLE=${prefix}/bin/bison \
                     -DFLEX_EXECUTABLE=${prefix}/bin/flex \
                     -DTCL_LIB_PATHS=${prefix}/lib \
-                    -DUSE_TCL_READLINE=OFF
+                    -DUSE_TCL_READLINE=OFF \
+                    -Dfmt_DIR=${prefix}/lib/libfmt10/cmake/fmt
 
 # CUDD improves conditional-arc, constant- and power-propagation handling and
 # is enabled by default. CUDD installs cudd.h into ${prefix}/include and
