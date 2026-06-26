@@ -1,0 +1,89 @@
+# -*- coding: utf-8; mode: tcl; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- vim:fenc=utf-8:ft=tcl:et:sw=4:ts=4:sts=4
+
+PortSystem          1.0
+PortGroup           github 1.0
+PortGroup           cmake 1.1
+
+# OpenSTA (parallaxsw) does not publish git tags or GitHub releases, so the
+# distfile is pinned to a specific commit on master. The version below is the
+# project() version declared in CMakeLists.txt at that commit. When updating,
+# bump the commit and the version together, then run `port -v checksum`.
+github.setup        parallaxsw OpenSTA bfdd2be0ee6214115b20cacdc0a071ca3c737fbb
+version             3.1.0
+
+categories          cad
+license             GPL-3
+maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+
+description         OpenSTA gate-level static timing analyzer
+long_description    OpenSTA is a gate-level static timing verifier. As a \
+                    stand-alone executable it reads a design and its timing \
+                    constraints from standard file formats (Verilog, Liberty, \
+                    SDC, SDF, SPEF) and reports timing.
+
+homepage            https://github.com/parallaxsw/OpenSTA
+
+checksums           rmd160  1e60c91131f9999fc50711b02be5bb913e9db5ee \
+                    sha256  1e90d957b3f3bfb1ca03ca4a49b2643cf42b3c6e32c11c5051df5df69187561d \
+                    size    13879055
+
+# OpenSTA uses C++20 three-way comparison (operator<=>) on std::string in
+# network/Network.cc. The libc++ in older macOS SDKs (e.g. the Ventura
+# Command Line Tools, MacOSX13.sdk) lacks operator<=> for std::basic_string,
+# so the build fails. Replace those three sites with std::string::compare(),
+# which has identical sign semantics and needs no newer standard library.
+patchfiles-append   patch-Network-string-spaceship.diff
+
+# bison (>= 3.2), flex and swig (>= 3.0, with the Tcl backend) generate the
+# parsers and Tcl bindings at build time. The macOS system bison/flex are too
+# old, so the MacPorts copies are used explicitly below.
+depends_build-append \
+                    port:bison \
+                    port:flex \
+                    port:swig \
+                    port:swig-tcl
+
+# tcl       command interpreter (required)
+# eigen3    linear algebra (required, header-only)
+# libfmt10  provides the fmt library OpenSTA falls back to when the toolchain
+#           lacks std::format; depending on it avoids an in-build network
+#           FetchContent of fmt, which the MacPorts build sandbox blocks.
+depends_lib-append  port:tcl \
+                    port:eigen3 \
+                    port:libfmt10
+
+# OpenSTA's bundled cmake/FindTCL.cmake hard-codes Homebrew search paths on
+# macOS and sets NO_DEFAULT_PATH, so it cannot locate the MacPorts Tcl (or
+# tclreadline) unless pointed at ${prefix}/lib explicitly.
+#
+# Tcl readline support is forced OFF here so the build does not silently link a
+# tclreadline that happens to be installed without declaring it; the +readline
+# variant turns it on with the dependency declared.
+configure.args-append \
+                    -DBISON_EXECUTABLE=${prefix}/bin/bison \
+                    -DFLEX_EXECUTABLE=${prefix}/bin/flex \
+                    -DTCL_LIB_PATHS=${prefix}/lib \
+                    -DUSE_TCL_READLINE=OFF
+
+# CUDD improves conditional-arc, constant- and power-propagation handling and
+# is enabled by default. CUDD installs cudd.h into ${prefix}/include and
+# libcudd into ${prefix}/lib, which is exactly where OpenSTA's FindCUDD.cmake
+# looks when handed -DCUDD_DIR=${prefix}.
+variant cudd conflicts basic description {Build against the CUDD decision-diagram package} {
+    depends_lib-append      port:cudd
+    configure.args-append   -DCUDD_DIR=${prefix}
+}
+
+# Opt out of CUDD: `port install OpenSTA +basic`.
+variant basic conflicts cudd description {Build without CUDD (fewer optimizations)} {}
+
+default_variants    +cudd
+
+# tclreadline (MacPorts port:tclreadline) adds command-line history and editing
+# to the interactive `sta` shell. Irrelevant to batch/scripted runs, so it is
+# off by default; enable with `port install OpenSTA +readline`. The base
+# -DUSE_TCL_READLINE=OFF above is overridden here (cmake takes the last value).
+variant readline description {Interactive command-line editing via tclreadline} {
+    depends_lib-append      port:tclreadline
+    configure.args-append   -DUSE_TCL_READLINE=ON
+}

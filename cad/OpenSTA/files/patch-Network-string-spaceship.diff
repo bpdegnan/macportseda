@@ -1,0 +1,29 @@
+--- network/Network.cc.orig
++++ network/Network.cc
+@@ -292,7 +292,7 @@
+     while (!path1.empty() && !path2.empty()) {
+       const Instance *inst1 = path1.back();
+       const Instance *inst2 = path2.back();
+-      auto cmp = name(inst1) <=> name(inst2);
++      auto cmp = name(inst1).compare(name(inst2));
+       if (cmp != 0)
+         return cmp < 0 ? -1 : 1;
+       path1.pop_back();
+@@ -383,7 +383,7 @@
+ {
+   int inst_cmp = pathNameCmp(instance(pin1), instance(pin2));
+   if (inst_cmp == 0) {
+-    auto cmp = portName(pin1) <=> portName(pin2);
++    auto cmp = portName(pin1).compare(portName(pin2));
+     if (cmp < 0)
+       return -1;
+     if (cmp > 0)
+@@ -469,7 +469,7 @@
+ {
+   int inst_cmp = pathNameCmp(instance(net1), instance(net2));
+   if (inst_cmp == 0) {
+-    auto cmp = name(net1) <=> name(net2);
++    auto cmp = name(net1).compare(name(net2));
+     if (cmp < 0)
+       return -1;
+     if (cmp > 0)

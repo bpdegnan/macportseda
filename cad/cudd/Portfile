@@ -1,0 +1,41 @@
+# -*- coding: utf-8; mode: tcl; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- vim:fenc=utf-8:ft=tcl:et:sw=4:ts=4:sts=4
+
+PortSystem          1.0
+PortGroup           github 1.0
+
+github.setup        cuddorg cudd 3.0.0
+
+# cuddorg/cudd carries two tags that collide on the short ref (3.0.0 and
+# cudd-3.0.0), so GitHub's short archive URL (archive/3.0.0.tar.gz) returns an
+# "ambiguous ref" error page rather than a tarball, and the release asset
+# unpacks into a doubled cudd-cudd-3.0.0 directory. Fetch the fully-qualified
+# refs/tags tarball instead; it extracts cleanly to cudd-3.0.0 and ships a
+# committed ./configure.
+master_sites        https://github.com/cuddorg/cudd/archive/refs/tags/
+distname            ${version}
+worksrcdir          ${github.project}-${version}
+
+categories          cad math
+license             BSD
+maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+
+description         CUDD: CU Decision Diagram package
+long_description    CUDD is a package for the manipulation of binary decision \
+                    diagrams (BDDs), algebraic decision diagrams (ADDs) and \
+                    zero-suppressed binary decision diagrams (ZDDs). It is used \
+                    by EDA tools such as OpenSTA for BDD-based analysis.
+
+homepage            https://github.com/cuddorg/cudd
+
+# Tagged release tarball from GitHub (ships a committed ./configure).
+checksums           rmd160  5da9cfa6ef456fe8354ba5e501f26d28dc32c469 \
+                    sha256  ce2c41c000f4374868ee4d713283a35d3d975a96f1c6f3bcfbee96e79eeb4560 \
+                    size    1170598
+
+# Build the shared library plus the dddmp and C++ object interfaces so the
+# package is useful to a range of EDA consumers. OpenSTA itself only needs the
+# C API (cudd.h), which is installed into ${prefix}/include.
+configure.args-append \
+                    --enable-shared \
+                    --enable-dddmp \
+                    --enable-obj
