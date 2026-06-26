@@ -9,7 +9,9 @@ macportseda/
 └── cad/
     ├── OpenSTA/
     │   └── Portfile
-    └── cudd/
+    ├── cudd/
+    │   └── Portfile
+    └── netgen-lvs/
         └── Portfile
 ```
 
@@ -75,3 +77,14 @@ Ports live under a category directory (`cad`) as MacPorts expects.
 - This port is not yet known to MacPorts until the tree is registered and
   `portindex` has run; until then `port lint OpenSTA` reports
   `Unknown dependency: cudd`, which is expected and resolves after indexing.
+
+## netgen-lvs notes
+
+- Tim Edwards' netgen (LVS), built from the `RTimothyEdwards/netgen` `1.5.321`
+  tag. Named `netgen-lvs` to avoid colliding with MacPorts' unrelated
+  `math/netgen` (a FEM mesh generator) — `port install netgen-lvs`.
+- Needs `tk-x11`: netgen's Tcl build refuses to compile without X11, so the X11
+  Tk is pulled in even though batch LVS opens no window.
+- The build uses the `tcllibrary` / `install-tcl-real` make targets directly
+  because netgen's default targets pipe through `make.log`/`install.log`, which
+  hide output and can mask failures by always exiting 0.

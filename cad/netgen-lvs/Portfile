@@ -1,0 +1,62 @@
+# -*- coding: utf-8; mode: tcl; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- vim:fenc=utf-8:ft=tcl:et:sw=4:ts=4:sts=4
+
+PortSystem          1.0
+PortGroup           github 1.0
+
+# Tim Edwards' netgen: netlist comparison / LVS, the companion tool to magic.
+# Packaged as "netgen-lvs" because MacPorts already ships an unrelated
+# math/netgen (the Schoeberl FEM mesh generator).
+github.setup        RTimothyEdwards netgen 1.5.321
+name                netgen-lvs
+
+# Fetch the git archive tarball via its fully-qualified refs/tags URL. (The
+# github portgroup otherwise defaults to the release-asset URL, which is a
+# differently-packaged tarball.) This one extracts to netgen-1.5.321 and ships
+# a committed ./configure, so no autoreconf is needed.
+master_sites        https://github.com/RTimothyEdwards/netgen/archive/refs/tags/
+distname            ${version}
+worksrcdir          ${github.project}-${version}
+
+categories          cad
+license             GPL-2+
+maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+
+description         Netlist comparison (LVS) tool from opencircuitdesign.com
+long_description    Netgen compares netlists for Layout-Versus-Schematic (LVS) \
+                    verification. It is the companion layout-verification tool \
+                    to magic and is used with open PDKs such as Sky130. This \
+                    is distinct from the unrelated math/netgen FEM mesh \
+                    generator already in MacPorts.
+
+homepage            https://github.com/RTimothyEdwards/netgen
+
+checksums           rmd160  bf5ba33ca4438c728504267bafaf71321b81049e \
+                    sha256  b8f3340dd1b685e29fe227378c7f35305b869c0c9209d646f1f136aac4467f99 \
+                    size    556432
+
+# netgen's Tcl build refuses to compile without X11 ("Cannot compile TCL
+# version without X11, disabling"), so it needs the X11 Tk even though batch
+# LVS never opens a window. Its Tk graphics link only -lX11 (the heavier
+# Xaw/Motif libs are for the legacy non-Tcl build).
+depends_lib-append  port:tcl \
+                    port:tk-x11 \
+                    port:xorg-libX11
+
+# Point the build at the MacPorts Tcl (tclConfig.sh in ${prefix}/lib) and the
+# X11 Tk (tkConfig.sh and headers under the tk-x11 layout).
+configure.args-append \
+                    --with-tcl=${prefix}/lib \
+                    --with-tclincls=${prefix}/include \
+                    --with-tcllibs=${prefix}/lib \
+                    --with-tk=${prefix}/lib/tk-x11 \
+                    --with-tkincls=${prefix}/include/tk-x11 \
+                    --with-tklibs=${prefix}/lib/tk-x11
+
+# This build system pipes its real build and install through `tee ... make.log`
+# / `>> install.log`, which hides output and can mask failures by always
+# exiting 0. Drive the underlying "real" targets directly (as the MacPorts
+# magic port does) so errors actually fail the build.
+build.target        tcllibrary
+destroot.target     install-tcl-real
+
+use_parallel_build  no
