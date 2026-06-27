@@ -1,0 +1,176 @@
+# -*- coding: utf-8; mode: tcl; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- vim:fenc=utf-8:ft=tcl:et:sw=4:ts=4:sts=4
+
+PortSystem          1.0
+PortGroup           cmake 1.1
+
+name                charon
+version             2.2.0
+revision            2
+categories          science
+license             GPL-3
+maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+
+description         Sandia Charon TCAD semiconductor device simulator
+long_description    Charon is an open-source semiconductor device modeling \
+                    (TCAD) code from Sandia National Laboratories. It solves \
+                    drift-diffusion and related equations on parallel systems \
+                    and is built on Trilinos (Panzer) and MPI.
+
+homepage            https://charon.sandia.gov
+
+# Charon is a TriBITS PROJECT that builds Trilinos (as a TriBITS "extra
+# repository") together with itself - it does NOT consume an installed
+# Trilinos. So we fetch two distfiles: the Charon v2.2 distribution (unpacks to
+# tcad-charon/) and a matching Trilinos source (release 13.4.0, dated to Charon
+# v2.2), and drop the Trilinos source at tcad-charon/Trilinos where Charon's
+# cmake/ExtraRepositoriesList.cmake expects it. (charon-distrib reachable from
+# https://charon.sandia.gov/downloads/source-code/)
+master_sites        https://www.sandia.gov/app/uploads/sites/106/2022/06/:charon \
+                    https://github.com/trilinos/Trilinos/archive/refs/tags/:trilinos
+distfiles           charon-distrib-v2_2.tar.gz:charon \
+                    trilinos-release-13-4-0.tar.gz:trilinos
+worksrcdir          tcad-charon
+
+checksums           charon-distrib-v2_2.tar.gz \
+                        rmd160  39cf9db915a65ca087efd48a6d125cb0655f08f3 \
+                        sha256  2743f39fb14166091f1e38581f9d85379a7db178b4b2d4ce5c8411fdec727073 \
+                        size    160054032 \
+                    trilinos-release-13-4-0.tar.gz \
+                        rmd160  c7426d19dc40bf1204aed6bde27ae43bcfd081dd \
+                        sha256  39550006e059043b7e2177f10467ae2f77fe639901aee91cbc1e359516ff8d3e \
+                        size    168733479
+
+# Same toolchain as trilinos-charon: openmpi-gcc13 (gcc13) + the EDA TPLs.
+# NOTE: charon builds its own Trilinos from source, so it does NOT depend on the
+# trilinos-charon port.
+depends_lib-append  port:openmpi-gcc13 \
+                    port:gcc13 \
+                    port:OpenBLAS \
+                    port:SuiteSparse \
+                    port:netcdf \
+                    port:hdf5 \
+                    port:boost
+
+# Drop the Trilinos source where Charon's TriBITS extra-repo expects it.
+post-extract {
+    move ${workpath}/Trilinos-trilinos-release-13-4-0 ${worksrcpath}/Trilinos
+}
+
+set mpicc           ${prefix}/bin/mpicc-openmpi-gcc13
+set mpicxx          ${prefix}/bin/mpicxx-openmpi-gcc13
+set mpifort         ${prefix}/bin/mpif90-openmpi-gcc13
+set charon_prefix   ${prefix}/libexec/charon
+
+# Use gcc's native libstdc++ (gcc13's bundled libc++ clashes with its own
+# __is_convertible builtin) and the full version-skew flag set proven to let
+# Trilinos 13.4 / Charon v2.2 build on gcc13 + the 2024 system libraries.
+configure.cxx_stdlib    libstdc++
+configure.cxxflags-append \
+    -fpermissive -include cstdint \
+    -DNETCDF_ENABLE_LEGACY_MACROS -DBOOST_STACKTRACE_GNU_SOURCE_NOT_REQUIRED \
+    -I${prefix}/include/openmpi-gcc13
+configure.cflags-append \
+    -DNETCDF_ENABLE_LEGACY_MACROS -I${prefix}/include/openmpi-gcc13
+
+# Charon's CMakeLists needs TRIBITS_BASE_DIR pointing at the Trilinos source's
+# cmake dir (it includes ${TRIBITS_BASE_DIR}/tribits/TriBITS.cmake).
+configure.env-append    TRIBITS_BASE_DIR=${worksrcpath}/Trilinos/cmake
+
+configure.args-append \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=${charon_prefix} \
+    -DCMAKE_C_COMPILER=${mpicc} \
+    -DCMAKE_CXX_COMPILER=${mpicxx} \
+    -DCMAKE_Fortran_COMPILER=${mpifort} \
+    -DCMAKE_INSTALL_NAME_DIR=${charon_prefix}/lib \
+    -DCMAKE_INSTALL_RPATH=${charon_prefix}/lib \
+    -DCMAKE_CXX_STANDARD=17 \
+    -DBUILD_SHARED_LIBS=ON \
+    -DTPL_ENABLE_MPI=ON \
+    -DTPL_ENABLE_BLAS=ON \
+    -DTPL_ENABLE_LAPACK=ON \
+    -DTPL_ENABLE_Boost=ON \
+    -DTPL_ENABLE_Netcdf=ON \
+    -DTPL_Netcdf_INCLUDE_DIRS=${prefix}/include \
+    -DTPL_Netcdf_LIBRARIES=${prefix}/lib/libnetcdf.dylib \
+    -DTPL_ENABLE_HDF5=ON \
+    -DHDF5_ALLOW_PREFIND=FALSE \
+    -DHDF5_INCLUDE_DIRS=${prefix}/include \
+    -DHDF5_LIBRARY_DIRS=${prefix}/lib \
+    -DEpetraExt_ENABLE_HDF5=OFF \
+    -DBoostLib_INCLUDE_DIRS=${prefix}/include \
+    -DBoostLib_LIBRARY_DIRS=${workpath}/boost-compat \
+    -Dtcad-charon_ENABLE_Percept=OFF \
+    -DPanzerAdaptersSTK_ENABLE_Percept=OFF \
+    -Dtcad-charon_ENABLE_Charon=ON \
+    -Dtcad-charon_ENABLE_TESTS=OFF \
+    -Dtcad-charon_ENABLE_EXAMPLES=OFF
+
+# Charon ships its package/Trilinos enables in scripts/build/all/General.opts
+# (and Linux.opts). Use them as the source of truth rather than duplicating the
+# ~40 ENABLE_* lines here.
+pre-configure {
+    # Charon's General.opts enables TPL BoostLib, whose FindTPL looks for
+    # libboost_program_options / libboost_system. MacPorts only ships the
+    # -mt-suffixed boost libs, so make a build-local dir of non-mt symlinks and
+    # point BoostLib_LIBRARY_DIRS at it (no system changes, no semicolon list).
+    file mkdir ${workpath}/boost-compat
+    foreach lib [glob -nocomplain ${prefix}/lib/libboost_*-mt.dylib] {
+        set link ${workpath}/boost-compat/[string map {-mt {}} [file tail ${lib}]]
+        if {![file exists ${link}]} { ln -s ${lib} ${link} }
+    }
+
+    foreach optfile {General.opts Linux.opts} {
+        set path ${worksrcpath}/scripts/build/all/${optfile}
+        if {![file exists ${path}]} { continue }
+        set fp [open ${path} r]
+        foreach line [split [read ${fp}] "\n"] {
+            set line [string trim ${line}]
+            if {${line} eq "" || [string match "#*" ${line}]} { continue }
+            configure.args-append -D${line}
+        }
+        close ${fp}
+    }
+
+    # General.opts forces TPL_ENABLE_HDF5=OFF (assuming classic netCDF), but
+    # MacPorts netCDF is netCDF-4 (built on HDF5), so Exodus references HDF5
+    # symbols (e.g. H5get_libversion) and fails to link without libhdf5.
+    # Re-enable HDF5 here (AFTER General.opts so this wins), serial, with the
+    # parallel-check bypass. EpetraExt's HDF5 stays off (set above + in opts).
+    configure.args-append \
+        -DTPL_ENABLE_HDF5=ON \
+        -DHDF5_ALLOW_PREFIND=FALSE \
+        -DHDF5_INCLUDE_DIRS=${prefix}/include \
+        -DHDF5_LIBRARY_DIRS=${prefix}/lib \
+        -DEpetraExt_ENABLE_HDF5=OFF
+}
+
+# Expose the Charon solver (charon_mp.exe, the MPI build) in ${prefix}/bin as
+# `charon`. Done at activate time rather than in destroot so it can be applied
+# to an already-built install with `sudo port -f activate charon` (no rebuild).
+# Not registry-tracked, so pre-deactivate removes it to keep things clean.
+post-activate {
+    if {![file exists ${prefix}/bin/charon] && \
+         [file exists ${charon_prefix}/bin/charon_mp.exe]} {
+        ln -s ${charon_prefix}/bin/charon_mp.exe ${prefix}/bin/charon
+    }
+}
+pre-deactivate {
+    catch {file delete -- ${prefix}/bin/charon}
+}
+
+# =====================================================================
+# Configure is verified to succeed (vanilla Trilinos 13.4 + Charon v2.2 +
+# these flags, Percept disabled). The full build is a combined Trilinos(Panzer)
+# + Charon compile - multi-hour.
+#
+# BUILD REQUIREMENT: the serial trilinos16 port installs a stub
+# ${prefix}/include/mpi.h that shadows openmpi's real header for some packages
+# (STK/SEACAS). As with trilinos-charon, deactivate trilinos16 for the build:
+#     sudo port -f deactivate trilinos16
+#     sudo port install charon
+#     sudo port activate trilinos16
+# (rev-upgrade auto-reactivates trilinos16 afterward anyway.)
+# =====================================================================
+
+livecheck.type      none

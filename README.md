@@ -1,6 +1,9 @@
 # macportseda
 
-A local [MacPorts](https://www.macports.org/) port tree for EDA tools.
+A local [MacPorts](https://www.macports.org/) port tree for EDA tools.  
+This work is motivated by the fact that needs that generally don't overlap with most communities.  
+I always felt bad contributing to macports because I'm not a very good software engineering, and the lack of experience made me a bad collaborator.
+
 
 ## Layout
 
@@ -13,8 +16,16 @@ macportseda/
     │   └── Portfile
     ├── netgen-lvs/
     │   └── Portfile
-    └── klayout/
-        └── Portfile
+    ├── klayout/
+    │   └── Portfile
+    └── (see science/ for trilinos16, xyce, charon)
+science/
+├── trilinos16/
+│   └── Portfile
+├── xyce/
+│   └── Portfile
+└── charon/
+    └── Portfile        # WIP scaffold — not buildable yet
 python/
 ├── py-pcpp/
 │   └── Portfile

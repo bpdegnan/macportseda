@@ -5,7 +5,7 @@ PortGroup           python 1.0
 
 name                py-volare
 version             0.20.6
-revision            0
+revision            1
 
 categories-append   cad
 license             Apache-2

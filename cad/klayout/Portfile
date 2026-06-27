@@ -5,6 +5,7 @@ PortGroup           github 1.0
 PortGroup           qt6 1.0
 
 github.setup        KLayout klayout 0.30.9 v
+revision            1
 name                klayout
 
 # Fetch the git archive via its fully-qualified refs/tags URL (the github

@@ -7,6 +7,7 @@ PortGroup           github 1.0
 # Packaged as "netgen-lvs" because MacPorts already ships an unrelated
 # math/netgen (the Schoeberl FEM mesh generator).
 github.setup        RTimothyEdwards netgen 1.5.321
+revision            1
 name                netgen-lvs
 
 # Fetch the git archive tarball via its fully-qualified refs/tags URL. (The

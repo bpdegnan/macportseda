@@ -10,6 +10,7 @@ PortGroup           cmake 1.1
 # bump the commit and the version together, then run `port -v checksum`.
 github.setup        parallaxsw OpenSTA bfdd2be0ee6214115b20cacdc0a071ca3c737fbb
 version             3.1.0
+revision            1
 
 categories          cad
 license             GPL-3

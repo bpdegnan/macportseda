@@ -1,0 +1,195 @@
+# -*- coding: utf-8; mode: tcl; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- vim:fenc=utf-8:ft=tcl:et:sw=4:ts=4:sts=4
+
+PortSystem          1.0
+PortGroup           cmake 1.1
+PortGroup           github 1.0
+
+name                trilinos-charon
+version             13.4.0
+revision            0
+categories          science
+license             BSD
+maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+
+description         Trilinos built with the MPI + Panzer stack for Charon
+long_description    A build of Trilinos configured with MPI and the Panzer \
+                    finite-element stack (Tpetra, Panzer, Phalanx, Intrepid2, \
+                    STK, SEACAS, Zoltan2, MueLu, Tempus, ...) required by the \
+                    Sandia Charon TCAD device simulator. It is distinct from \
+                    the serial, Xyce-subset trilinos16 port and installs into \
+                    its own private prefix so the two can coexist.
+
+# trilinos-release-13-4-0 (published 2022-06-10) is contemporaneous with the
+# Charon v2.2 distribution (2022-06); it is the best version match. Charon's
+# internal Trilinos pin is not public, so this may need adjustment.
+github.setup        trilinos Trilinos trilinos-release-13-4-0
+github.tarball_from archive
+
+checksums           rmd160  c7426d19dc40bf1204aed6bde27ae43bcfd081dd \
+                    sha256  39550006e059043b7e2177f10467ae2f77fe639901aee91cbc1e359516ff8d3e \
+                    size    168733479
+
+# openmpi-gcc13 wraps the same gcc13 toolchain trilinos16 uses; it pulls gcc13.
+depends_lib-append  port:openmpi-gcc13 \
+                    port:gcc13 \
+                    port:OpenBLAS \
+                    port:SuiteSparse \
+                    port:netcdf \
+                    port:hdf5 \
+                    port:boost
+
+# MacPorts gcc13 is configured --with-darwin-extra-rpath=/opt/local/lib/libgcc,
+# so the driver injects -rpath /opt/local/lib/libgcc on every link. Under the
+# new Xcode linker that trips a "duplicate LC_RPATH" error and fails the build
+# (including CMake's compiler check). Downgrade it so linking proceeds.
+configure.ldflags-append -Wl,-no_warn_duplicate_libraries
+
+# Use gcc's native libstdc++, not the libc++ MacPorts defaults to on macOS:
+# gcc13's bundled libc++ headers (is_convertible.h) clash with gcc 13.4's
+# built-in __is_convertible, breaking all C++ compilation. libstdc++ is also
+# the normal stdlib for a gcc Trilinos build. We link only C libraries
+# (netcdf/hdf5/BLAS/MPI-C) plus header-only Boost, so there's no C++ ABI clash.
+configure.cxx_stdlib    libstdc++
+
+# Trilinos 13.4 (2022) predates GCC 13's stricter libstdc++ header hygiene and
+# is missing explicit includes (e.g. <cstdint> for std::uint32_t in Teuchos).
+# Force-include the common ones for the whole build instead of patching files.
+configure.cxxflags-append -include cstdint
+
+# Trilinos 13.4's bundled SEACAS uses netCDF's legacy `_FillValue` identifier,
+# which netCDF 4.9+ gated behind NETCDF_ENABLE_LEGACY_MACROS (off by default).
+# Re-enable the legacy netCDF macros for the C and C++ compiles.
+configure.cflags-append   -DNETCDF_ENABLE_LEGACY_MACROS
+configure.cxxflags-append -DNETCDF_ENABLE_LEGACY_MACROS
+
+# Boost.Stacktrace (pulled in by Teuchos) errors unless told _Unwind_Backtrace
+# is usable without _GNU_SOURCE. On macOS it is, so use Boost's own opt-out.
+configure.cxxflags-append -DBOOST_STACKTRACE_GNU_SOURCE_NOT_REQUIRED
+
+# Trilinos 13.4 has const-correctness constructs (e.g. const void* -> void* in
+# STK's MPI neighbor-collective calls) that GCC 13 rejects but flags as
+# [-fpermissive]. Downgrade that whole class to warnings so the old release
+# compiles with the newer compiler.
+configure.cxxflags-append -fpermissive
+
+# The serial trilinos16 port installs a stub /opt/local/include/mpi.h. The TPL
+# includes (-I/opt/local/include for Boost/Netcdf/HDF5) make that stub shadow
+# openmpi-gcc13's real mpi.h, so MPI symbols (MPI_UNSIGNED_LONG_LONG, etc.) go
+# missing in SEACAS/STK. Flag-based -I lands after cmake's include_directories
+# (where the TPL /opt/local/include sits), so it can't win for every package;
+# telling TriBITS the MPI TPL include dir puts openmpi's headers into
+# include_directories ahead of the Boost/Netcdf TPL. Keep the flag -I too (it
+# fixes packages whose include_directories lack an early /opt/local/include).
+configure.cflags-append   -I${prefix}/include/openmpi-gcc13
+configure.cxxflags-append -I${prefix}/include/openmpi-gcc13
+
+# Install into a private prefix so this does NOT collide with the trilinos16
+# port (both install lib/cmake/Trilinos and identically-named libraries). The
+# charon port points Trilinos_DIR at ${tri_prefix}/lib/cmake/Trilinos.
+set tri_prefix      ${prefix}/libexec/trilinos-charon
+
+# MPI compiler wrappers from the openmpi-gcc13 subport.
+set mpicc           ${prefix}/bin/mpicc-openmpi-gcc13
+set mpicxx          ${prefix}/bin/mpicxx-openmpi-gcc13
+set mpifort         ${prefix}/bin/mpif90-openmpi-gcc13
+
+configure.args-append \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=${tri_prefix} \
+    -DCMAKE_C_COMPILER=${mpicc} \
+    -DCMAKE_CXX_COMPILER=${mpicxx} \
+    -DCMAKE_Fortran_COMPILER=${mpifort} \
+    -DCMAKE_INSTALL_NAME_DIR=${tri_prefix}/lib \
+    -DCMAKE_INSTALL_RPATH=${tri_prefix}/lib \
+    -DCMAKE_CXX_STANDARD=17 \
+    -DBUILD_SHARED_LIBS=ON \
+    -DTPL_ENABLE_MPI=ON \
+    -DCMAKE_PROJECT_TOP_LEVEL_INCLUDES=${filespath}/openmpi-first.cmake \
+    -DTrilinos_ENABLE_ALL_PACKAGES=OFF \
+    -DTrilinos_ENABLE_ALL_OPTIONAL_PACKAGES=OFF \
+    -DTrilinos_ALLOW_DEPRECATED_PACKAGES=ON \
+    -DTrilinos_ENABLE_EXPLICIT_INSTANTIATION=ON \
+    -DTrilinos_ENABLE_COMPLEX_DOUBLE=ON \
+    -DTrilinos_INSTALL_CMAKE_DIR=lib/cmake/Trilinos \
+    -DTrilinos_ENABLE_TEUCHOS_TIME_MONITOR=ON \
+    -DTrilinos_ENABLE_TESTS=OFF \
+    -DTrilinos_ENABLE_EXAMPLES=OFF \
+    -DEpetraExt_ENABLE_HDF5=OFF \
+    -DTrilinos_ENABLE_Panzer=ON \
+    -DTrilinos_ENABLE_PanzerAdaptersSTK=ON \
+    -DTrilinos_ENABLE_Phalanx=ON \
+    -DTrilinos_ENABLE_Intrepid2=ON \
+    -DTrilinos_ENABLE_Sacado=ON \
+    -DTrilinos_ENABLE_Tpetra=ON \
+    -DTrilinos_ENABLE_Epetra=ON \
+    -DTrilinos_ENABLE_EpetraExt=ON \
+    -DTrilinos_ENABLE_Xpetra=ON \
+    -DTrilinos_ENABLE_Thyra=ON \
+    -DTrilinos_ENABLE_Belos=ON \
+    -DTrilinos_ENABLE_Ifpack=ON \
+    -DTrilinos_ENABLE_Ifpack2=ON \
+    -DTrilinos_ENABLE_Amesos=ON \
+    -DTrilinos_ENABLE_Amesos2=ON \
+    -DTrilinos_ENABLE_AztecOO=ON \
+    -DTrilinos_ENABLE_Zoltan=ON \
+    -DTrilinos_ENABLE_Zoltan2=ON \
+    -DTrilinos_ENABLE_Stratimikos=ON \
+    -DTrilinos_ENABLE_MueLu=ON \
+    -DTrilinos_ENABLE_Tempus=ON \
+    -DTrilinos_ENABLE_NOX=ON \
+    -DNOX_ENABLE_LOCA=ON \
+    -DTrilinos_ENABLE_SEACASExodus=ON \
+    -DTrilinos_ENABLE_STK=ON \
+    -DTrilinos_ENABLE_STKTools=OFF \
+    -DTrilinos_ENABLE_STKBalance=OFF \
+    -DTrilinos_ENABLE_STKSearch=OFF \
+    -DTrilinos_ENABLE_STKSearchUtil=OFF \
+    -DTrilinos_ENABLE_STKUnit_tests=OFF \
+    -DTrilinos_ENABLE_STKUnit_test_utils=OFF \
+    -DTrilinos_ENABLE_STKDoc_tests=OFF \
+    -DTrilinos_ENABLE_STKExprEval=OFF \
+    -DTrilinos_ENABLE_TrilinosCouplings=ON \
+    -DTrilinos_ENABLE_Isorropia=ON \
+    -DTPL_ENABLE_BLAS=ON \
+    -DTPL_ENABLE_LAPACK=ON \
+    -DTPL_ENABLE_Boost=ON \
+    -DTPL_ENABLE_Netcdf=ON \
+    -DTPL_Netcdf_INCLUDE_DIRS=${prefix}/include \
+    -DTPL_Netcdf_LIBRARIES=${prefix}/lib/libnetcdf.dylib \
+    -DTPL_ENABLE_HDF5=ON \
+    -DHDF5_ALLOW_PREFIND=FALSE \
+    -DHDF5_INCLUDE_DIRS=${prefix}/include \
+    -DHDF5_LIBRARY_DIRS=${prefix}/lib \
+    -DTPL_ENABLE_SuiteSparse=ON
+
+# =====================================================================
+# WORK IN PROGRESS - first cut, NOT yet build-verified.
+#
+# HDF5 is used SERIAL on purpose: the system hdf5/netcdf are serial and feed
+# the working trilinos16/xyce (Xyce) stack, which we don't want to perturb.
+# MPI-Trilinos's find_package(HDF5) hard-errors on a non-parallel HDF5, so
+# HDF5_ALLOW_PREFIND=FALSE skips that path and uses the generic TriBITS finder
+# (no parallel check). Trade-off: no parallel HDF5 file I/O (parallel compute is
+# unaffected). To go fully parallel later, build hdf5/netcdf +openmpi +gcc13 and
+# drop the three HDF5_* lines above.
+#
+# Open items / likely iteration points:
+#  * Trilinos version: 13.4.0 is matched by date to Charon v2.2 (2022-06);
+#    Charon's exact internal pin is unknown. If Charon fails to compile against
+#    it, candidates are 13.4.1 or 14.0.0 (both build more cleanly on modern
+#    clang but drift further from Charon v2.2's API).
+#  * MPI compiler wrapper names (mpicc/mpicxx/mpif90-openmpi-gcc13) should be
+#    confirmed against the installed openmpi-gcc13 layout; `port select` may be
+#    needed, or the exact suffixes differ.
+#  * Panzer pulls a large required-dependency closure via TriBITS; some
+#    package/TPL enables above may be redundant or still missing (Pamgen,
+#    KokkosKernels, ThyraTpetraAdapters, ...) - resolve from configure output.
+#  * Building a 2022-era Trilinos + Panzer with MPI on macOS Ventura/clang is
+#    the hard part and will need several configure/build iterations.
+#  * For Charon itself: it also needs TRIBITS_BASE_DIR pointing at a Trilinos
+#    *source* tribits/ dir. A standalone Trilinos install does not ship tribits,
+#    so the charon port will likely also need the Trilinos source available
+#    (or this port can be taught to install cmake/tribits).
+# =====================================================================
+
+livecheck.type      none

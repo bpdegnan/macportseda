@@ -4,6 +4,7 @@ PortSystem          1.0
 PortGroup           github 1.0
 
 github.setup        cuddorg cudd 3.0.0
+revision            1
 
 # cuddorg/cudd carries two tags that collide on the short ref (3.0.0 and
 # cudd-3.0.0), so GitHub's short archive URL (archive/3.0.0.tar.gz) returns an
