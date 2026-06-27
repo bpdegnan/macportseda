@@ -18,14 +18,29 @@ macportseda/
     │   └── Portfile
     ├── klayout/
     │   └── Portfile
-    └── (see science/ for trilinos16, xyce, charon)
+    ├── gtkwave/        # vendored stock snapshot
+    │   └── Portfile
+    ├── openvaf/        # Verilog-A -> OSDI compiler (Reloaded fork)
+    │   └── Portfile
+    └── (see science/ and x11/ for the rest)
+x11/
+└── xcircuit/          # vendored stock snapshot
+    └── Portfile
 science/
-├── trilinos16/
+├── xschem/
+│   └── Portfile
+├── iverilog/          # vendored stock snapshot
+│   └── Portfile
+├── magic/             # vendored stock snapshot
+│   └── Portfile
+├── trilinos16/         # serial Trilinos subset for Xyce
 │   └── Portfile
 ├── xyce/
 │   └── Portfile
+├── trilinos-charon/    # MPI + Panzer Trilinos (private prefix)
+│   └── Portfile
 └── charon/
-    └── Portfile        # WIP scaffold — not buildable yet
+    └── Portfile        # Sandia TCAD device simulator
 python/
 ├── py-pcpp/
 │   └── Portfile
@@ -132,3 +147,93 @@ Ports live under a category directory (`cad`) as MacPorts expects.
   subport also symlinks an unsuffixed `volare` into `${prefix}/bin`.
 - Largely redundant if you already have your PDKs installed; useful for pinning
   PDK versions or fetching new builds.
+
+## openvaf notes (Verilog-A compiler)
+
+- **OpenVAF-Reloaded** — the community fork of OpenVAF (the original by Pascal
+  Kuthe has been unmaintained since end of 2023). Compiles Verilog-A compact
+  device models to OSDI shared libraries for ngspice / Xyce. Rust + LLVM.
+- Built with the `cargo` PortGroup. The full crates.io dependency set (147
+  crates) is pinned inline from upstream's `Cargo.lock`; one extra dependency
+  (`salsa`) is an unpublished git fork, pulled via `cargo.crates_github`.
+- **LLVM:** the fork supports LLVM 18-21 selected by a cargo feature. The
+  Portfile uses MacPorts `llvm-18` and points `llvm-sys` at its private prefix
+  (`LLVM_SYS_181_PREFIX=${prefix}/libexec/llvm-18`). To switch versions, change
+  the `--features llvmNN` build arg and the `LLVM_SYS_NN1_PREFIX` env together.
+- Builds only the CLI driver; the installed binary is **`openvaf-r`** (upstream's
+  name for the driver). `external/vacask` is a test-only git submodule and is
+  not needed to build the compiler.
+- **First stab, not yet build-verified.** Most likely iteration point is the
+  llvm-sys / llvm-18 link step (static vs. dynamic LLVM libs); see the comment
+  block at the bottom of the Portfile.
+
+## vendored stock ports (gtkwave, xcircuit, iverilog, magic)
+
+- These four are **verbatim snapshots of the stock MacPorts ports** (Portfile +
+  any `files/` patches), copied in so this tree is a self-contained EDA catalog.
+  They are not modified; they simply shadow the stock ports because the local
+  `file://` source sits above the rsync line in `sources.conf`.
+- This is a deliberate **snapshot/pin**, not a fork to maintain. Since I'm the
+  sole user, I'd rather freeze a known-good revision than chase upstream — these
+  intentionally won't pick up MacPorts version bumps until re-copied.
+- To refresh one to the current upstream revision, re-copy it, e.g.:
+  ```
+  cp -R /opt/local/var/macports/sources/rsync.macports.org/macports/release/tarballs/ports/science/magic/. \
+        science/magic/ && portindex
+  ```
+- `gtkwave` has historically been finicky to build here, which is exactly why
+  pinning a working revision in-tree is worthwhile.
+- `ngspice` is deliberately **left on stock MacPorts** (not vendored).
+
+## xschem notes
+
+- Schematic capture (3.4.6). Builds against the X11 Tk (`tk +x11`).
+- **X server required.** macOS ships none, and the MacPorts `xorg-server` is
+  deprecated/broken on Ventura and later — with it installed, xschem fails with
+  "can't open display". Fix: `sudo port -f uninstall xorg-server
+  xorg-server-devel`, install the official **XQuartz** from
+  <https://www.xquartz.org>, then log out/in so `$DISPLAY` registers. The port's
+  `notes` (shown on install, or via `port notes xschem`) spells this out.
+- The same X server requirement applies to the other X11 GUIs here
+  (`magic`, `netgen-lvs`, the `klayout` GUI).
+
+## trilinos16 / xyce notes
+
+- Migrated from a separate local tree. `trilinos16` is the *serial* Trilinos
+  subset Xyce needs (Epetra/Teuchos/AztecOO/...); `xyce` (7.9) links it.
+- Both build C/C++ with Apple clang and Fortran with gcc13; they install into
+  `${prefix}` normally. Xyce upstream only rigorously tests Trilinos 14.4, so
+  these versions are pinned deliberately — bumping Trilinos is risky.
+
+## trilinos-charon notes
+
+- A *second*, independent Trilinos build configured with **MPI + the full Panzer
+  stack** (Tpetra, Panzer, Phalanx, Intrepid2, STK, SEACAS, MueLu, ...), needed
+  by Charon. Built with `openmpi-gcc13` and gcc's native `libstdc++`.
+- Installs into a **private prefix** `${prefix}/libexec/trilinos-charon` so it
+  coexists with the serial `trilinos16` (no shared `lib/cmake/Trilinos` or
+  library-name collisions).
+- Build requires the full gcc13/2024-toolchain fix set (see the Portfile):
+  `libstdc++`, `-Wl,-no_warn_duplicate_libraries`, `-include cstdint`,
+  `-DNETCDF_ENABLE_LEGACY_MACROS`, `-DBOOST_STACKTRACE_GNU_SOURCE_NOT_REQUIRED`,
+  `-fpermissive`, serial-HDF5 bypass, and STK subpackage trims.
+
+## charon notes (Sandia TCAD)
+
+- Charon v2.2 is a TriBITS *project* that builds Trilinos (as an extra
+  repository) **from source alongside itself** — it does not link an installed
+  Trilinos. The Portfile fetches two distfiles (Charon + vanilla Trilinos 13.4)
+  and drops the Trilinos source at `tcad-charon/Trilinos` where Charon expects
+  it. Installs to the private prefix `${prefix}/libexec/charon`.
+- Charon-specific build notes: BoostLib needs non-`-mt` symlinks (MacPorts boost
+  is `-mt`-suffixed); `CMAKE_BUILD_TYPE=Release` (TriBITS rejects the portgroup's
+  `MacPorts` type); HDF5 re-enabled after `General.opts` (MacPorts netCDF is
+  netCDF-4, so Exodus needs `libhdf5`); Percept disabled (broken vanilla
+  `CMakeLists`).
+- The solver binary is `charon_mp.exe`; a `post-activate` hook symlinks it to
+  `${prefix}/bin/charon` (with a `pre-deactivate` cleanup).
+- **Build-time caveat:** `trilinos16`'s serial stub `${prefix}/include/mpi.h`
+  shadows openmpi's real header during the compile, so `trilinos16` must be
+  deactivated for the build: `sudo port -f deactivate trilinos16` before, and
+  `sudo port activate trilinos16` after (rev-upgrade reactivates it anyway).
+  The same applies to building `trilinos-charon`.
