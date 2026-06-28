@@ -150,22 +150,28 @@ Ports live under a category directory (`cad`) as MacPorts expects.
 
 ## openvaf notes (Verilog-A compiler)
 
-- **OpenVAF-Reloaded** — the community fork of OpenVAF (the original by Pascal
-  Kuthe has been unmaintained since end of 2023). Compiles Verilog-A compact
-  device models to OSDI shared libraries for ngspice / Xyce. Rust + LLVM.
+- **OpenVAF-Reloaded** — the maintained community continuation of OpenVAF (the
+  original by Pascal Kuthe has been unmaintained since end of 2023). Compiles
+  Verilog-A compact device models to OSDI shared libraries for ngspice / Xyce.
+  Rust + LLVM.
+- **Status: working.** `openvaf-r model.va` compiles a Verilog-A model to a
+  `model.osdi` Mach-O shared library (verified on a resistor and a diode model).
 - Built with the `cargo` PortGroup. The full crates.io dependency set (147
   crates) is pinned inline from upstream's `Cargo.lock`; one extra dependency
-  (`salsa`) is an unpublished git fork, pulled via `cargo.crates_github`.
+  (`salsa`) is an unpublished git fork (`pascalkuthe/salsa`), pulled via
+  `cargo.crates_github` (a `post-extract` exposes its `salsa-macros` member as
+  its own directory-source entry and drops the PortGroup's stray `branch` line).
+- **Pinned to a mob-branch commit, not the tag.** The only tag (`v24.0.0mob`)
+  has 2022-era codegen that **segfaults** emitting OSDI metadata on LLVM 18;
+  mob HEAD fixed it, so the Portfile pins commit `dafc73c` (2026-06-24).
 - **LLVM:** the fork supports LLVM 18-21 selected by a cargo feature. The
-  Portfile uses MacPorts `llvm-18` and points `llvm-sys` at its private prefix
-  (`LLVM_SYS_181_PREFIX=${prefix}/libexec/llvm-18`). To switch versions, change
-  the `--features llvmNN` build arg and the `LLVM_SYS_NN1_PREFIX` env together.
+  Portfile uses MacPorts `llvm-18` (`--features llvm18`,
+  `LLVM_SYS_181_PREFIX=${prefix}/libexec/llvm-18`) and forces **static** LLVM
+  linking (flips llvm-sys `prefer-dynamic`→`force-static`), so `openvaf-r` is
+  self-contained. To switch LLVM major, change `--features llvmNN` and
+  `LLVM_SYS_NN1_PREFIX` together.
 - Builds only the CLI driver; the installed binary is **`openvaf-r`** (upstream's
-  name for the driver). `external/vacask` is a test-only git submodule and is
-  not needed to build the compiler.
-- **First stab, not yet build-verified.** Most likely iteration point is the
-  llvm-sys / llvm-18 link step (static vs. dynamic LLVM libs); see the comment
-  block at the bottom of the Portfile.
+  name). `external/vacask` is a test-only git submodule, not needed to build.
 
 ## vendored stock ports (gtkwave, xcircuit, iverilog, magic)
 
