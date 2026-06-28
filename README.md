@@ -142,8 +142,8 @@ Ports live under a category directory (`cad`) as MacPorts expects.
 - `py-volare` is a Python package; it pulls in two helper ports that were also
   missing from MacPorts: `py-pcpp` (pure Python) and `py-zstandard` (builds a C
   extension against its own bundled zstd, no external dependency). All three
-  default to Python 3.12 to match the rest of the tree.
-- The `volare` executable is installed as `volare-3.12`; the default-version
+  build 311/312/313 subports and default to Python 3.13.
+- The `volare` executable is installed as `volare-3.13`; the default-version
   subport also symlinks an unsuffixed `volare` into `${prefix}/bin`.
 - Largely redundant if you already have your PDKs installed; useful for pinning
   PDK versions or fetching new builds.
