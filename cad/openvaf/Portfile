@@ -4,12 +4,20 @@ PortSystem          1.0
 PortGroup           github 1.0
 PortGroup           cargo 1.0
 
-# Upstream tags this single release "v24.0.0mob" ("mob" is the dev branch name
-# the fork ships from). github.setup's 4th arg is the tag prefix, so the git
-# tag becomes v24.0.0mob and the port version is 24.0.0mob.
-github.setup        OpenVAF OpenVAF-Reloaded 24.0.0mob v
+# OpenVAF-Reloaded ships from a single continuously-updated branch ("mob") with
+# only one tag (v24.0.0mob, 2022-era codegen that segfaults emitting OSDI
+# metadata on LLVM 18). We therefore pin a recent mob commit instead of the tag.
+github.setup        OpenVAF OpenVAF-Reloaded dafc73c9fa4e56ada3c9897abed848af40feb40c
+github.tarball_from archive
 name                openvaf
+version             24.0.0-mob20260624
 revision            0
+
+# github.setup left distname/worksrcdir keyed to the commit; make that explicit
+# so the checksum key and extracted dir line up regardless of the clean version.
+distname            OpenVAF-Reloaded-dafc73c9fa4e56ada3c9897abed848af40feb40c
+worksrcdir          ${distname}
+
 categories          cad science
 license             GPL-3
 maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
@@ -24,29 +32,29 @@ long_description    OpenVAF is a Verilog-A compiler that compiles compact \
 
 homepage            https://github.com/OpenVAF/OpenVAF-Reloaded
 
-github.tarball_from archive
-
-# Main source tarball (crate checksums are appended by the cargo PortGroup from
-# the cargo.crates list below). Keyed by distfile name because cargo.crates
-# turns this into a multi-distfile fetch.
 checksums           ${distname}${extract.suffix} \
-                        rmd160  7ff8ac134bb70a50bb126726c762bf6e141617c5 \
-                        sha256  3d459e04d5a31cd34433a88ecd2053fdbd94a0b0e34d857c0767452b009cbec1 \
-                        size    2190793
+                        rmd160  d6a21d1f895f181ace2bb09f40e0721d27cb50a9 \
+                        sha256  179ba198c0a1c124c5be47f33896d9028a37972677e23ea4223109b4e2acbf75 \
+                        size    2259906
 
 # --- LLVM backend -----------------------------------------------------------
-# OpenVAF-Reloaded links LLVM via the llvm-sys crate and supports LLVM 18-21,
-# selected by a cargo feature. We use MacPorts llvm-18 (matches llvm-sys 181)
-# and point llvm-sys at its private prefix; llvm-sys finds bin/llvm-config there.
+# mob HEAD selects the LLVM major via a cargo feature and supports 18-21. We use
+# MacPorts llvm-18 (llvm-sys 181) and point llvm-sys at its private prefix.
 depends_build-append    port:llvm-18
 depends_lib-append      port:llvm-18
 
 build.env-append        LLVM_SYS_181_PREFIX=${prefix}/libexec/llvm-18
 
-# Build only the CLI driver (binary "openvaf-r", package openvaf-driver) with
-# the matching LLVM feature. The rest of the workspace (verilogae, melange) is
-# not built. external/vacask is a test-only git submodule and is NOT required
-# to build the compiler (it is absent from the archive tarball).
+# The openvaf/target crate's build.rs invokes the bare `llvm-lib`. MacPorts
+# installs it as ${prefix}/libexec/llvm-18/bin/llvm-lib (only an -mp-18 copy is
+# in ${prefix}/bin), so prepend that dir to PATH for the build.
+build.env-append        PATH=${prefix}/libexec/llvm-18/bin:${prefix}/bin:${prefix}/sbin:/usr/bin:/bin:/usr/sbin:/sbin
+
+# Harmless if LLVM ends up statically linked (see force-static below); kept as a
+# safety net so a dynamic libLLVM (@rpath/libLLVM.dylib) would still resolve.
+rust.flags-append       -Clink-arg=-Wl,-rpath,${prefix}/libexec/llvm-18/lib
+
+# Build the CLI driver (binary "openvaf-r") with the LLVM 18 feature.
 build.args-append       --features llvm18 -p openvaf-driver
 
 cargo.crates \
@@ -198,31 +206,63 @@ cargo.crates \
     zerocopy 0.8.52 ce1022995ff5ff5d841ad7d994facc23098cd40152f2c1d11cd607c6f530653f \
     zerocopy-derive 0.8.52 1ae7f38b72ec2a254e2b87ef277cf2cd4fb97cbebf944faa6f33354da0867930
 
-# salsa: the fork depends on a patched, unpublished salsa (and salsa-macros)
-# from a git source rather than crates.io. One github entry covers both member
-# crates (cargo's source replacement redirects the whole git URL).
+set salsa_rev       73532d7d4d8b5b27f2c9f189a76e012d1fc4de09
+# salsa: a patched, unpublished salsa fork pulled from git rather than crates.io.
+# On the mob branch it lives under the pascalkuthe account (the tag used DSPOM2;
+# same commit, same archive hash). One github entry covers both member crates.
 cargo.crates_github \
     salsa pascalkuthe/salsa master \
-        73532d7d4d8b5b27f2c9f189a76e012d1fc4de09 \
+        ${salsa_rev} \
         840247281a08c4b132d794afaeabf71ae507c81ab1b20f2001d9cbffb983a0ee
 
+# Post-extract fixups (this block runs after the cargo PortGroup's post-extract,
+# which writes config.toml and the offline crate dirs):
+#  1. salsa is a multi-crate git workspace; Cargo.lock needs salsa AND
+#     salsa-macros (under components/) from the git source, but the PortGroup
+#     only extracts the repo root. A cargo directory source resolves each
+#     package by a top-level dir, so expose salsa-macros standalone (null
+#     checksum manifest); it has only crates.io deps so it stands alone.
+#  2. Drop the PortGroup's `branch = "master"` line: upstream patches salsa with
+#     a bare `git = '...'` (default-branch SourceId); the branch line mismatches
+#     so cargo would try to fetch under --frozen.
+#  3. Force STATIC LLVM linking: mir_llvm requests the llvm-sys "prefer-dynamic"
+#     feature; flip it to "force-static" (llvm-sys's own default) so the link
+#     uses MacPorts llvm-18's static component libs. Feature-only edit, so
+#     Cargo.lock stays valid under --frozen.
+post-extract {
+    set md          ${cargo.home}/macports
+    set salsadir    ${md}/salsa-${salsa_rev}
+    set macrosdir   ${md}/salsa-macros-${salsa_rev}
+    if {![file exists ${macrosdir}] && \
+         [file isdirectory ${salsadir}/components/salsa-macros]} {
+        copy ${salsadir}/components/salsa-macros ${macrosdir}
+        set fp [open ${macrosdir}/.cargo-checksum.json w]
+        puts $fp {{"package":null,"files":{}}}
+        close $fp
+    }
+    reinplace "/^branch = /d" ${cargo.home}/config.toml
+    reinplace {s/prefer-dynamic/force-static/g} \
+        ${worksrcpath}/openvaf/mir_llvm/Cargo.toml
+}
+
 destroot {
-    xinstall -m 0755 ${worksrcpath}/target/release/openvaf-r \
+    # cargo sets CARGO_BUILD_TARGET (=the arch triple), so binaries land in
+    # target/<triple>/release, not target/release.
+    xinstall -m 0755 \
+        ${worksrcpath}/target/[option triplet.${muniversal.build_arch}]/release/openvaf-r \
         ${destroot}${prefix}/bin/openvaf-r
 }
 
 # ============================================================================
-# FIRST-STAB Portfile - NOT yet build-verified.
-# Likely iteration points (in rough order of risk):
-#  * llvm-sys/llvm-18 linkage: llvm-sys runs ${prefix}/libexec/llvm-18/bin/
-#    llvm-config. If it cannot find static LLVM component libs (MacPorts may
-#    ship only libLLVM.dylib), the link may need llvm-sys's prefer-dynamic, a
-#    +static llvm-18, or RUSTFLAGS. Try llvm-19/20/21 (--features llvmNN +
-#    LLVM_SYS_NN1_PREFIX) if 18 misbehaves.
-#  * salsa git crate: the rev/branch/source-replacement may need adjusting for
-#    cargo --frozen to accept it.
-#  * Binary is installed as "openvaf-r" (upstream's name for the driver). Add a
-#    ${prefix}/bin/openvaf symlink in destroot if you prefer that name.
+# WORKING. Retargeted from the v24.0.0mob tag to mob HEAD (commit dafc73c,
+# 2026-06-24) because the tag's codegen segfaults emitting OSDI metadata on
+# LLVM 18; HEAD fixed it. Verified: `openvaf-r model.va` compiles a Verilog-A
+# model to a <model>.osdi Mach-O shared library (exit 0). LLVM is statically
+# linked (force-static), so the binary is self-contained. Binary is "openvaf-r".
+#
+# To bump: pick a newer mob commit, update github.setup + version + the
+# ${distname} checksum, regenerate cargo.crates from that commit's Cargo.lock
+# (e.g. `cargo2port` or parse the lock), and re-check the salsa git rev/account.
 # ============================================================================
 
 livecheck.type      none
