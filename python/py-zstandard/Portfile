@@ -5,7 +5,7 @@ PortGroup           python 1.0
 
 name                py-zstandard
 version             0.25.0
-revision            1
+revision            2
 
 categories-append   archivers
 license             BSD
@@ -25,10 +25,22 @@ checksums           rmd160  f193ddc52f3cb4f0e4b6359e8ca604be899a38c3 \
 
 # Not noarch: builds a C extension (zstd is compiled from the bundled sources).
 python.versions     311 312 313
-python.default_version 312
+python.default_version 313
 
 if {${name} ne ${subport}} {
-    depends_build-append    port:py${python.version}-setuptools
+    depends_build-append    port:py${python.version}-setuptools \
+                            port:py${python.version}-cffi \
+                            port:py${python.version}-packaging
+    depends_lib-append      port:py${python.version}-cffi
+
+    # zstandard 0.25.0 builds its bindings with cffi. Its [build-system]
+    # requires pins "cffi~=1.17" for Python < 3.14 (i.e. cffi < 2.0), but
+    # MacPorts only ships cffi 2.0. Upstream's setup.py merely needs cffi >=
+    # 1.17 and supports cffi 2.0 (it uses cffi>=2.0 for 3.14 with the same
+    # code), so relax that build pin to accept the 2.0 MacPorts provides.
+    post-extract {
+        reinplace "s|cffi~=1.17|cffi>=1.17|g" ${worksrcpath}/pyproject.toml
+    }
 
     livecheck.type          none
 }

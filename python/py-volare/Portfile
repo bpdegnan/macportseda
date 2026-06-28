@@ -26,7 +26,7 @@ checksums           rmd160  ac6da251ceb765764c1bb28b606400a3f897ea8b \
                     size    23468
 
 python.versions     311 312 313
-python.default_version 312
+python.default_version 313
 
 # Built with poetry-core (the portgroup pulls in the backend).
 python.pep517_backend   poetry
