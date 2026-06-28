@@ -1,0 +1,67 @@
+# -*- coding: utf-8; mode: tcl; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- vim:fenc=utf-8:ft=tcl:et:sw=4:ts=4:sts=4
+
+PortSystem          1.0
+
+name                skim-app
+version             1.7.15
+revision            0
+categories          aqua graphics
+platforms           macosx
+license             BSD
+maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+
+description         Skim PDF/PostScript reader and note-taker for macOS
+long_description    Skim is a PDF reader and note-taker for macOS, handy for \
+                    reading and annotating scientific papers and for viewing \
+                    PostScript/EPS documents. This port installs the official \
+                    prebuilt universal app. It is named skim-app to avoid the \
+                    unrelated MacPorts `skim` port (a Rust fuzzy finder).
+
+homepage            https://skim-app.sourceforge.io/
+
+# Official prebuilt universal (x86_64 + arm64) app, shipped as a .dmg.
+master_sites        sourceforge:project/skim-app/Skim/Skim-${version}
+distfiles           Skim-${version}.dmg
+checksums           rmd160  8d3b1c26d97d107db19460e38c2b2ec8c188dc04 \
+                    sha256  804b2785f7c22e79d75fe9bbd0b2b2663ec1d765eb103fb0cb75fc3864dbeb73 \
+                    size    10358831
+
+# Universal prebuilt binary; nothing is compiled, so treat as arch-neutral.
+supported_archs     noarch
+use_configure       no
+build {}
+
+# The distfile is a .dmg, not a tarball MacPorts can extract; mount it in
+# destroot instead.
+extract {}
+
+destroot {
+    set mnt ${workpath}/skim-mnt
+    file mkdir ${mnt}
+    # Mount, copy the app bundle out with ditto (preserves bundle metadata),
+    # then always detach. Run via `system` (the trace sandbox blocks raw Tcl
+    # exec of /usr/bin tools).
+    system "/usr/bin/hdiutil attach -nobrowse -readonly -mountpoint ${mnt} ${distpath}/Skim-${version}.dmg"
+    xinstall -d ${destroot}${applications_dir}
+    if {[catch {system "/usr/bin/ditto ${mnt}/Skim.app ${destroot}${applications_dir}/Skim.app"} err]} {
+        catch {system "/usr/bin/hdiutil detach -force ${mnt}"}
+        return -code error "failed to copy Skim.app: ${err}"
+    }
+    system "/usr/bin/hdiutil detach ${mnt}"
+}
+
+notes "
+Skim is installed as ${applications_dir}/Skim.app (open it from Finder,
+Spotlight, or 'open -a Skim').
+
+Reading EPS/PostScript: Skim renders PDF natively. Modern macOS (Ventura and
+later) removed the system PostScript-to-PDF importer, so Skim may not open .eps
+/ .ps directly. Convert them to PDF first, e.g. with Ghostscript:
+
+    sudo port install ghostscript
+    epstopdf figure.eps        # or: ps2pdf figure.ps figure.pdf
+
+then open the resulting PDF in Skim.
+"
+
+livecheck.type      none

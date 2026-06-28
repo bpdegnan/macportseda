@@ -1,8 +1,9 @@
 # macportseda
 
-A local [MacPorts](https://www.macports.org/) port tree for EDA tools.  
-This work is motivated by the fact that needs that generally don't overlap with most communities.  
-I always felt bad contributing to macports because I'm not a very good software engineering, and the lack of experience made me a bad collaborator.
+A local [MacPorts](https://www.macports.org/) port tree for EDA tools.  Tested on MacOS 10.13. (I tried the new MacOS and they used more power and did less)
+This work is motivated by the fact that my needs that generally don't overlap with most communities.  
+I always felt bad contributing to macports because I'm not a very good at software engineering, and the lack of experience made me a bad collaborator.  I'm still poor at GIT.
+
 
 
 ## Layout
@@ -39,14 +40,20 @@ science/
 │   └── Portfile
 ├── trilinos-charon/    # MPI + Panzer Trilinos (private prefix)
 │   └── Portfile
-└── charon/
-    └── Portfile        # Sandia TCAD device simulator
+├── charon/
+│   └── Portfile        # Sandia TCAD device simulator
+└── kicad/              # KiCad 10.0.4 + symbol/footprint/3D/template subports
+    ├── Portfile
+    └── files/
 python/
 ├── py-pcpp/
 │   └── Portfile
 ├── py-zstandard/
 │   └── Portfile
 └── py-volare/
+    └── Portfile
+aqua/
+└── skim-app/           # Skim PDF/PostScript/EPS reader (prebuilt .app)
     └── Portfile
 ```
 
@@ -75,14 +82,44 @@ Ports live under a category directory (`cad`) as MacPorts expects.
    portindex
    ```
 
-3. Install:
+3. Install. Each port is `sudo port install <name>`. Quick reference:
 
-   ```
-   sudo port install OpenSTA          # with CUDD (default)
-   sudo port install OpenSTA +basic   # without CUDD
-   ```
+   | Port | Command | Notes |
+   |------|---------|-------|
+   | OpenSTA | `sudo port install OpenSTA` | `+cudd` default; `+basic` for no CUDD; `+readline`. Pulls `cudd`. |
+   | klayout | `sudo port install klayout` | Qt6 GUI (native Cocoa, no XQuartz). Long build. |
+   | netgen-lvs | `sudo port install netgen-lvs` | LVS; *not* `netgen` (that's a FEM mesher). X11 GUI → XQuartz. |
+   | openvaf | `sudo port install openvaf` | Verilog-A→OSDI; binary is `openvaf-r`. |
+   | gtkwave / xcircuit / iverilog / magic | `sudo port install <name>` | Vendored stock snapshots. `magic`/`xcircuit` are X11 → XQuartz. |
+   | xschem | `sudo port install xschem` | Schematic capture. **X11 → needs XQuartz** (see notes). |
+   | xyce | `sudo port install xyce` | Parallel SPICE; pulls `trilinos16`. |
+   | py-volare | `sudo port install py-volare` | PDK manager; py313, installs `volare`. |
+   | skim-app | `sudo port install skim-app` | Skim PDF/EPS reader → `/Applications/MacPorts`. |
+   | kicad | see below ⚠️ | Full EDA suite + libraries. **Needs `boost` deactivated to build.** |
+   | trilinos-charon / charon | see below ⚠️ | TCAD; **need `trilinos16` deactivated to build.** |
 
    Installing `OpenSTA` pulls in the local `cudd` port automatically.
+
+   **Build-time deactivation gotchas** (MacPorts can't do these automatically —
+   the build *fails* without them):
+
+   - **kicad** conflicts with the umbrella `boost` port during the build:
+     ```
+     sudo port -f deactivate boost
+     sudo port install kicad            # long build; pulls symbols/footprints/3D/templates
+     sudo port activate boost
+     ```
+   - **charon** and **trilinos-charon** are shadowed by `trilinos16`'s stub
+     `mpi.h` during the build:
+     ```
+     sudo port -f deactivate trilinos16
+     sudo port install charon           # or trilinos-charon
+     sudo port activate trilinos16       # rev-upgrade usually re-activates it anyway
+     ```
+
+   GUI tools that use X11 (`xschem`, `magic`, `netgen-lvs`, `xcircuit`) need a
+   running X server — install **XQuartz** (see the xschem notes). `klayout`
+   (Qt6) and `skim-app` are native Cocoa and don't.
 
 ## OpenSTA notes
 
@@ -172,6 +209,43 @@ Ports live under a category directory (`cad`) as MacPorts expects.
   `LLVM_SYS_NN1_PREFIX` together.
 - Builds only the CLI driver; the installed binary is **`openvaf-r`** (upstream's
   name). `external/vacask` is a test-only git submodule, not needed to build.
+
+## skim-app notes (Skim PDF/EPS reader)
+
+- Skim, the macOS PDF/PostScript reader/annotator, for viewing EPS plots from
+  the EDA tools. Named **`skim-app`** to avoid the unrelated MacPorts `skim`
+  (a Rust fuzzy finder) — `port install skim-app`.
+- Installs the **official prebuilt universal app** (no source build): the port
+  fetches `Skim-<ver>.dmg`, and `destroot` mounts it with `hdiutil` (via
+  `system`) and `ditto`s `Skim.app` into `/Applications/MacPorts/`.
+- EPS: Skim registers `com.adobe.encapsulated-postscript` and opens EPS/PS via
+  macOS's built-in PostScript importer (present on Ventura). If an EPS won't
+  render on a newer macOS, convert first with ghostscript (`epstopdf`); see the
+  port's `notes`.
+
+## kicad notes (KiCad 10.0.4)
+
+- Adapted from the stock MacPorts `kicad` port (which is stuck at 7.0.11) to
+  **10.0.4**, Unix-style: real binaries in `/opt/local/bin` plus `.app`
+  launchers in `/Applications/MacPorts/KiCad/`. Builds, runs, rev-upgrade clean.
+- The fight to get it building on Ventura (all in the Portfile / `files/`):
+  - Re-ported the `KICAD_MACOSX_APP_BUNDLE=OFF` patch across 3 major versions
+    (pcbnew CMake restructure, `paths.cpp` guard split, `kicad-cli` install).
+  - New v10 deps: `zstd`, `libgit2`, `fontconfig`, `protobuf3-cpp`, `nng`,
+    `gnutar`. `conflicts_build boost` ⇒ deactivate `boost` for the build
+    (`sudo port -f deactivate boost`, reactivate after).
+  - **C++23 stdlib:** KiCad 10 uses `std::ranges::views::values` etc. that the
+    Ventura SDK libc++ (15) lacks, so it builds with **`macports-clang-19` + its
+    libc++ 19 headers** (system libc++ runtime).
+  - wxWidgets 3.3→3.2 API fallback, an mbedtls link fix for the static
+    `libnng.a`, GNU-tar for the bitmap archive, and a klayout-style
+    install-name rewrite (`files/fix-install-names.sh`) so the `.kiface`/3D
+    plugins resolve the kicad libs.
+- **Data libraries** (`kicad-symbols`/`-footprints`/`-packages3D`/`-templates`)
+  are subports installed from GitLab 10.0.4 archives. The `kicad-docs` subport
+  was **dropped**: CERN's prebuilt docs tarballs stop at 8.0.0-rc3, so there is
+  no `kicad-doc-10.0.4`; KiCad's Help menu uses the online docs instead.
+- See [[kicad-port-facts]] in memory for the full blow-by-blow.
 
 ## vendored stock ports (gtkwave, xcircuit, iverilog, magic)
 

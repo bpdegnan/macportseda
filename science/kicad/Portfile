@@ -1,0 +1,226 @@
+# -*- coding: utf-8; mode: tcl; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- vim:fenc=utf-8:ft=tcl:et:sw=4:ts=4:sts=4
+
+PortSystem          1.0
+PortGroup           cmake 1.1
+PortGroup           gitlab 1.0
+
+name                kicad
+version             10.0.4
+description         KiCad is an electronic design automation software suite
+long_description    KiCad is an EDA software suite for the creation of professional schematics \
+                    and printed circuit boards up to 32 copper layers with additional technical layers.
+categories          science
+license             GPL-3+
+maintainers         {ra1nb0w @ra1nb0w} openmaintainer
+homepage            https://www.kicad.org/
+
+set python_version  3.14
+set py_ver_no_dot   [join [split ${python_version} "."] ""]
+set python_framework_dir ${frameworks_dir}/Python.framework/Versions/${python_version}
+
+if {${name} eq ${subport}} {
+    PortGroup           boost 1.0
+    PortGroup           conflicts_build 1.0
+    PortGroup           legacysupport 1.1
+
+    gitlab.setup        kicad/code kicad ${version}
+    revision            3
+    checksums           rmd160  67fbb602abfe4ef1848eb6b42fd8c8516b31ecab \
+                        sha256  341c39320250182223378bb741df8b6043eb19772211c11f3f3ce1c50796334d \
+                        size    229832671
+
+    # 0001 ported to v10 (pcbnew/CMakeLists.txt restructured; KICAD_PATH_STR
+    # moved to include/paths.h; the osascript block in kicad_manager_control.cpp
+    # was removed upstream). The old macports_prefix.patch and opencascade-7.8
+    # patch are gone: the prefix paths are now set via reinplace below, and v10's
+    # FindOCC.cmake already handles OpenCASCADE >= 7.8 (we ship 7.9).
+    patchfiles-append \
+        0001-cmake-adding-KICAD_MACOSX_APP_BUNDLE-option.patch \
+        0002-disable-codesigning.patch
+
+    post-patch {
+        # Point the Unix ngspice loader and the executable search path at the
+        # MacPorts prefix (formerly done by macports_prefix.patch via @PREFIX@).
+        reinplace "s|/usr/local/lib|${prefix}/lib|g" \
+            ${worksrcpath}/eeschema/sim/ngspice.cpp
+        reinplace "s|/usr/local/kicad/bin/|${prefix}/bin/|g" \
+            ${worksrcpath}/common/gestfich.cpp
+
+        # KiCad assumes macOS always ships wxWidgets 3.3 (its official builds do)
+        # and so forces the 3.3-only SetStateImages() path via
+        # `wxCHECK_VERSION(3,3,0) || defined(__WXMAC__)`. MacPorts wxWidgets is
+        # 3.2, so drop the macOS override and let it fall back to the 3.2
+        # SetStateImageList() path purely by version.
+        reinplace \
+            "s@wxCHECK_VERSION( 3, 3, 0 ) || defined( __WXMAC__ )@wxCHECK_VERSION( 3, 3, 0 )@" \
+            ${worksrcpath}/kicad/project_tree.cpp
+    }
+
+    boost.version       1.81
+    conflicts_build     boost
+
+    # KiCad 10 requires C++20.
+    compiler.cxx_standard 2020
+
+    # Build against MacPorts' modern libc++ (the Ventura system libc++ lacks
+    # parts of C++20 that KiCad 10 uses).
+    legacysupport.newest_darwin_requires_legacy 19
+    legacysupport.use_mp_libcxx yes
+
+    # KiCad 10 uses C++23 stdlib features (std::ranges::views::values, ...) that
+    # the Ventura CLT libc++ (15.0.6) lacks. Build with MacPorts clang-19 and its
+    # libc++ 19 HEADERS (which have elements_view/views::values), but keep linking
+    # the system libc++ runtime: the features we need are header-only, so no new
+    # runtime symbols are required, and we avoid two libc++ runtimes in one
+    # process (an ABI/crash trap when linking deps built against system libc++).
+    configure.compiler        macports-clang-19
+    configure.cxxflags-append -nostdinc++ \
+                              -isystem ${prefix}/libexec/llvm-19/include/c++/v1
+
+    # MacPorts' static libnng.a is built with mbedTLS, so KiCad's links (which
+    # pull libnng.a by raw path, bypassing nng's interface deps) need the mbedtls
+    # libraries explicitly. They're shared libs, so link order doesn't matter.
+    configure.ldflags-append  -lmbedtls -lmbedx509 -lmbedcrypto
+
+    depends_build-append \
+        path:bin/doxygen:doxygen \
+        path:bin/pkg-config:pkgconfig \
+        port:swig \
+        port:swig-python \
+        port:gnutar
+
+    depends_lib-append \
+        port:python${py_ver_no_dot} \
+        port:glew \
+        port:glm \
+        port:curl \
+        port:ngspice \
+        port:opencascade \
+        port:py${py_ver_no_dot}-wxpython-4.0 \
+        port:zlib \
+        path:lib/pkgconfig/cairo.pc:cairo \
+        port:py${py_ver_no_dot}-pybind11 \
+        path:lib/pkgconfig/pixman-1.pc:libpixman \
+        port:unixODBC \
+        path:lib/pkgconfig/harfbuzz.pc:harfbuzz \
+        port:zstd \
+        port:libgit2 \
+        port:fontconfig \
+        port:protobuf3-cpp \
+        port:nng \
+        port:kicad-symbols \
+        port:kicad-footprints \
+        port:kicad-packages3D \
+        port:kicad-templates
+    # New required deps in KiCad 10 vs 7: zstd, libgit2 (>=1.5), fontconfig,
+    # Protobuf (IPC API), nng (IPC API).
+    #
+    # NOTE: the kicad-docs subport is dropped for 10.x. CERN's prebuilt docs
+    # tarballs (kicad-doc-<ver>.tar.gz) stop at 8.0.0-rc3 -- there is no
+    # kicad-doc-10.0.4 -- and building the docs from source is a large separate
+    # effort. KiCad's Help menu falls back to the online docs at docs.kicad.org.
+
+    cmake.build_type Release
+
+    configure.args-append \
+        -DKICAD_MACOSX_APP_BUNDLE=OFF \
+        -DKICAD_USE_OCC=ON \
+        -DwxWidgets_CONFIG_EXECUTABLE=${python_framework_dir}/bin/wx-config \
+        -DKICAD_BUILD_QA_TESTS=OFF \
+        -DKICAD_SCRIPTING_MODULES=ON \
+        -DKICAD_SCRIPTING=ON \
+        -DKICAD_SCRIPTING_WXPYTHON=ON \
+        -DPYTHON_SITE_PACKAGE_PATH=${python_framework_dir}/lib/python${python_version}/site-packages \
+        -DPYTHON_EXECUTABLE=${python_framework_dir}/bin/python${python_version} \
+        -DPYTHON_INCLUDE_DIR=${python_framework_dir}/Headers \
+        -DPYTHON_LIBRARY=${python_framework_dir}/Python \
+        -DDOXYGEN_DOT_EXECUTABLE=${prefix}/bin/dot \
+        -DDOXYGEN_EXECUTABLE=${prefix}/bin/doxygen \
+        -DNGSPICE_LIB_NAME=libngspice.dylib \
+        -DOCC_INCLUDE_DIR=${prefix}/include/opencascade \
+        -DOCC_LIBRARY_DIR=${prefix}/lib \
+        -DTAR=${prefix}/bin/gnutar \
+        -Wno-dev
+
+    post-destroot {
+        # KiCad's Unix install leaves bare dylib install names; rewrite them to
+        # absolute ${prefix}/lib paths so the .kiface plugins + app binaries can
+        # find libkicommon/libkiapi/libkigal (else rev-upgrade loops). Run via
+        # `system` (trace sandbox blocks Tcl exec of install_name_tool/otool).
+        system "/bin/sh ${filespath}/fix-install-names.sh ${prefix} ${destroot}${prefix}"
+
+        foreach app_name {bitmap2component eeschema gerbview kicad pcb_calculator pcbnew} {
+            set app_dir ${destroot}${applications_dir}/KiCad/${app_name}.app/Contents
+            xinstall -d ${app_dir}/MacOS \
+                ${app_dir}/Resources
+            xinstall -m 0644 ${worksrcpath}/${app_name}/${app_name}.icns \
+                ${app_dir}/Resources/${app_name}.icns
+            if {[file exists ${worksrcpath}/${app_name}/${app_name}_doc.icns]} {
+                xinstall -m 0644 ${worksrcpath}/${app_name}/${app_name}_doc.icns \
+                    ${app_dir}/Resources/${app_name}_doc.icns
+            }
+            xinstall -m 0644 ${build.dir}/${app_name}/Info.plist \
+                ${app_dir}/Info.plist
+
+            ln -s ${prefix}/bin/${app_name} ${app_dir}/MacOS/${app_name}
+            foreach kiface [glob ${destroot}${prefix}/bin/*.kiface] {
+                set filename  [file tail $kiface]
+                ln -s ${prefix}/bin/$filename ${app_dir}/MacOS/${filename}
+            }
+        }
+    }
+
+    # Exclude x.99.y development versions
+    gitlab.livecheck.regex {([0-9]+\.([1-8]?[0-9]|9[0-8])\.[0-9]+)}
+} else {
+    supported_archs     noarch
+    platforms           any
+
+    patchfiles-append ${subport}.patch
+
+    livecheck.type      none
+}
+
+subport kicad-symbols {
+    gitlab.setup        kicad/libraries kicad-symbols ${version}
+    revision            0
+    checksums           rmd160  536b66aced22023cebd90c58691d96414abea098 \
+                        sha256  7d94187cfc50e2216668b8c5edfddbc41afbf71ac63e33828a75e17a5de92471 \
+                        size    4252148
+
+    description         Kicad symbols
+    long_description    {*}${description}
+}
+
+subport kicad-footprints {
+    gitlab.setup        kicad/libraries kicad-footprints ${version}
+    revision            0
+    checksums           rmd160  3f6a415b451db78db434a964fd398883a46888fe \
+                        sha256  4414c12f295fb85e105fbafb85bf261734acd2a019d5e6ec0a09620137e74b5e \
+                        size    7797813
+
+    description         Kicad footprints
+    long_description    {*}${description}
+}
+
+subport kicad-packages3D {
+    gitlab.setup        kicad/libraries kicad-packages3D ${version}
+    revision            0
+    checksums           rmd160  c011102966691ccc332bbd1a37a89412c421e241 \
+                        sha256  db33d8c8b78e7658ca1499b20ca9401e4279bfbd5ee07f8fac5adc6c46fd586e \
+                        size    521606413
+
+    description         Kicad package 3D
+    long_description    {*}${description}
+}
+
+subport kicad-templates {
+    gitlab.setup        kicad/libraries kicad-templates ${version}
+    revision            0
+    checksums           rmd160  279dad190b8baff6e8a24cf98f667468235bc5a1 \
+                        sha256  074b5eb9e3eb04e2607fbe80cb726f131c1cbd39257bc7193500beea051d8963 \
+                        size    2883175
+
+    description         Kicad templates
+    long_description    {*}${description}
+}
