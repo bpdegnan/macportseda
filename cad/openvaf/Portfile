@@ -4,18 +4,21 @@ PortSystem          1.0
 PortGroup           github 1.0
 PortGroup           cargo 1.0
 
-# OpenVAF-Reloaded ships from a single continuously-updated branch ("mob") with
-# only one tag (v24.0.0mob, 2022-era codegen that segfaults emitting OSDI
-# metadata on LLVM 18). We therefore pin a recent mob commit instead of the tag.
-github.setup        OpenVAF OpenVAF-Reloaded dafc73c9fa4e56ada3c9897abed848af40feb40c
+# OpenVAF-Reloaded develops on a single "mob" branch. The first tag (v24.0.0mob)
+# had 2022-era codegen that segfaults emitting OSDI metadata on LLVM 18; the
+# v24.0.1mob tag (2026-06-29) is the first that builds and runs cleanly for us
+# (it also adds Verilog-A arrays / laplace_nd / events / absdelay). We pin that
+# tag. github.tarball_from archive + tag prefix "v" -> tag v24.0.1mob.
+github.setup        OpenVAF OpenVAF-Reloaded 24.0.1mob v
 github.tarball_from archive
 name                openvaf
-version             24.0.0-mob20260624
+version             24.0.1mob
 revision            0
 
-# github.setup left distname/worksrcdir keyed to the commit; make that explicit
-# so the checksum key and extracted dir line up regardless of the clean version.
-distname            OpenVAF-Reloaded-dafc73c9fa4e56ada3c9897abed848af40feb40c
+# The github archive of tag v24.0.1mob extracts to OpenVAF-Reloaded-24.0.1mob
+# (GitHub drops the leading "v"); pin distname/worksrcdir so the checksum key
+# and the extracted dir line up.
+distname            OpenVAF-Reloaded-24.0.1mob
 worksrcdir          ${distname}
 
 categories          cad science
@@ -33,12 +36,12 @@ long_description    OpenVAF is a Verilog-A compiler that compiles compact \
 homepage            https://github.com/OpenVAF/OpenVAF-Reloaded
 
 checksums           ${distname}${extract.suffix} \
-                        rmd160  d6a21d1f895f181ace2bb09f40e0721d27cb50a9 \
-                        sha256  179ba198c0a1c124c5be47f33896d9028a37972677e23ea4223109b4e2acbf75 \
-                        size    2259906
+                        rmd160  3ccbc3d78e8d30e92341d9c85997ac46fa6f990d \
+                        sha256  5e3197b5e9118c9fa28c2ef0102377542f765d3e0791d1273c125a1dabd46b4b \
+                        size    2291458
 
 # --- LLVM backend -----------------------------------------------------------
-# mob HEAD selects the LLVM major via a cargo feature and supports 18-21. We use
+# The fork selects the LLVM major via a cargo feature and supports 18-22. We use
 # MacPorts llvm-18 (llvm-sys 181) and point llvm-sys at its private prefix.
 depends_build-append    port:llvm-18
 depends_lib-append      port:llvm-18
@@ -132,6 +135,7 @@ cargo.crates \
     llvm-sys 191.1.0 d0ad1fffbdac72a40b55aa58b31aa0efe925e277941b6705f128692b27f1d506 \
     llvm-sys 201.0.1 9bb947e8b79254ca10d496d0798a9ba1287dcf68e50a92b016fec1cc45bef447 \
     llvm-sys 211.0.1 44007a7a44b73bdd877fa9c9ccef256036511220e90f65b4d50e7a15773c0ee3 \
+    llvm-sys 221.0.1 2abcc34a3b190f03c2a61b555f218f529589ff13657bdd2ff8ac3e85f2abe6bb \
     lock_api 0.4.14 224399e74b87b5f3557511d98dff8b14089b3dadafcab6bb93eab67d3aace965 \
     log 0.4.33 0ceec5bc11778974d1bcb055b18002eba7f4b3518b6a0081b3af5f21666da9ad \
     md5 0.8.0 ae960838283323069879657ca3de837e9f7bbb4c7bf6ea7f1b290d5e9476d2e0 \
@@ -207,9 +211,9 @@ cargo.crates \
     zerocopy-derive 0.8.52 1ae7f38b72ec2a254e2b87ef277cf2cd4fb97cbebf944faa6f33354da0867930
 
 set salsa_rev       73532d7d4d8b5b27f2c9f189a76e012d1fc4de09
-# salsa: a patched, unpublished salsa fork pulled from git rather than crates.io.
-# On the mob branch it lives under the pascalkuthe account (the tag used DSPOM2;
-# same commit, same archive hash). One github entry covers both member crates.
+# salsa: a patched, unpublished salsa fork (account pascalkuthe) pulled from git
+# rather than crates.io. One github entry covers both member crates (salsa and
+# salsa-macros from the same repo).
 cargo.crates_github \
     salsa pascalkuthe/salsa master \
         ${salsa_rev} \
@@ -254,15 +258,16 @@ destroot {
 }
 
 # ============================================================================
-# WORKING. Retargeted from the v24.0.0mob tag to mob HEAD (commit dafc73c,
-# 2026-06-24) because the tag's codegen segfaults emitting OSDI metadata on
-# LLVM 18; HEAD fixed it. Verified: `openvaf-r model.va` compiles a Verilog-A
-# model to a <model>.osdi Mach-O shared library (exit 0). LLVM is statically
-# linked (force-static), so the binary is self-contained. Binary is "openvaf-r".
+# WORKING. Pinned to release tag v24.0.1mob (2026-06-29) -- a strict descendant
+# of the mob commit we first proved, now a real tag. Verified: `openvaf-r
+# model.va` compiles a Verilog-A model to a <model>.osdi Mach-O shared library.
+# LLVM is statically linked (force-static), so the binary is self-contained.
+# Binary is "openvaf-r".
 #
-# To bump: pick a newer mob commit, update github.setup + version + the
-# ${distname} checksum, regenerate cargo.crates from that commit's Cargo.lock
-# (e.g. `cargo2port` or parse the lock), and re-check the salsa git rev/account.
+# To bump: change github.setup + version + distname to the new tag, refresh the
+# checksum, and regenerate cargo.crates from that tag's Cargo.lock (parse the
+# lock for name/version/sha256). Re-check the salsa git rev/account and that
+# mir_llvm still carries the prefer-dynamic feature we flip.
 # ============================================================================
 
 livecheck.type      none
