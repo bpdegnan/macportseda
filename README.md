@@ -1,6 +1,6 @@
 # macportseda
 
-A local [MacPorts](https://www.macports.org/) port tree for EDA tools.  Tested on MacOS 10.13. (I tried the new MacOS and they used more power and did less)
+A local [MacPorts](https://www.macports.org/) port tree for EDA tools.  Tested on MacOS 13. (I tried the new MacOS and they used more power and did less)
 This work is motivated by the fact that my needs that generally don't overlap with most communities.  
 I always felt bad contributing to macports because I'm not a very good at software engineering, and the lack of experience made me a bad collaborator.  I'm still poor at GIT.
 
