@@ -1,0 +1,57 @@
+# -*- coding: utf-8; mode: tcl; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- vim:fenc=utf-8:ft=tcl:et:sw=4:ts=4:sts=4
+
+PortSystem          1.0
+
+name                yosys
+version             0.66
+revision            0
+categories          cad science
+license             ISC
+maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+
+description         Yosys open synthesis suite (Verilog RTL synthesis)
+long_description    Yosys is a framework for RTL synthesis. It has extensive \
+                    Verilog-2005 support and provides a basic set of synthesis \
+                    algorithms. It is the synthesis front-end used by open \
+                    digital flows (e.g. OpenLane / OpenROAD). This port builds \
+                    the official release source tarball, which bundles ABC.
+
+homepage            https://yosyshq.net/yosys/
+
+# Use the release "src" tarball: it bundles abc and carries .gitcommit, so no
+# network fetch or git is needed during the build. The tarball is flat (no top
+# directory), so create one at extract time.
+master_sites        https://github.com/YosysHQ/yosys/releases/download/v${version}/
+distfiles           yosys-src.tar.gz
+worksrcdir          yosys-${version}
+extract.mkdir       yes
+
+checksums           rmd160  bc255886cb6748e79343a0fac0d805cf4ef8c73b \
+                    sha256  ba567ea7fbb1287e996aef8f20fe902f6fd408593aa50cfaea8ae0c9015ab872 \
+                    size    11178019
+
+depends_build-append \
+                    path:bin/bison:bison \
+                    path:bin/flex:flex \
+                    path:bin/pkg-config:pkgconfig
+
+# Yosys auto-detects MacPorts (it adds ${prefix} include/lib/pkgconfig when
+# `port` is on PATH). tcl/readline/zlib are linked; libtommath via pkg-config;
+# abc is bundled.
+depends_lib-append  port:tcl \
+                    port:readline \
+                    port:libtommath \
+                    port:zlib
+
+use_configure       no
+
+# Pass CONFIG=clang (macOS) and bake the final PREFIX into the binary's data
+# path. ABC is built from the bundled tree. ENABLE_PYOSYS defaults off.
+build.args-append   CONFIG=clang \
+                    PREFIX=${prefix}
+
+destroot.args-append \
+                    CONFIG=clang \
+                    PREFIX=${prefix}
+
+livecheck.type      none
