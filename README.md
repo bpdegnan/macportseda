@@ -23,6 +23,8 @@ macportseda/
     │   └── Portfile
     ├── openvaf/        # Verilog-A -> OSDI compiler (Reloaded fork)
     │   └── Portfile
+    ├── yosys/          # Verilog RTL synthesis suite (bundles ABC)
+    │   └── Portfile
     └── (see science/ and x11/ for the rest)
 x11/
 └── xcircuit/          # vendored stock snapshot
@@ -209,6 +211,22 @@ Ports live under a category directory (`cad`) as MacPorts expects.
   `LLVM_SYS_NN1_PREFIX` together.
 - Builds only the CLI driver; the installed binary is **`openvaf-r`** (upstream's
   name). `external/vacask` is a test-only git submodule, not needed to build.
+
+## yosys notes (Verilog synthesis)
+
+- Yosys 0.66, the open Verilog RTL synthesis suite (the synthesis front-end of
+  the digital flow). Built from the official **`yosys-src.tar.gz`** release
+  tarball, which **bundles ABC** and carries `.gitcommit` — so no network fetch
+  or git is needed during the build (installs `yosys` + `yosys-abc`).
+- Makefile build (`use_configure no`): `make CONFIG=clang PREFIX=${prefix}`.
+  Yosys's Makefile **auto-detects MacPorts** (adds `${prefix}` include/lib/
+  pkgconfig when `port` is on PATH), so deps resolve cleanly:
+  bison/flex/pkgconfig (build) + tcl/readline/libtommath/zlib (lib).
+- The release tarball is *flat* (no top directory), hence `extract.mkdir yes`.
+- Verified: synthesizes RTL to gates and runs ABC technology mapping.
+- This is the synthesis half only; the digital P&R side (OpenROAD) is not
+  packaged (heavy Bazel/OR-Tools dependency cascade, and not needed for the
+  analog-focused flow).
 
 ## skim-app notes (Skim PDF/EPS reader)
 
