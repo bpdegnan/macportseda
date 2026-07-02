@@ -1,0 +1,204 @@
+# -*- coding: utf-8; mode: tcl; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- vim:fenc=utf-8:ft=tcl:et:sw=4:ts=4:sts=4
+
+PortSystem          1.0
+PortGroup           cmake 1.1
+PortGroup           github 1.0
+# boost181 (>=1.78, C++20-clean) via the boost PortGroup. This also sets
+# conflicts_build boost, which is REQUIRED: the umbrella `boost` (1.76) installs
+# C++20-incompatible headers at ${prefix}/include/boost that otherwise shadow
+# boost181 during the compile (boost 1.76 asio uses the removed std::result_of).
+# Deactivate it for the build:  sudo port -f deactivate boost  (reactivate after).
+PortGroup           boost 1.0
+boost.version       1.81
+
+# SHADOWING GATE #2: the MacPorts `spdlog` port (built +fmt_external against the
+# old MacPorts fmt) installs headers to ${prefix}/include/spdlog. Some system
+# dep drags ${prefix}/include onto the compile line as a plain -I, which beats
+# the -isystem path of eda-spdlog, so those stale headers would win and re-create
+# the fmt::v10-vs-v12 symbol mismatch. eda-spdlog/eda-fmt (fmt 12) live in the
+# private eda prefix; to keep the MacPorts spdlog headers from shadowing them,
+# deactivate it for the build too:  sudo port -f deactivate spdlog  (reactivate
+# after). (There is no ${prefix}/include/fmt, so no fmt gate is needed.)
+
+github.setup        The-OpenROAD-Project OpenROAD 26Q3
+github.tarball_from archive
+name                openroad
+version             26Q3
+revision            1
+distname            OpenROAD-26Q3
+worksrcdir          OpenROAD-26Q3
+
+categories          cad
+license             BSD
+maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+
+description         OpenROAD RTL-to-GDS digital place-and-route
+long_description    OpenROAD is an integrated chip physical-design tool \
+                    (floorplanning, placement, CTS, routing, timing) for \
+                    RTL-to-GDS digital flows. Built from the 26Q3 release via \
+                    CMake (not Bazel), linking a private-prefix or-tools/LEMON.
+
+homepage            https://theopenroadproject.org/
+
+# 26Q3 vendors several git submodules that are NOT in the GitHub archive
+# tarball; fetch each pinned commit as a distfile and drop it into place. The
+# slang SystemVerilog frontend (third-party/slang-elab) IS required by the CMake
+# build and itself nests slang + fmt (no deeper nesting). See charon for the
+# same multi-distfile pattern.
+set sta_sha         8572175ac45c42ce8d3d772f73bbb059786b9c66
+set abc_sha         d527cfab4ad731b767ea0a2be2021d920d3afece
+set slangelab_sha   82effc8d9541be69e1ed3ec44759a4449f5d9247
+set slang_sha       f04e81565793c768b747a8fd058f3e7aeceee1b5
+set fmt_sha         553ec11ec06fbe0beebfbb45f9dc3c9eabd83d28
+master_sites-append \
+    https://github.com/The-OpenROAD-Project/OpenSTA/archive/:sta \
+    https://github.com/The-OpenROAD-Project/abc/archive/:abc \
+    https://github.com/povik/yosys-slang/archive/:slangelab \
+    https://github.com/MikePopoloski/slang/archive/:slang \
+    https://github.com/fmtlib/fmt/archive/:fmt
+distfiles-append    ${sta_sha}.tar.gz:sta ${abc_sha}.tar.gz:abc \
+                    ${slangelab_sha}.tar.gz:slangelab \
+                    ${slang_sha}.tar.gz:slang ${fmt_sha}.tar.gz:fmt
+
+checksums \
+    OpenROAD-26Q3.tar.gz \
+        rmd160  6c5eba9d07427533ce515996faed7250b0161aa1 \
+        sha256  26d42275db360b1edfc25ce94d3ab815d28fc5e088aaf79907f008d473454f6f \
+        size    340513978 \
+    ${sta_sha}.tar.gz \
+        rmd160  266630b5e26a75ed8e9b88a4f19d88f8ae5b8f9e \
+        sha256  805fbf8fef8ff35bc03e1d7fc3eb15760f886a4735e9c96adec303904b5d7d3e \
+        size    95736694 \
+    ${abc_sha}.tar.gz \
+        rmd160  b1ecec8f04f35fee50fc9d2287fad851286fd4e1 \
+        sha256  0cbf538e60d0303d0e00360d8973aaad7dae198954bed6e34cc31c9a13b3f802 \
+        size    7662401 \
+    ${slangelab_sha}.tar.gz \
+        rmd160  33e466a9ead330cf012563a1f00f3efe57be3c9a \
+        sha256  d319a1f49116fb9f30341bf06324e40e0ceadfe05d0fa7b00aed4dc0dc6723f1 \
+        size    132767 \
+    ${slang_sha}.tar.gz \
+        rmd160  ae683d436257eaa7d67e960294979f7a283cba6a \
+        sha256  ed21154a6eae279e99045c8fa0a7ae2e1e9ca572d3975ef1f22a811a89a8b8b0 \
+        size    1853834 \
+    ${fmt_sha}.tar.gz \
+        rmd160  22534a27111c7edea981fd5e3a2818f55358d88c \
+        sha256  c314292789d28c3c3b420e75a7b2d1706f685f7fb63289128d46aeaea2c6be71 \
+        size    707710
+
+post-extract {
+    file delete -force ${worksrcpath}/src/sta
+    move ${workpath}/OpenSTA-${sta_sha} ${worksrcpath}/src/sta
+    file delete -force ${worksrcpath}/third-party/abc
+    move ${workpath}/abc-${abc_sha} ${worksrcpath}/third-party/abc
+    # slang frontend: slang-elab, and its nested slang + fmt
+    file delete -force ${worksrcpath}/third-party/slang-elab
+    move ${workpath}/yosys-slang-${slangelab_sha} ${worksrcpath}/third-party/slang-elab
+    file delete -force ${worksrcpath}/third-party/slang-elab/third_party/slang
+    move ${workpath}/slang-${slang_sha} ${worksrcpath}/third-party/slang-elab/third_party/slang
+    file delete -force ${worksrcpath}/third-party/slang-elab/third_party/fmt
+    move ${workpath}/fmt-${fmt_sha} ${worksrcpath}/third-party/slang-elab/third_party/fmt
+}
+
+set edaprefix       ${prefix}/libexec/eda
+
+# SHADOWING GATE #3: or-tools' generated *.pb.h (in eda-or-tools) require
+# protobuf 6.31, but the MacPorts `protobuf3-cpp` port (protobuf 3.21) installs
+# headers at ${prefix}/include/google/protobuf. Targets pull in ${prefix}/include
+# as a plain -I (e.g. via TCL_INCLUDE_PATH), which beats the -isystem path of the
+# eda bundle, so the old protobuf headers shadow eda's and the .pb.h fail to
+# compile (missing EnumTraitsT/ClassDataFull). CMake dedups a competing
+# include_directories(BEFORE) back to -isystem, so prepending doesn't help.
+# Deactivate protobuf3-cpp for the build:  sudo port -f deactivate protobuf3-cpp
+# (its only dependent is kicad; reactivate after). abseil/re2 (also in the
+# or-tools bundle) are NOT installed under ${prefix}/include, so they need no gate.
+#
+# SHADOWING GATE #4: OpenROAD builds its OWN OpenSTA fork (src/sta), but the
+# standalone MacPorts `OpenSTA` port installs headers at ${prefix}/include/sta.
+# Those get pulled in ahead of the fork (again via the -I${prefix}/include on
+# tcl-linking targets), and since they are a DIFFERENT file with the same
+# `#pragma once`, the dbSta SWIG wrapper ends up including LibertyClass.hh et al.
+# twice -> "redefinition" errors. Deactivate it for the build:
+#   sudo port -f deactivate OpenSTA   (reactivate after).
+
+depends_build-append \
+    path:bin/bison:bison \
+    path:bin/flex:flex \
+    port:swig \
+    port:llvm-19
+
+depends_lib-append \
+    port:eda-or-tools \
+    port:eda-lemon \
+    port:eda-fmt \
+    port:eda-spdlog \
+    port:tcl \
+    port:eigen3 \
+    port:cudd \
+    port:yaml-cpp \
+    port:gtest \
+    port:readline \
+    port:zlib \
+    port:libomp \
+    port:python313
+# Boost: or-tools' bundled Boost 1.87 is static-only and lacks iostreams, so we
+# point OpenROAD at the versioned boost181 (1.81, complete, >=1.78) via Boost_DIR
+# below. boost181 lives in its own libexec prefix, so no boost-PortGroup
+# conflicts_build deactivation gate is needed.
+# Qt5 (GUI) is left optional. OpenMP is REQUIRED by src/drt and src/gpl; the
+# MacPorts libomp installs to ${prefix}/lib/libomp/libomp.dylib (a subdir), which
+# find_package(OpenMP) does not locate, so it got the -fopenmp compile flag but
+# no link library -> undefined ___kmpc_* at the final link. Point it at libomp
+# explicitly (OpenMP_* below) and add the lib dir to the link path.
+
+# OpenROAD 26Q3 requires C++20; the Ventura CLT libc++ (15) lacks parts of it,
+# so build with MacPorts clang-19 + its libc++ 19 headers (same recipe as the
+# kicad port), linking the system libc++ runtime.
+configure.compiler        macports-clang-19
+configure.cxxflags-append -nostdinc++ \
+                          -isystem ${prefix}/libexec/llvm-19/include/c++/v1 \
+                          -DBOOST_STACKTRACE_GNU_SOURCE_NOT_REQUIRED
+
+# Boost.Stacktrace (pulled in by src/utl's logger) #errors out unless it knows
+# `_Unwind_Backtrace` is reachable without _GNU_SOURCE. macOS/libc++ provides
+# that symbol via libSystem's unwinder, so tell Boost so directly.
+
+# or-tools' libraries live in the private eda prefix and are referenced as
+# @rpath/...; add that rpath so the openroad binary resolves libortools.
+configure.ldflags-append  -Wl,-rpath,${edaprefix}/lib \
+                          -L${prefix}/lib/libomp -lomp
+
+# NB: a single path only — MacPorts does NOT quote ';' in configure.args, so a
+# semicolon-separated CMake list splits the shell command. ${prefix} is already
+# in CMAKE_SYSTEM_PREFIX_PATH, so we only add the private eda prefix here.
+cmake.build_type    Release
+configure.args-append \
+    -DCMAKE_PREFIX_PATH=${edaprefix} \
+    -DENABLE_TESTS=OFF \
+    -DLINK_TIME_OPTIMIZATION=OFF \
+    -DUSE_SYSTEM_ABC=OFF \
+    -DUSE_SYSTEM_OPENSTA=OFF \
+    -DUSE_EXTERNAL_FMT=ON \
+    -DUSE_SYSTEM_BOOST=ON \
+    -DBoost_DIR=${prefix}/libexec/boost/1.81/lib/cmake/Boost-1.81.0 \
+    -DBOOST_ROOT=${prefix}/libexec/boost/1.81 \
+    -DBoost_NO_SYSTEM_PATHS=ON \
+    -DPython3_EXECUTABLE=${prefix}/bin/python3.13 \
+    -DTCL_LIBRARY=${prefix}/lib/libtcl8.6.dylib \
+    -DTCL_INCLUDE_PATH=${prefix}/include \
+    -DOpenMP_CXX_FLAGS=-fopenmp=libomp \
+    -DOpenMP_CXX_LIB_NAMES=omp \
+    -DOpenMP_omp_LIBRARY=${prefix}/lib/libomp/libomp.dylib
+
+# OpenROAD statically links its bundled OpenSTA fork into bin/openroad, but its
+# CMake also installs that fork's standalone artifacts (bin/sta, include/sta/*,
+# lib/libOpenSTA.a) into the prefix. Those clobber the separate MacPorts OpenSTA
+# port and pollute ${prefix}; the openroad deliverable is just bin/openroad (as
+# in mainstream OpenROAD packages). Strip them so openroad and OpenSTA coexist.
+post-destroot {
+    file delete -force ${destroot}${prefix}/bin/sta
+    file delete -force ${destroot}${prefix}/include/sta
+    file delete -force ${destroot}${prefix}/lib/libOpenSTA.a
+}
+
+livecheck.type      none

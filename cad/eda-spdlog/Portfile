@@ -1,0 +1,54 @@
+# -*- coding: utf-8; mode: tcl; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- vim:fenc=utf-8:ft=tcl:et:sw=4:ts=4:sts=4
+
+PortSystem          1.0
+PortGroup           cmake 1.1
+PortGroup           github 1.0
+
+github.setup        gabime spdlog 1.16.0 v
+github.tarball_from archive
+name                eda-spdlog
+revision            0
+
+categories          cad devel
+license             MIT
+maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+platforms           macosx
+
+description         spdlog 1.16 built against eda-fmt 12 (private EDA prefix) for OpenROAD
+long_description    The spdlog logging library, version ${version}, built with \
+                    SPDLOG_FMT_EXTERNAL against eda-fmt (fmt 12) and installed to \
+                    the private prefix ${prefix}/libexec/eda. The MacPorts spdlog \
+                    is compiled against fmt 10, whose fmt::v10 symbols do not \
+                    match the fmt::v12 that OpenROAD 26Q3 (and its slang frontend) \
+                    require, producing undefined-symbol link errors. Building \
+                    spdlog here against the same fmt 12 keeps one consistent fmt \
+                    ABI across OpenROAD.
+
+homepage            https://github.com/gabime/spdlog
+
+checksums           rmd160  c514c9e2d9f57d2c93f24db0f739b9d6ffa4bb96 \
+                    sha256  8741753e488a78dd0d0024c980e1fb5b5c85888447e309d9cb9d949bdb52aa3e \
+                    size    280382
+
+set edaprefix       ${prefix}/libexec/eda
+cmake.install_prefix ${edaprefix}
+
+depends_lib-append  port:eda-fmt
+
+# Same C++20 / clang-19 / libc++ 19 recipe as eda-fmt and openroad so the
+# compiled log_msg(...) ABI matches what OpenROAD generates from these headers.
+configure.compiler        macports-clang-19
+configure.cxxflags-append -nostdinc++ \
+                          -isystem ${prefix}/libexec/llvm-19/include/c++/v1
+
+# SPDLOG_FMT_EXTERNAL: use eda-fmt (found via CMAKE_PREFIX_PATH below) instead of
+# spdlog's bundled fmt, so spdlog and OpenROAD share the exact same fmt::v12.
+configure.args-append \
+    -DCMAKE_PREFIX_PATH=${edaprefix} \
+    -DSPDLOG_FMT_EXTERNAL=ON \
+    -DSPDLOG_BUILD_SHARED=ON \
+    -DSPDLOG_BUILD_EXAMPLE=OFF \
+    -DSPDLOG_BUILD_TESTS=OFF \
+    -DSPDLOG_BUILD_BENCH=OFF
+
+livecheck.type      none

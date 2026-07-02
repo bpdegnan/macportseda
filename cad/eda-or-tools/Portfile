@@ -1,0 +1,65 @@
+# -*- coding: utf-8; mode: tcl; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- vim:fenc=utf-8:ft=tcl:et:sw=4:ts=4:sts=4
+
+PortSystem          1.0
+
+name                eda-or-tools
+version             9.14.6206
+revision            2
+categories          cad math
+license             Apache-2
+maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+platforms           macosx
+
+# Prebuilt binary is Intel; both the build host and the check host are Intel
+# 2019/Ventura-era Macs. For Apple Silicon, fetch the arm64 tarball + checksums
+# and flip this to arm64 (see the distfile name below).
+supported_archs     x86_64
+
+description         Prebuilt Google OR-Tools for OpenROAD (private EDA prefix)
+long_description    Google OR-Tools ${version} C++ libraries, repackaged from \
+                    Google's official prebuilt macOS release into the private \
+                    prefix ${prefix}/libexec/eda. It bundles its own matched \
+                    abseil (20250512), protobuf (6.31), re2, scip and COIN-OR, \
+                    so it does NOT collide with the system abseil/protobuf. The \
+                    openroad port links against this rather than a from-source \
+                    or-tools (whose abseil pin is incompatible with MacPorts').
+
+homepage            https://developers.google.com/optimization
+
+master_sites        https://github.com/google/or-tools/releases/download/v9.14/
+distfiles           or-tools_x86_64_macOS-15.5_cpp_v${version}.tar.gz
+worksrcdir          or-tools_x86_64_macOS-15.5_cpp_v${version}
+
+checksums           rmd160  bee9f40cd7141344fe9381c2e58e9c62cc8d3cb3 \
+                    sha256  de7ed91b0fe90094fb5f5ebd19869b69a8d52b9752e456752208a22a05b14f7f \
+                    size    48625675
+
+set edaprefix       ${prefix}/libexec/eda
+
+use_configure       no
+build {}
+
+# Straight repackage into the private prefix. The bundled dylibs reference each
+# other via @rpath + LC_RPATH=@loader_path, so co-locating them in one lib/ dir
+# is self-resolving; the cmake configs are relocatable (paths derived from the
+# config location). ditto preserves the versioned symlinks. Run via `system`
+# (trace sandbox blocks raw Tcl exec of /usr/bin tools).
+destroot {
+    xinstall -d ${destroot}${edaprefix}
+    foreach sub {bin include lib share} {
+        system "/usr/bin/ditto ${worksrcpath}/${sub} ${destroot}${edaprefix}/${sub}"
+    }
+    # Drop or-tools' bundled Boost: it is a partial, static-only 1.87 subset
+    # (no iostreams) that would shadow a complete external Boost. or-tools links
+    # its own boost statically inside libortools (no Boost:: in its cmake
+    # targets, no find_dependency(Boost)), so removing these headers/configs is
+    # safe and lets consumers (openroad) use a full Boost (boost181) instead.
+    file delete -force ${destroot}${edaprefix}/include/boost
+    foreach b [glob -nocomplain \
+                   ${destroot}${edaprefix}/lib/cmake/Boost-* \
+                   ${destroot}${edaprefix}/lib/cmake/boost_*] {
+        file delete -force ${b}
+    }
+}
+
+livecheck.type      none

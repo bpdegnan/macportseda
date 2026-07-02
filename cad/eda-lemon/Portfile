@@ -1,0 +1,59 @@
+# -*- coding: utf-8; mode: tcl; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- vim:fenc=utf-8:ft=tcl:et:sw=4:ts=4:sts=4
+
+PortSystem          1.0
+PortGroup           cmake 1.1
+
+name                eda-lemon
+version             1.3.1
+revision            1
+categories          cad math
+license             BSL-1.0
+maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+
+description         COIN-OR LEMON graph library (private EDA prefix) for OpenROAD
+long_description    LEMON (Library for Efficient Modeling and Optimization in \
+                    Networks) is a C++ template library for graph and network \
+                    algorithms. OpenROAD's global placement/routing use it. \
+                    Named eda-lemon and installed to the private prefix \
+                    ${prefix}/libexec/eda because the MacPorts `lemon` port is \
+                    the unrelated SQLite parser generator.
+
+homepage            https://lemon.cs.elte.hu/
+
+master_sites        https://lemon.cs.elte.hu/pub/sources/
+distfiles           lemon-${version}.tar.gz
+worksrcdir          lemon-${version}
+
+checksums           rmd160  2877b2fe0f02b356c0510ff327e53573d3801f99 \
+                    sha256  71b7c725f4c0b4a8ccb92eb87b208701586cf7a96156ebd821ca3ed855bad3c8 \
+                    size    5142826
+
+set edaprefix       ${prefix}/libexec/eda
+cmake.install_prefix ${edaprefix}
+
+# LEMON's own lib builds at C++14 (below), but its INSTALLED headers are pulled
+# into OpenROAD's C++20 compile, where std::allocator<T>::construct/destroy were
+# removed (C++17). Rewrite those calls in the one offending header to the
+# allocator_traits form, which is valid in every standard. The substitution just
+# inserts `allocator` as the first argument, so it is correct at all 13 sites.
+post-patch {
+    reinplace "s|allocator.construct(|std::allocator_traits<Allocator>::construct(allocator, |g" \
+        ${worksrcpath}/lemon/bits/array_map.h
+    reinplace "s|allocator.destroy(|std::allocator_traits<Allocator>::destroy(allocator, |g" \
+        ${worksrcpath}/lemon/bits/array_map.h
+}
+
+# LEMON 1.3.1 (2014): its CMakeLists predates CMake 3.5 (modern CMake errors
+# without the policy shim), and it uses pre-C++17 constructs (e.g. `register`),
+# so build it as C++14. Disable its optional LP backends (GLPK/COIN/CPLEX) and
+# tests/demos/tools — OpenROAD only needs the graph headers + libemon.
+configure.args-append \
+    -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+    -DCMAKE_CXX_STANDARD=14 \
+    -DLEMON_ENABLE_GLPK=NO \
+    -DLEMON_ENABLE_COIN=NO \
+    -DLEMON_ENABLE_ILOG=NO \
+    -DLEMON_ENABLE_SOPLEX=NO \
+    -DBUILD_TESTING=OFF
+
+livecheck.type      none

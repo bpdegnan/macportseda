@@ -1,0 +1,60 @@
+# -*- coding: utf-8; mode: tcl; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- vim:fenc=utf-8:ft=tcl:et:sw=4:ts=4:sts=4
+
+PortSystem          1.0
+PortGroup           github 1.0
+
+# sby (SymbiYosys) has no recent version tags aligned with current yosys, so pin
+# a recent main commit. It is loosely coupled to yosys (drives yosys +
+# yosys-smtbmc), so it works with our yosys 0.66.
+github.setup        YosysHQ sby d3e72d26e8634bca4ca16f3e4d84331481f06ab6
+github.tarball_from archive
+name                sby
+version             20260616
+revision            0
+distname            sby-d3e72d26e8634bca4ca16f3e4d84331481f06ab6
+worksrcdir          ${distname}
+
+categories          cad science
+license             ISC
+maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+supported_archs     noarch
+platforms           any
+
+description         SymbiYosys (sby) formal verification front-end for Yosys
+long_description    SymbiYosys (sby) is a front-end driver for Yosys-based \
+                    formal hardware verification flows (bounded/unbounded model \
+                    checking, k-induction, cover, equivalence). It orchestrates \
+                    yosys and yosys-smtbmc with SMT solvers such as z3.
+
+homepage            https://github.com/YosysHQ/sby
+
+checksums           rmd160  97945cfe46a3677679a94b86de9376cf396d9ade \
+                    sha256  db9ed202a0ee56466c7b819011581e141b4bfb10dc8a915d6c2a95847bfdc547 \
+                    size    178854
+
+set pybranch        3.13
+depends_lib-append  port:yosys \
+                    port:z3 \
+                    port:python313
+
+use_configure       no
+build {}
+
+# The Makefile derives its version from .gittag (falling back to `git describe`,
+# which fails in a tarball). Provide a clean .gittag so no git is invoked.
+post-extract {
+    set fp [open ${worksrcpath}/.gittag w]
+    puts $fp "sby-${version}"
+    close $fp
+}
+
+destroot.args-append PREFIX=${prefix}
+
+# The installed `sby` uses `#!/usr/bin/env python3`; point it at the MacPorts
+# interpreter so it doesn't depend on PATH ordering.
+post-destroot {
+    reinplace "s|#!/usr/bin/env python3|#!${prefix}/bin/python${pybranch}|" \
+        ${destroot}${prefix}/bin/sby
+}
+
+livecheck.type      none

@@ -25,6 +25,18 @@ macportseda/
     │   └── Portfile
     ├── yosys/          # Verilog RTL synthesis suite (bundles ABC)
     │   └── Portfile
+    ├── sby/            # SymbiYosys — formal verification front-end
+    │   └── Portfile
+    ├── eda-or-tools/   # pinned OR-Tools (private prefix) for OpenROAD
+    │   └── Portfile
+    ├── eda-lemon/      # pinned LEMON graph lib (private prefix) for OpenROAD
+    │   └── Portfile
+    ├── eda-fmt/        # pinned fmt 12.1 (private prefix) for OpenROAD
+    │   └── Portfile
+    ├── eda-spdlog/     # pinned spdlog 1.16 vs eda-fmt (private prefix) for OpenROAD
+    │   └── Portfile
+    ├── openroad/       # OpenROAD RTL-to-GDS P&R (builds & runs — see notes)
+    │   └── Portfile
     └── (see science/ and x11/ for the rest)
 x11/
 └── xcircuit/          # vendored stock snapshot
@@ -227,6 +239,54 @@ Ports live under a category directory (`cad`) as MacPorts expects.
 - This is the synthesis half only; the digital P&R side (OpenROAD) is not
   packaged (heavy Bazel/OR-Tools dependency cascade, and not needed for the
   analog-focused flow).
+
+## openroad notes (RTL-to-GDS P&R — builds & runs)
+
+- OpenROAD **26Q3**, built via **CMake** (26Q3 also has Bazel; CMake avoids that).
+  C++20 → MacPorts **clang-19 + libc++ 19 headers** (same recipe as kicad). The
+  binary runs: `openroad -version`, Tcl interpreter, `+GPU +Python` (`-GUI`).
+- **`eda-` dependency strategy** — version-pinned deps that conflict with MacPorts
+  go in the private prefix `/opt/local/libexec/eda`:
+  - **`eda-or-tools`** — repackages Google's *prebuilt* macOS OR-Tools 9.14
+    (bundles the exact abseil/protobuf 6.31/re2 or-tools needs; MacPorts' are
+    ABI-incompatible). Its partial bundled Boost is stripped.
+  - **`eda-lemon`** — COIN-OR LEMON 1.3.1 (MacPorts `lemon` is the SQLite parser);
+    its headers are patched for C++20 (removed `std::allocator::construct`).
+  - **`eda-fmt`** (fmt 12.1) + **`eda-spdlog`** (spdlog 1.16 built against eda-fmt).
+    OpenROAD's slang frontend needs fmt ≥12.1 but MacPorts spdlog is bound to
+    fmt 10 → `fmt::v10`-vs-`v12` link mismatch; the eda pair keeps one fmt ABI.
+- OpenROAD's `src/sta` (its OpenSTA *fork*), `third-party/abc`, and
+  `third-party/slang-elab` (+ nested slang/fmt) are vendored as pinned distfiles.
+  System deps: tcl/eigen3/cudd/yaml-cpp/gtest/readline/zlib/libomp/python313 +
+  swig/bison/flex/llvm-19.
+- **Building requires deactivating four ports whose `/opt/local/include` headers
+  shadow the private/fork copies** (a plain `-I/opt/local/include` from tcl etc.
+  beats the `-isystem` eda paths). Deactivate, build, reactivate:
+  ```
+  sudo port -f deactivate boost spdlog protobuf3-cpp OpenSTA
+  sudo port install openroad        # ~40 min C++20 compile
+  sudo port activate boost spdlog protobuf3-cpp
+  sudo port activate OpenSTA @3.1.0_1+cudd
+  ```
+  (openroad no longer installs its own `sta`/headers/libOpenSTA.a, so it coexists
+  with the standalone OpenSTA port once reactivated.)
+- Full blow-by-blow, incl. the libomp link fix and every gate, in memory
+  ([[openroad-port-facts]]).
+
+## sby notes (SymbiYosys formal verification)
+
+- SymbiYosys (`sby`), the formal-verification front-end for Yosys (BMC,
+  k-induction, cover, equivalence). Pure-Python; pinned to a recent `main`
+  commit (no version tags track current yosys). `supported_archs noarch`.
+- Drives `yosys` + `yosys-smtbmc` with an SMT solver; the port depends on
+  **z3** (default engine). `yices` and `boolector` are also in MacPorts and
+  work if you select them in the `[engines]` section of a `.sby` file.
+- Install quirks: the Makefile derives its version from `.gittag` (falling back
+  to `git describe`, which fails in a tarball), so `post-extract` writes a clean
+  `.gittag`; `post-destroot` repoints the `sby` script's `#!/usr/bin/env python3`
+  at `${prefix}/bin/python3.13`.
+- Verified: passes true assertions and fails false ones (with counterexample)
+  via `sby -f design.sby`.
 
 ## skim-app notes (Skim PDF/EPS reader)
 
