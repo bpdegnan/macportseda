@@ -156,33 +156,67 @@ Ports live under a category directory (`cad`) as MacPorts expects.
    running X server — install **XQuartz** (see the xschem notes). `klayout`
    (Qt6) and `skim-app` are native Cocoa and don't.
 
-## distfiles archive (offline / standalone insurance)
+## distfiles archive (offline insurance)
 
-- `distfiles/` (gitignored — 2.4+ GB, and GitHub hard-rejects files >100 MB,
-  so it can never live in git) holds a copy of every source tarball the tree's
-  ports fetch. Upstream URLs rot: lemon.cs.elte.hu already 404s (the eda-lemon
-  port gained a Spack mirror fallback) and the charon tarball lives at a
-  fragile sandia.gov uploads URL.
-- MacPorts uses an already-present, checksum-verified distfile without
-  touching the network, so restoring on any machine is just:
+`distfiles/` holds a copy of every source tarball the tree's ports fetch,
+because upstream URLs rot. It is gitignored (2.4+ GB; GitHub rejects files
+over 100 MB) — keep it with your backups. The Portfile checksums authenticate
+every file, so the archive needs no special trust.
+
+- **Restore** onto any machine, then install normally (MacPorts uses the
+  already-present, checksum-verified files without touching the network):
   ```
   sudo rsync -a distfiles/ /opt/local/var/macports/distfiles/
   ```
-  then install normally. The Portfile checksums authenticate every file, so
-  the archive needs no special trust.
-- To (re)populate after adding or bumping ports:
+- **Refresh** after adding or bumping a port:
   ```
-  sudo port mirror <portname...>     # fetches into /opt/local/var/macports/distfiles
-  rsync -a /opt/local/var/macports/distfiles/<portname> distfiles/
+  sudo port mirror <port>
+  rsync -a /opt/local/var/macports/distfiles/<port> distfiles/
   ```
-- Keep a copy of `distfiles/` with your normal backups (it is NOT pushed with
-  the repo).
-- **Off-machine copy**: the archive is also published as per-port tars (+
-  SHA256SUMS) on the repo's GitHub Releases page — release assets escape the
-  100 MB git limit (2 GB/file). Current: tag `distfiles-2026-07`. To refresh
-  after port bumps: re-run `port mirror`, re-tar the changed port dirs, and
-  `gh release upload <tag> <tars> --clobber` (or cut a new dated release).
-  Note `gh release create` also creates a git tag on the remote.
+- **Off-machine copy**: also published as per-port tars + `SHA256SUMS` on the
+  GitHub release `distfiles-2026-07` (release assets allow 2 GB/file). To
+  refresh: re-tar the changed port dirs and
+  `gh release upload distfiles-2026-07 <tars> SHA256SUMS --clobber`.
+  (`gh release create` would also create a git tag on the remote.)
+
+### Where the tarballs come from
+
+| Port | Upstream source |
+|------|-----------------|
+| OpenSTA | [parallaxsw/OpenSTA @ bfdd2be](https://github.com/parallaxsw/OpenSTA/archive/bfdd2be0ee6214115b20cacdc0a071ca3c737fbb/OpenSTA-bfdd2be0ee6214115b20cacdc0a071ca3c737fbb.tar.gz) (no upstream tags) |
+| cudd | [cuddorg/cudd 3.0.0](https://github.com/cuddorg/cudd/archive/refs/tags/3.0.0.tar.gz) |
+| netgen-lvs | [RTimothyEdwards/netgen 1.5.321](https://github.com/RTimothyEdwards/netgen/archive/refs/tags/1.5.321.tar.gz) |
+| klayout | [KLayout/klayout v0.30.9](https://github.com/KLayout/klayout/archive/refs/tags/v0.30.9.tar.gz) |
+| gtkwave | [SourceForge gtkwave 3.3.117](https://downloads.sourceforge.net/project/gtkwave/gtkwave-3.3.117/gtkwave-3.3.117.tar.gz) |
+| openvaf | [OpenVAF/OpenVAF-Reloaded v24.0.1mob](https://github.com/OpenVAF/OpenVAF-Reloaded/archive/v24.0.1mob/OpenVAF-Reloaded-24.0.1mob.tar.gz) + pinned crates from [crates.io](https://static.crates.io/crates/) + the [pascalkuthe/salsa](https://github.com/pascalkuthe/salsa) fork (all listed in the Portfile) |
+| yosys | [YosysHQ/yosys v0.66 `yosys-src.tar.gz`](https://github.com/YosysHQ/yosys/releases/download/v0.66/yosys-src.tar.gz) (release asset, bundles ABC) |
+| sby | [YosysHQ/sby @ d3e72d2](https://github.com/YosysHQ/sby/archive/d3e72d26e8634bca4ca16f3e4d84331481f06ab6/sby-d3e72d26e8634bca4ca16f3e4d84331481f06ab6.tar.gz) |
+| eda-or-tools | [google/or-tools v9.14 prebuilt macOS](https://github.com/google/or-tools/releases/download/v9.14/or-tools_x86_64_macOS-15.5_cpp_v9.14.6206.tar.gz) |
+| eda-lemon | [lemon.cs.elte.hu 1.3.1](https://lemon.cs.elte.hu/pub/sources/lemon-1.3.1.tar.gz) (**404s** — [Spack mirror fallback](https://mirror.spack.io/_source-cache/archive/71/71b7c725f4c0b4a8ccb92eb87b208701586cf7a96156ebd821ca3ed855bad3c8.tar.gz), keyed by sha256) |
+| eda-fmt | [fmtlib/fmt 12.1.0](https://github.com/fmtlib/fmt/archive/12.1.0/fmt-12.1.0.tar.gz) |
+| eda-spdlog | [gabime/spdlog v1.16.0](https://github.com/gabime/spdlog/archive/v1.16.0/spdlog-1.16.0.tar.gz) |
+| openroad | [OpenROAD 26Q3](https://github.com/The-OpenROAD-Project/OpenROAD/archive/26Q3/OpenROAD-26Q3.tar.gz) + vendored pins: [its OpenSTA fork](https://github.com/The-OpenROAD-Project/OpenSTA/archive/8572175ac45c42ce8d3d772f73bbb059786b9c66.tar.gz), [abc](https://github.com/The-OpenROAD-Project/abc/archive/d527cfab4ad731b767ea0a2be2021d920d3afece.tar.gz), yosys-slang/slang (commits in Portfile) |
+| openroad-ll | [OpenROAD @ dcf3613](https://github.com/The-OpenROAD-Project/OpenROAD/archive/dcf36133a369abc8f3c5e5738cd4d82e4903c0e0.tar.gz) (LibreLane's validated rev) + matching vendored pins (see Portfile) |
+| xcircuit | [opencircuitdesign.com 3.10.30](http://opencircuitdesign.com/xcircuit/archive/xcircuit-3.10.30.tgz) |
+| gtksheet | [fpaquet/gtksheet V4.3.14](https://github.com/fpaquet/gtksheet/archive/V4.3.14/gtksheet-4.3.14.tar.gz) |
+| xschem | [SourceForge xschem 3.4.6](https://downloads.sourceforge.net/xschem/xschem-3.4.6.tar.gz) |
+| lepton-eda | [lepton-eda 1.9.18 dist tarball](https://github.com/lepton-eda/lepton-eda/releases/download/1.9.18-20220529/lepton-eda-1.9.18.tar.gz) (release asset) |
+| iverilog | [steveicarus/iverilog s20250103](https://github.com/steveicarus/iverilog/archive/s20250103/iverilog-20250103.tar.gz) |
+| verilator | [verilator/verilator v5.028](https://github.com/verilator/verilator/archive/refs/tags/v5.028.tar.gz) |
+| magic | [opencircuitdesign.com 8.3.660](http://opencircuitdesign.com/magic/archive/magic-8.3.660.tgz) |
+| trilinos16 | [Trilinos 16.1.0](https://github.com/trilinos/Trilinos/archive/trilinos-release-16-1-0/Trilinos-trilinos-release-16-1-0.tar.gz) |
+| xyce | [xyce.sandia.gov Xyce 7.9](https://xyce.sandia.gov/files/xyce/Xyce-7.9.tar.gz) |
+| trilinos-charon | [Trilinos 13.4.0](https://github.com/trilinos/Trilinos/archive/trilinos-release-13-4-0/Trilinos-trilinos-release-13-4-0.tar.gz) |
+| charon | [sandia.gov charon v2.2](https://www.sandia.gov/app/uploads/sites/106/2022/06/charon-distrib-v2_2.tar.gz) (fragile uploads URL) + [Trilinos 13.4.0](https://github.com/trilinos/Trilinos/archive/refs/tags/trilinos-release-13-4-0.tar.gz) |
+| kicad | [gitlab kicad 10.0.4](https://gitlab.com/kicad/code/kicad/-/archive/10.0.4/kicad-10.0.4.tar.bz2) + library subports from [gitlab.com/kicad/libraries](https://gitlab.com/kicad/libraries) (symbols/footprints/packages3D/templates, same 10.0.4 tag) |
+| py-pcpp | [PyPI pcpp 1.30](https://files.pythonhosted.org/packages/source/p/pcpp/pcpp-1.30.tar.gz) |
+| py-zstandard | [PyPI zstandard 0.25.0](https://files.pythonhosted.org/packages/source/z/zstandard/zstandard-0.25.0.tar.gz) |
+| py-volare | [PyPI volare 0.20.6](https://files.pythonhosted.org/packages/source/v/volare/volare-0.20.6.tar.gz) |
+| py-cxxheaderparser | [PyPI cxxheaderparser 1.9.1](https://files.pythonhosted.org/packages/source/c/cxxheaderparser/cxxheaderparser-1.9.1.tar.gz) |
+| skim-app | [SourceForge Skim 1.7.15](https://downloads.sourceforge.net/project/skim-app/Skim/Skim-1.7.15/Skim-1.7.15.dmg) (prebuilt .dmg) |
+
+(URLs generated from the Portfiles via `port distfiles <port>`; the Portfile
+checksums remain the source of truth.)
 
 ## macOS 15 (Sequoia) notes
 
@@ -346,9 +380,10 @@ The whole tree builds on macOS 15.3 / Xcode 16.2 with the following caveats:
   (`salsa`) is an unpublished git fork (`pascalkuthe/salsa`), pulled via
   `cargo.crates_github` (a `post-extract` exposes its `salsa-macros` member as
   its own directory-source entry and drops the PortGroup's stray `branch` line).
-- **Pinned to a mob-branch commit, not the tag.** The only tag (`v24.0.0mob`)
-  has 2022-era codegen that **segfaults** emitting OSDI metadata on LLVM 18;
-  mob HEAD fixed it, so the Portfile pins commit `dafc73c` (2026-06-24).
+- **Pinned to the `v24.0.1mob` tag.** The older `v24.0.0mob` tag has 2022-era
+  codegen that **segfaults** emitting OSDI metadata on LLVM 18 (which
+  originally forced pinning a mob-branch commit); upstream has since tagged
+  the fix.
 - **LLVM:** the fork supports LLVM 18-21 selected by a cargo feature. The
   Portfile uses MacPorts `llvm-18` (`--features llvm18`,
   `LLVM_SYS_181_PREFIX=${prefix}/libexec/llvm-18`) and forces **static** LLVM
