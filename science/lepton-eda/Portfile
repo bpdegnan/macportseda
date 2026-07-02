@@ -1,0 +1,65 @@
+# -*- coding: utf-8; mode: tcl; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- vim:fenc=utf-8:ft=tcl:et:sw=4:ts=4:sts=4
+
+PortSystem          1.0
+
+name                lepton-eda
+version             1.9.18
+set release_tag     ${version}-20220529
+revision            0
+categories          science electronics
+maintainers         nomaintainer
+license             GPL-2+
+
+description         Lepton EDA — schematic capture and netlisting (gEDA/gaf fork)
+long_description    Lepton EDA is the actively maintained fork of the gEDA/gaf \
+                    suite: lepton-schematic (schematic capture GUI), \
+                    lepton-netlist, lepton-cli, lepton-attrib, lepton-sch2pcb \
+                    and friends, scriptable in Guile Scheme. Not in stock \
+                    MacPorts (which only has the abandoned geda-gaf 1.10.2).
+
+homepage            https://github.com/lepton-eda/lepton-eda
+
+# The release asset is a proper autotools dist tarball (configure pre-built);
+# the auto-generated GitHub archive would need autogen.sh and more tools.
+master_sites        https://github.com/lepton-eda/lepton-eda/releases/download/${release_tag}/
+
+checksums           rmd160  62da99c4d557f2babec0e9a8b1cf3f997a4dd73c \
+                    sha256  5fdc8dba8b0d47525fde061641978e9ca771cc92e5776f529fd5d8b0f1966182 \
+                    size    9459680
+
+depends_build       port:pkgconfig \
+                    port:gettext \
+                    bin:groff:groff
+
+# configure prefers guile-3.0, falls back to guile-2.2. MacPorts' plain
+# `guile` port is an obsolete stub (replaced by guile-2.2) — use guile-3.0.
+# Its binaries are suffixed (guile-3.0, guild-3.0); lepton's GUILE_PROGS
+# macro probes the suffixed names itself, so no configure.env needed.
+depends_lib         port:guile-3.0 \
+                    port:gtksheet \
+                    port:glib2 \
+                    port:gtk3 \
+                    port:gdk-pixbuf2 \
+                    port:cairo \
+                    port:pango \
+                    port:gettext-runtime
+
+# GTK3 GUI (default upstream is the legacy GTK2 one). MacPorts gtk3 is +x11
+# by default, so the GUI tools need an X server at runtime like the other
+# X11 ports in this tree.
+configure.args      --with-gtk3 \
+                    --disable-update-xdg-database
+
+destroot.destdir    DESTDIR=${destroot}
+
+notes "
+lepton-schematic and lepton-attrib are GTK3/X11 GUIs: they need a running X\
+server. Install XQuartz from https://www.xquartz.org (not the deprecated\
+MacPorts xorg-server), then log out/in so \$DISPLAY registers.
+
+The CLI tools (lepton-cli, lepton-netlist, ...) work without X.
+"
+
+livecheck.type      regex
+livecheck.url       https://github.com/lepton-eda/lepton-eda/releases
+livecheck.regex     {releases/tag/(\d+(?:\.\d+)+)}

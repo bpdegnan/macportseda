@@ -42,10 +42,14 @@ macportseda/
     │   └── Portfile
     └── (see science/ and x11/ for the rest)
 x11/
+├── gtksheet/          # GtkSheet widget lib (lepton-attrib dependency)
+│   └── Portfile
 └── xcircuit/          # vendored stock snapshot
     └── Portfile
 science/
 ├── xschem/
+│   └── Portfile
+├── lepton-eda/        # gEDA/gaf fork: lepton-schematic, -netlist, -attrib
 │   └── Portfile
 ├── iverilog/          # vendored stock snapshot
 │   └── Portfile
@@ -90,14 +94,14 @@ Ports live under a category directory (`cad`) as MacPorts expects.
    (Usually `/opt/local/etc/macports/sources.conf`.) Add:
 
    ```
-   file:///Users/degs/private/projects/software/macportseda
+   file:///Users/degs/private/projects/macportseda
    rsync://rsync.macports.org/macports/release/tarballs/ports.tar [default]
    ```
 
 2. Build the port index (run inside this directory):
 
    ```
-   cd /Users/degs/private/projects/software/macportseda
+   cd /Users/degs/private/projects/macportseda
    portindex
    ```
 
@@ -122,6 +126,7 @@ Ports live under a category directory (`cad`) as MacPorts expects.
    | openvaf | `sudo port install openvaf` | Verilog-A→OSDI; binary is `openvaf-r`. |
    | gtkwave / xcircuit / iverilog / magic | `sudo port install <name>` | Vendored stock snapshots. `magic`/`xcircuit` are X11 → XQuartz. |
    | xschem | `sudo port install xschem` | Schematic capture. **X11 → needs XQuartz** (see notes). |
+   | lepton-eda | `sudo port install lepton-eda` | gEDA/gaf fork. GTK3/X11 GUIs → XQuartz; **needs `libepoxy +x11` and `glib2 +x11`** (see notes). Pulls `gtksheet`. |
    | xyce | `sudo port install xyce` | Parallel SPICE; pulls `trilinos16`. |
    | py-volare | `sudo port install py-volare` | PDK manager; py313, installs `volare`. |
    | skim-app | `sudo port install skim-app` | Skim PDF/EPS reader → `/Applications/MacPorts`. |
@@ -481,6 +486,40 @@ The whole tree builds on macOS 15.3 / Xcode 16.2 with the following caveats:
 - `ngspice` and `openEMS` are deliberately **left on stock MacPorts** (not
   vendored). Both are used here occasionally; neither is pinned by any flow,
   so tracking stock is fine.
+
+## lepton-eda / gtksheet notes (gEDA schematic capture & netlisting)
+
+- **Lepton EDA** — the actively maintained fork of gEDA/gaf (stock MacPorts
+  only has the abandoned `geda-gaf` 1.10.2). Pinned to **1.9.18**, upstream's
+  last tagged release (2022; master is active but untagged). The port fetches
+  the official *dist* tarball release asset, not the GitHub auto-archive.
+- Built `--with-gtk3` (upstream's GTK2 path is legacy) against `gtk3 +x11`,
+  and with MacPorts **`guile-3.0`** (the plain `guile` port is an obsolete
+  stub; lepton's configure finds the suffixed `guile-3.0`/`guild-3.0`
+  binaries by itself).
+- **`gtksheet`** (new `x11/` port, fpaquet/gtksheet 4.3.14) satisfies
+  lepton-attrib's GtkSheet-4 requirement under GTK3. Its git archive ships a
+  stale checked-in `configure` with no `build-aux/`, so the port runs
+  `autoreconf -fvi` (the gtk-doc/introspection m4s are bundled — no gtk-doc
+  dep).
+- **Dependency variants (both machines):** `gtk3 +x11` needs its *singleton*
+  backends built for X11 too, or lepton dies at runtime dlopen:
+  ```
+  sudo port upgrade --enforce-variants libepoxy +x11 -quartz   # else: missing _epoxy_glXGetClientString
+  sudo port upgrade --enforce-variants glib2 +x11 -quartz      # else: missing _g_desktop_app_info_get_filename
+  ```
+  Both are safe on a mixed quartz/x11 machine: nothing installed references
+  libepoxy's CGL-only or glib2's `g_osx_app_info_*` quartz-only symbols
+  (verified by an `nm` sweep; gtkwave/gtk2-quartz and gtk4-quartz unaffected).
+  This is the same lesson as the cairo/pango rule in the macOS 15 notes.
+- First run of any lepton tool auto-compiles the Guile Scheme libs into
+  `~/.cache/guile/ccache` (a minute or so of `;;; compiling...` noise —
+  harmless). If tools were run *before* the variant fixes above, delete that
+  cache: stale `.go` files produce
+  `Wrong type to apply: #<syntax-transformer check-string>`.
+- Verified: `lepton-netlist -g spice-sdb` produces a correct netlist from the
+  shipped TwoStageAmp example; `lepton-schematic` and `lepton-attrib` run
+  under XQuartz; `lepton-cli --version` reports 1.9.18.
 
 ## xschem notes
 

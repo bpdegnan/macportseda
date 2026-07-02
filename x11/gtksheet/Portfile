@@ -1,0 +1,40 @@
+# -*- coding: utf-8; mode: tcl; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- vim:fenc=utf-8:ft=tcl:et:sw=4:ts=4:sts=4
+
+PortSystem          1.0
+PortGroup           github 1.0
+
+# GtkSheet spreadsheet widget for GTK3 — dependency of lepton-eda's
+# lepton-attrib (which requires gtksheet >= 4.0 when built --with-gtk3).
+# Not in stock MacPorts.
+github.setup        fpaquet gtksheet 4.3.14 V
+github.tarball_from archive
+revision            0
+categories          x11 devel
+maintainers         nomaintainer
+license             LGPL-2.1+
+
+description         GtkSheet — spreadsheet/matrix widget for GTK3
+long_description    A matrix widget for GTK3 in the spirit of a spreadsheet: \
+                    cells with text, numbers or widgets, row/column headers, \
+                    ranges and selections. Continuation of the GtkExtra \
+                    GtkSheet widget, ported to GTK3.
+
+checksums           rmd160  caa9e1994b157d178a64d95cd773cfb06ea129b0 \
+                    sha256  ab269d17bcda73f0fcd237f4e3d25feaf901af0716820895de64db8434537834 \
+                    size    554855
+
+depends_build       port:pkgconfig
+
+depends_lib         port:gtk3 \
+                    port:glib2
+
+# The git archive's checked-in configure is stale (no build-aux/, so it
+# dies with "cannot find install-sh"); regenerate. The gtk-doc/introspection
+# m4 macros are shipped in m4/, so no gtk-doc build dep is needed.
+use_autoreconf      yes
+autoreconf.args     -fvi
+
+# gtk-doc / glade / introspection all default to off.
+configure.args      --disable-gtk-doc
+
+destroot.destdir    DESTDIR=${destroot}
