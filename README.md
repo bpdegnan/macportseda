@@ -172,6 +172,12 @@ Ports live under a category directory (`cad`) as MacPorts expects.
   ```
 - Keep a copy of `distfiles/` with your normal backups (it is NOT pushed with
   the repo).
+- **Off-machine copy**: the archive is also published as per-port tars (+
+  SHA256SUMS) on the repo's GitHub Releases page — release assets escape the
+  100 MB git limit (2 GB/file). Current: tag `distfiles-2026-07`. To refresh
+  after port bumps: re-run `port mirror`, re-tar the changed port dirs, and
+  `gh release upload <tag> <tars> --clobber` (or cut a new dated release).
+  Note `gh release create` also creates a git tag on the remote.
 
 ## macOS 15 (Sequoia) notes
 
