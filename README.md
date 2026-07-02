@@ -4,6 +4,7 @@ A local [MacPorts](https://www.macports.org/) port tree for EDA tools.  Tested o
 This work is motivated by the fact that my needs that generally don't overlap with most communities.  
 I always felt bad contributing to macports because I'm not a very good at software engineering, and the lack of experience made me a bad collaborator.  I'm still poor at GIT.
 
+Tested on my macOS 13 and macOS 15 machines.
 
 
 ## Layout
@@ -137,12 +138,11 @@ Ports live under a category directory (`cad`) as MacPorts expects.
 
 ## macOS 15 (Sequoia) notes
 
-The whole tree builds on macOS 15.3 / Xcode 16.2 with the following caveats
-(nothing here affects the macOS 13 machine):
+The whole tree builds on macOS 15.3 / Xcode 16.2 with the following caveats:
 
-- **Dependency variants must match the macOS 13 setup** — MacPorts Portfiles
+- **Dependency variants** — MacPorts Portfiles
   cannot force variants of their dependencies, and the macOS 15 defaults
-  differ. Before building the X11 GUI ports, make sure:
+  differ from ther other macOS 13 build. Before building the X11 GUI ports, make sure:
   ```
   sudo port upgrade --enforce-variants tk +x11 -quartz     # xschem needs X11 Tk
   sudo port install gtk2 +quartz                            # gtkwave needs quartz gtk2
