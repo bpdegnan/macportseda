@@ -4,11 +4,11 @@ PortSystem          1.0
 PortGroup           conflicts_build 1.0
 
 name                magic
-version             8.3.508
-revision            1
-checksums           rmd160  f034a75cb02e22b72cf0f5748029bb06e570a259 \
-                    sha256  efd23c5b6de4da25868964f1f1e6e4e2229d8ee82f1bfa795e6c2cbfb48e46ab \
-                    size    3762537
+version             8.3.660
+revision            0
+checksums           rmd160  c4626c6a57f7cd03de44021fa2fe579c2ea355af \
+                    sha256  6b87ba830eca6c44ae86cc4ab4e9129f52662a6b8baa7dc2b222743c2e43a169 \
+                    size    4351161
 
 set branch          [join [lrange [split ${version} .] 0 1] .]
 categories          science
@@ -43,6 +43,15 @@ depends_lib         port:blt \
 universal_variant   no
 
 conflicts_build     gnome-keyring
+
+# 8.3.660's depend rule (rules.mak) uses GNU sed's `sed ... -i <file>` form,
+# which BSD sed misparses as "-i with a suffix and no input file". Upstream
+# builds fine on Linux/nix (GNU sed); on macOS point the build at gsed.
+depends_build-append port:gsed
+post-configure {
+    reinplace "s|^SED \\(.*\\)= .*|SED \\1= ${prefix}/bin/gsed|" \
+        ${worksrcpath}/defs.mak
+}
 
 configure.dir       ${worksrcpath}/scripts
 

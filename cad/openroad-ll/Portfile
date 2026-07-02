@@ -1,0 +1,137 @@
+# -*- coding: utf-8; mode: tcl; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- vim:fenc=utf-8:ft=tcl:et:sw=4:ts=4:sts=4
+
+PortSystem          1.0
+PortGroup           cmake 1.1
+
+name                openroad-ll
+# LibreLane's validated OpenROAD pin (nix/openroad.nix rev, dated 2026-02-17).
+# The main `openroad` port tracks upstream tags (26Q3), which has confirmed
+# regressions against LibreLane's flow scripts (resizer buffer explosion,
+# librelane#944 / OpenROAD#10622; I/O pins placed outside die). This port
+# exists so the LibreLane digital flow runs against the exact OpenROAD it was
+# validated with, WITHOUT touching the main openroad install: it lives in the
+# private prefix ${prefix}/libexec/openroad-ll (same twin-build pattern as
+# trilinos16 vs trilinos-charon). The librelane wrapper prepends its bin dir.
+set or_commit       dcf36133a369abc8f3c5e5738cd4d82e4903c0e0
+set sta_sha         857316ff001b2a8dbbdc5996944d08a6d38c87ab
+set abc_sha         4c756ffb8dff7c583e80c7970d117abd3dfddb5c
+version             20260217
+revision            0
+
+categories          cad
+license             BSD
+maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+
+description         OpenROAD pinned to LibreLane's validated revision (private prefix)
+long_description    A second OpenROAD build pinned to the exact revision the \
+                    LibreLane RTL-to-GDS flow is validated against (its nix \
+                    pin of 2026-02-17), installed into a private prefix so it \
+                    coexists with the tag-tracking `openroad` port. Use via \
+                    the librelane wrapper, not on PATH.
+
+homepage            https://theopenroadproject.org/
+
+master_sites        https://github.com/The-OpenROAD-Project/OpenROAD/archive/:or \
+                    https://github.com/The-OpenROAD-Project/OpenSTA/archive/:sta \
+                    https://github.com/The-OpenROAD-Project/abc/archive/:abc
+distfiles           ${or_commit}.tar.gz:or ${sta_sha}.tar.gz:sta \
+                    ${abc_sha}.tar.gz:abc
+worksrcdir          OpenROAD-${or_commit}
+
+checksums \
+    ${or_commit}.tar.gz \
+        rmd160  855cb4ca22cb7006253b43abe7396e9f07eb0b4f \
+        sha256  579851f64a932991e388b2424c0a097fcad267fa0a6c1accbaa7d53e45466cec \
+        size    333351024 \
+    ${sta_sha}.tar.gz \
+        rmd160  005bd5820b9d5abe6cb137dba14fa9d49a85488f \
+        sha256  84f7a5bd245449fad41d7db88c9f84bee6a6b16dfc783649b084b12c4803dac5 \
+        size    13697628 \
+    ${abc_sha}.tar.gz \
+        rmd160  51a516cad9c2fb858621ab4f45ada20eee2bee33 \
+        sha256  e4daab939d225ea85d418e553ab528e07924e0e4df8c94db1f9163235d82f507 \
+        size    7192079
+
+# LibreLane carries this patch on top of the pin (nix/patches/openroad/):
+# grt: use minimum pin layer for local-net guides. The flow relies on it.
+patchfiles-append   grt_pin_layers.patch
+patch.pre_args      -p1
+
+post-extract {
+    # Submodules are not in the archive tarball; drop the pinned sources in.
+    file delete -force ${worksrcpath}/src/sta
+    move ${workpath}/OpenSTA-${sta_sha} ${worksrcpath}/src/sta
+    file delete -force ${worksrcpath}/third-party/abc
+    move ${workpath}/abc-${abc_sha} ${worksrcpath}/third-party/abc
+}
+
+post-patch {
+    # Bake the pinned rev into the version string (tarballs carry no git dir).
+    reinplace "s|GITDIR-NOTFOUND|${or_commit}|" \
+        ${worksrcpath}/cmake/GetGitRevisionDescription.cmake
+}
+
+set edaprefix       ${prefix}/libexec/eda
+set llprefix        ${prefix}/libexec/openroad-ll
+cmake.install_prefix ${llprefix}
+
+# Same build-time shadowing gates as the main openroad port (see its Portfile
+# for the full explanations): deactivate boost, spdlog, protobuf3-cpp and
+# OpenSTA for the build, reactivate after. The private INSTALL prefix does not
+# help at COMPILE time -- ${prefix}/include still shadows the eda bundle.
+
+depends_build-append \
+    path:bin/bison:bison \
+    path:bin/flex:flex \
+    port:swig \
+    port:llvm-19
+
+depends_lib-append \
+    port:eda-or-tools \
+    port:eda-lemon \
+    port:eda-fmt \
+    port:eda-spdlog \
+    port:tcl \
+    port:eigen3 \
+    port:cudd \
+    port:yaml-cpp \
+    port:gtest \
+    port:readline \
+    port:zlib \
+    port:libomp \
+    port:python313
+
+# Same C++20 toolchain recipe as the main openroad port: MacPorts clang-19
+# with its libc++ 19 headers, system libc++ runtime.
+configure.compiler        macports-clang-19
+configure.cxxflags-append -nostdinc++ \
+                          -isystem ${prefix}/libexec/llvm-19/include/c++/v1 \
+                          -DBOOST_STACKTRACE_GNU_SOURCE_NOT_REQUIRED \
+                          -isystem ${prefix}/libexec/boost/1.81/include
+# The last -isystem: at this rev, the utl_py wrapper target does not inherit
+# Boost include dirs from CMake (fixed by 26Q3), so give boost181 globally --
+# same approach as LibreLane's nix build, which injects it via CMAKE_CXX_FLAGS.
+
+configure.ldflags-append  -Wl,-rpath,${edaprefix}/lib \
+                          -L${prefix}/lib/libomp -lomp
+
+cmake.build_type    Release
+configure.args-append \
+    -DCMAKE_PREFIX_PATH=${edaprefix} \
+    -DENABLE_TESTS=OFF \
+    -DLINK_TIME_OPTIMIZATION=OFF \
+    -DUSE_SYSTEM_ABC=OFF \
+    -DUSE_SYSTEM_OPENSTA=OFF \
+    -DUSE_EXTERNAL_FMT=ON \
+    -DUSE_SYSTEM_BOOST=ON \
+    -DBoost_DIR=${prefix}/libexec/boost/1.81/lib/cmake/Boost-1.81.0 \
+    -DBOOST_ROOT=${prefix}/libexec/boost/1.81 \
+    -DBoost_NO_SYSTEM_PATHS=ON \
+    -DPython3_EXECUTABLE=${prefix}/bin/python3.13 \
+    -DTCL_LIBRARY=${prefix}/lib/libtcl8.6.dylib \
+    -DTCL_INCLUDE_PATH=${prefix}/include \
+    -DOpenMP_CXX_FLAGS=-fopenmp=libomp \
+    -DOpenMP_CXX_LIB_NAMES=omp \
+    -DOpenMP_omp_LIBRARY=${prefix}/lib/libomp/libomp.dylib
+
+livecheck.type      none

@@ -54,4 +54,31 @@ destroot.args-append \
                     CONFIG=clang \
                     PREFIX=${prefix}
 
+# Python bindings (libyosys + the `yosys -y <script.py>` driver mode).
+# OpenLane 2 / LibreLane run their synthesis steps as pyosys scripts, so this
+# variant is required for OpenLane native mode. Off by default: the plain
+# build is untouched (and the macOS 13 machine keeps its exact current yosys).
+# Python is pinned to 3.12 to match the ~/.venvs/openlane2 venv: the embedded
+# interpreter imports pure-Python packages (click) from that venv via
+# PYTHONPATH, which only works reliably when the minor versions agree.
+# PYOSYS_USE_UV=0: pybind11 (>=3) and cxxheaderparser come from MacPorts ports
+# instead of uv-downloaded ephemeral envs (no network during build).
+variant pyosys description {Build Python bindings and yosys -y (needed by OpenLane 2)} {
+    set pyver           3.12
+    set pyver_nodot     [string map {. {}} ${pyver}]
+    depends_build-append \
+                    port:py${pyver_nodot}-pybind11 \
+                    port:py${pyver_nodot}-cxxheaderparser
+    depends_lib-append \
+                    port:python${pyver_nodot}
+    build.args-append \
+                    ENABLE_PYOSYS=1 \
+                    PYOSYS_USE_UV=0 \
+                    PYTHON_EXECUTABLE=${prefix}/bin/python${pyver}
+    destroot.args-append \
+                    ENABLE_PYOSYS=1 \
+                    PYOSYS_USE_UV=0 \
+                    PYTHON_EXECUTABLE=${prefix}/bin/python${pyver}
+}
+
 livecheck.type      none

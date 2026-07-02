@@ -170,6 +170,43 @@ The whole tree builds on macOS 15.3 / Xcode 16.2 with the following caveats
   window server, so it cannot be smoke-tested over SSH — verify it from a
   local GUI session.
 
+## LibreLane / OpenLane 2 notes (RTL-to-GDS flow driver)
+
+- **Use LibreLane, not the `openlane` PyPI package.** OpenLane 2 froze at 2.3.x
+  when Efabless shut down; LibreLane (same lead dev) is its continuation and is
+  what actually works with current tools: `openlane` 2.3.10 hard-codes the old
+  boost::python pyosys API and the pre-OpenSTA-3 `sta::corners` TCL, both dead
+  ends with 2026 tools.
+- **Native mode** (upstream supports only Nix/Docker, but this works, verified
+  end-to-end): the `librelane` wrapper script in `~/.local/bin` runs a uv venv
+  (`~/.venvs/librelane`, python 3.12, `pip install librelane`) with MacPorts
+  tools on PATH. `spm` example: full 80-stage flow to GDS with **0 magic DRC,
+  0 klayout DRC, 0 netgen LVS errors**.
+- What native mode needed (all in-tree / in the wrapper):
+  - **`openroad-ll` port**: OpenROAD pinned to LibreLane's validated rev
+    (2026-02-17) in the private prefix `libexec/openroad-ll`. The tag-tracking
+    `openroad` port (26Q3) has confirmed upstream regressions against the flow
+    (resizer buffer explosion → >100% utilization, librelane#944 /
+    OpenROAD#10622; I/O pins placed outside the die). Same build gates as
+    `openroad` (deactivate `boost spdlog protobuf3-cpp OpenSTA` to build).
+  - **`yosys +pyosys` variant**: LibreLane runs synthesis as Python scripts via
+    `yosys -y`, so yosys needs its pybind11 Python bindings (new
+    `py-cxxheaderparser` port is a build dep). Python pinned to 3.12 to match
+    the venv (the embedded interpreter imports `click` from it via PYTHONPATH).
+  - **magic bumped to 8.3.660** (nix-eda's pin; 8.3.508 lacks the `units`
+    command the magic scripts use). Needs `gsed` for its GNU-sed depend rule.
+  - **Wrapper PATH order matters**: venv bin first (LibreLane's klayout steps
+    export the venv's sys.path as PYTHONPATH and call plain `python3` — it must
+    resolve to the venv's 3.12, else stdlib version-crossing → "SRE module
+    mismatch"), then `libexec/openroad-ll/bin`, then `/opt/local/bin`.
+- **PDK**: LibreLane's bundled ciel downloads its pinned open_pdks sky130A
+  build into `PDK_ROOT` (~/.volare) on first run. Don't point it at the raw
+  skywater-pdk checkout — that is not an open_pdks build.
+- netgen 1.5.321 and klayout 0.30.9 match LibreLane's pins; standalone OpenSTA
+  is untouched (the flow does STA through openroad).
+- OpenLane **1** was skipped deliberately: Docker/Makefile-first, legacy,
+  fully superseded by LibreLane for this use case.
+
 ## OpenSTA notes
 
 - Upstream (`parallaxsw/OpenSTA`) publishes no git tags or releases, so the

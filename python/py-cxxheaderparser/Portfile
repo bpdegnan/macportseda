@@ -1,0 +1,36 @@
+# -*- coding: utf-8; mode: tcl; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- vim:fenc=utf-8:ft=tcl:et:sw=4:ts=4:sts=4
+
+PortSystem          1.0
+PortGroup           python 1.0
+
+name                py-cxxheaderparser
+version             1.9.1
+revision            0
+
+categories-append   devel
+license             BSD
+supported_archs     noarch
+platforms           {darwin any}
+maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+
+description         Pure-Python C++ header parser
+long_description    cxxheaderparser parses C++ header files and returns a \
+                    structured representation of their declarations. It is a \
+                    build-time dependency of yosys +pyosys (the Python \
+                    bindings generator walks the yosys kernel headers with it).
+
+homepage            https://github.com/robotpy/cxxheaderparser
+
+checksums           rmd160  5c45f5d964405e53925d882da239687a056cf4c1 \
+                    sha256  feb22c03196b9069eeaa43cae51c445719fc69cf372d9597e7cac9ce95c4e126 \
+                    size    56075
+
+python.versions     311 312 313
+python.default_version 312
+
+if {${name} ne ${subport}} {
+    depends_build-append    port:py${python.version}-hatchling \
+                            port:py${python.version}-hatch-vcs
+
+    livecheck.type          none
+}
