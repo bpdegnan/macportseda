@@ -6,6 +6,7 @@ I always felt bad contributing to macports because I'm not a very good at softwa
 
 Tested on my macOS 13 and macOS 15 machines.
 
+Regarding Skywater's 130 PDK, I've never tried py-voltare; however, I use the [https://github.com/bpdegnan/spicesupport](https://github.com/bpdegnan/spicesupport) repo and the [installskywater.sh] script in that repo.
 
 ## Layout
 
