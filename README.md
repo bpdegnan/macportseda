@@ -31,6 +31,8 @@ macportseda/
     │   └── Portfile
     ├── sby/            # SymbiYosys — formal verification front-end
     │   └── Portfile
+    ├── netlistsvg/     # SVG schematics from yosys JSON (sky130 PDK dep)
+    │   └── Portfile
     ├── eda-or-tools/   # pinned OR-Tools (private prefix) for OpenROAD
     │   └── Portfile
     ├── eda-lemon/      # pinned LEMON graph lib (private prefix) for OpenROAD
@@ -192,6 +194,7 @@ every file, so the archive needs no special trust.
 | openvaf | [OpenVAF/OpenVAF-Reloaded v24.0.1mob](https://github.com/OpenVAF/OpenVAF-Reloaded/archive/v24.0.1mob/OpenVAF-Reloaded-24.0.1mob.tar.gz) + pinned crates from [crates.io](https://static.crates.io/crates/) + the [pascalkuthe/salsa](https://github.com/pascalkuthe/salsa) fork (all listed in the Portfile) |
 | yosys | [YosysHQ/yosys v0.66 `yosys-src.tar.gz`](https://github.com/YosysHQ/yosys/releases/download/v0.66/yosys-src.tar.gz) (release asset, bundles ABC) |
 | sby | [YosysHQ/sby @ d3e72d2](https://github.com/YosysHQ/sby/archive/d3e72d26e8634bca4ca16f3e4d84331481f06ab6/sby-d3e72d26e8634bca4ca16f3e4d84331481f06ab6.tar.gz) |
+| netlistsvg | [npm netlistsvg 1.0.2](https://registry.npmjs.org/netlistsvg/-/netlistsvg-1.0.2.tgz) + 70 pinned npm dep tarballs from registry.npmjs.org (all listed in the Portfile; no npm at build time) |
 | eda-or-tools | [google/or-tools v9.14 prebuilt macOS](https://github.com/google/or-tools/releases/download/v9.14/or-tools_x86_64_macOS-15.5_cpp_v9.14.6206.tar.gz) |
 | eda-lemon | [lemon.cs.elte.hu 1.3.1](https://lemon.cs.elte.hu/pub/sources/lemon-1.3.1.tar.gz) (**404s** — [Spack mirror fallback](https://mirror.spack.io/_source-cache/archive/71/71b7c725f4c0b4a8ccb92eb87b208701586cf7a96156ebd821ca3ed855bad3c8.tar.gz), keyed by sha256) |
 | eda-fmt | [fmtlib/fmt 12.1.0](https://github.com/fmtlib/fmt/archive/12.1.0/fmt-12.1.0.tar.gz) |
@@ -457,6 +460,25 @@ The whole tree builds on macOS 15.3 / Xcode 16.2 with the following caveats:
   at `${prefix}/bin/python3.13`.
 - Verified: passes true assertions and fails false ones (with counterexample)
   via `sby -f design.sby`.
+
+## netlistsvg notes (SVG schematics from yosys JSON)
+
+- netlistsvg draws SVG schematics from `yosys ... write_json` output; the
+  SkyWater sky130 PDK build uses it to render standard-cell schematics.
+  Installs `netlistsvg` and `netlistsvg-dumplayout`. `supported_archs noarch`.
+- It is an npm package, but the port never runs npm: the npm registry tarball
+  plus all **70 runtime dependency tarballs** are pinned as checksummed
+  distfiles (same philosophy as openvaf's crate pins). npm's resolved tree is
+  flat, so `post-extract` just untars each dep into `node_modules/<name>`
+  (`--strip-components=1`, since the `@types/*` tarballs don't use the usual
+  `package/` root). Everything lands in `${prefix}/lib/node_modules/netlistsvg`
+  with `bin` symlinks; shebangs are repointed at `${prefix}/bin/node`.
+- Runtime dep is `path:bin/node:nodejs22` — any MacPorts nodejs satisfies it.
+- On a version bump, regenerate the dep list per the comment block in the
+  Portfile (`npm install --package-lock-only`, re-hash the resolved tarballs,
+  and re-check the tree is still flat).
+- Verified: `port test netlistsvg` renders an SVG from a small `$and` netlist,
+  and the installed binary does the same.
 
 ## skim-app notes (Skim PDF/EPS reader)
 

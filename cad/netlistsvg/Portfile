@@ -1,0 +1,186 @@
+# -*- coding: utf-8; mode: tcl; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- vim:fenc=utf-8:ft=tcl:et:sw=4:ts=4:sts=4
+
+PortSystem          1.0
+
+name                netlistsvg
+version             1.0.2
+revision            0
+
+categories          cad graphics
+license             MIT
+maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+supported_archs     noarch
+platforms           any
+
+description         draws SVG schematics from Yosys JSON netlists
+long_description    netlistsvg renders SVG schematics from the JSON netlists \
+                    that yosys emits via write_json. Required by the SkyWater \
+                    sky130 PDK build to draw standard-cell schematics. This \
+                    port installs from the npm registry tarball with every \
+                    runtime dependency vendored as a pinned, checksummed \
+                    distfile, so the build is fully offline and never runs npm.
+
+homepage            https://github.com/nturley/netlistsvg
+
+# ============================================================================
+# npm dependency vendoring
+#
+# The dependency tree resolved by npm is FLAT (no nested node_modules), so
+# each dep tarball is simply extracted into node_modules/<name> and node's
+# directory-walking resolver finds everything. No npm at build or run time.
+#
+# Note the @types/* tarballs do not use "package/" as their root directory
+# (DefinitelyTyped uses the package name), hence --strip-components=1 rather
+# than relying on a fixed root name.
+#
+# To regenerate on a version bump: in an empty dir run
+#   npm install --package-lock-only --ignore-scripts netlistsvg@<ver>
+# confirm no lockfile key contains "node_modules" twice (tree still flat),
+# then download each "resolved" tarball and record sha256 + size below.
+#
+# Each entry: {name filename sha256 size}
+# ============================================================================
+set npm_deps {
+    {@types/clone clone-0.1.30.tgz b956a2dd003117afa7f8299df2b253a6928c25d9d00680de50f27292c570911b 1274}
+    {@types/json5 json5-0.0.30.tgz 5e12a0df3a6ab35c769ad93aac4b3272c7a616848f25cdd2689b88311558a930 2216}
+    {@types/lodash lodash-4.17.24.tgz 3a3bb26d23818e5a17c2d168769976f78b34e6d9e43f290390d54088fd2e35a9 102512}
+    {ajv ajv-6.15.0.tgz f52192ad895dee468f1d1d5bf8972f7114e2459ff126632a1963e7bd2a38ed0a 202724}
+    {ajv-errors ajv-errors-1.0.1.tgz 8d13932e16508c6211f2fd805272873c5eefe84bcc7b4a2aa5fdd28f230d4690 8716}
+    {ansi-regex ansi-regex-2.1.1.tgz 52b8ab148865eeaf538e630a937fa153d5af21232f014a5d4e38491937be8037 2340}
+    {camelcase camelcase-3.0.0.tgz 78d8cda9e83918a86491c8fb8d71a3ad7851cd562ab00807319be35371c16d02 1972}
+    {cliui cliui-3.2.0.tgz 4ff1f37ab7becd3fb0a38956ad044449a4e7d34a48caa6323530ff0805b6ea40 4953}
+    {clone clone-2.1.2.tgz 7df63a618a362185c642f0a65db6f654e586fa727543872b5ba65e59d604e93d 5814}
+    {code-point-at code-point-at-1.1.0.tgz 5279ca78986d6381852ac1b02592ae2dc5cc979317284b8aa1d7554107770b3d 1776}
+    {decamelize decamelize-1.2.0.tgz b4adeff510e38c3a02703bcba72ffbe3c65b591f13c78c6a459b5e801a3e2864 1691}
+    {elkjs elkjs-0.3.0.tgz 30502d2bdde7f9f945ab061590f57d62fd6650741f0eabd7ff396d70b8419fa1 1407447}
+    {error-ex error-ex-1.3.4.tgz 89de5f53e74760dc7a6a943d0f6ef0fe823e0d833dc9604fb6793acdee734687 3551}
+    {es-errors es-errors-1.3.0.tgz d14dd1c35b4bd3b8aca3219fd3627eb7f3eb49cf6b4c8a7ca58b91fd7a190993 5338}
+    {fast-deep-equal fast-deep-equal-3.1.3.tgz b019a0980f27638dc3f85836b0e478f188e00d7a6e5852c0819fa86f56e47b8f 3656}
+    {fast-json-stable-stringify fast-json-stable-stringify-2.1.0.tgz 1e2df822c43e0a2b448e5df79bf8e6d3e085c86e30456cd383a2f96215fd1687 6318}
+    {find-up find-up-1.1.2.tgz b1e6968c7ccf27d31504353bed2b0748b9b0284bc847b0a0480f5b56137d8b7f 2060}
+    {fs-extra fs-extra-1.0.0.tgz eed8f1f41be7033d3ad7b5652459276fa461651bbdc389041cc94acc18a571ab 28989}
+    {function-bind function-bind-1.1.2.tgz 704402651b02a1454f17d445fc7dd716efc282d059407126d58ef30a47e807aa 9799}
+    {get-caller-file get-caller-file-1.0.3.tgz 9d0406179fcf0878c05a8c9c71e6c3ba2f49a3f27bed593c78c7aa2051292b68 1400}
+    {graceful-fs graceful-fs-4.2.11.tgz 3961374aa161e6fed80d6f4b6aaf2fb7eafd2c9e5be34e865b375f0114dd099c 9804}
+    {hasown hasown-2.0.4.tgz e9d2b03f95573600e1c13124ce618e3142ed2c538d164595bedcd4408b8a4e4c 4608}
+    {hosted-git-info hosted-git-info-2.8.9.tgz c97ee798e6c57215cb522ff1d8ddcb3b0a74d352f3edf4adf3cc91cc940af2cd 8110}
+    {invert-kv invert-kv-1.0.0.tgz ad334f834b1876490ce47e220ff1b712e5b678216552abbd005639c14974d29e 833}
+    {is-arrayish is-arrayish-0.2.1.tgz 848d15d93e447897263a654c114c8e45c340ce7fdc1bc86e7a44a4c44f27e38c 2646}
+    {is-core-module is-core-module-2.16.2.tgz e2f933640de144ca2e96d754b51b1fd6b96e2ad44e72eeffce17aa24436a41b3 11024}
+    {is-fullwidth-code-point is-fullwidth-code-point-1.0.0.tgz 77ed656a130d47cc804c1d8fdae8f0fc4ad355625552fcde37703ca5f8b3686c 2124}
+    {is-utf8 is-utf8-0.2.1.tgz 842b40f45caefe6d44673cb105ca8f852fa57fce75ee2db7923e414d43d65674 1628}
+    {json-schema-traverse json-schema-traverse-0.4.1.tgz f735add93641842e13096c8b3239f54e9b0b10e8ffd8a377400f4d61eabec065 5141}
+    {json5 json5-0.5.1.tgz 5ea33801efe139c4303996569bcf62e37dcc100cc0575c6e7b22554133fbe61e 13523}
+    {jsonfile jsonfile-2.4.0.tgz fc9541cb2b3f7f0a9ea2b8a06a1f34c72cbf48eea43bd752cb0df0728cb45a73 5427}
+    {klaw klaw-1.3.1.tgz 5f22cf9a810f184ff33bdf4edb8e9020a1f4001b1413081d2d9cb90380784def 4822}
+    {lcid lcid-1.0.0.tgz 4c49d600aaa40a822928c13fae5575bb2debc38a3e8f7877d290cc9ff2d24c43 3211}
+    {load-json-file load-json-file-1.1.0.tgz edf8d9c1a69850f6efd099390ce2c3b50edb9ac99b997e957bbb2f947d145d7e 1825}
+    {lodash lodash-4.18.1.tgz 696942c2a488c9d7428e9ca5f12ccf03b52de01dcdbfe4d4751d392f0491ae16 315640}
+    {normalize-package-data normalize-package-data-2.5.0.tgz ec9b59c56f2223aba94ab8b79af990a0bc7d80a7dd94e80bb7c6fc682c471e7b 8662}
+    {number-is-nan number-is-nan-1.0.1.tgz 896ec5dd2269a0f219b0e46dd24b5532cdfd1648f1e5156078854b912d619f3c 1464}
+    {onml onml-0.3.1.tgz e1c0d6dc520b8fe4bcf3c933f15daa42aab45ad98beb9fb4c63f4e35524a3d7e 4177}
+    {os-locale os-locale-1.4.0.tgz c46e48baddd73fac210c0fe16b286e7d34e72725d8d432fbfdc2469612823c56 2463}
+    {parse-json parse-json-2.2.0.tgz 8bb1291c36fff54df555487976888dad81666a05291e6b6ddc5d2dc74d9f6ed5 9910}
+    {path-exists path-exists-2.1.0.tgz fa338f850c34beea601a2680566bbcf095611f003934b47f0e71deb2c06aa889 1922}
+    {path-parse path-parse-1.0.7.tgz a07a198ca727816296616928237bfab6571f211750d798030b3b7a3f4a5473a3 2067}
+    {path-type path-type-1.1.0.tgz c6910e17a214f4edb0f4b04f6f9c74300d4bf2d587756eafdade29d33d9fb13b 1798}
+    {pify pify-2.3.0.tgz 74a52c931eea5d226f6a04deb6e138f1a9896abcc64fc1c597f83d19a7b20530 2793}
+    {pinkie pinkie-2.0.4.tgz 79a858c25e63ade9eb3e65b2aa2a491cc9e1d2fe671c0168f9291b3ba7da3d83 3935}
+    {pinkie-promise pinkie-promise-2.0.1.tgz 92b6c810617351cb03c62b39fa6241003e5da043074561448b9f08ff4f93ad14 1532}
+    {punycode punycode-2.3.1.tgz e4ce59f9fbac44349abab87279ab658f6b4614916bec5e088ae3be9323e193bb 7603}
+    {read-pkg read-pkg-1.1.0.tgz 8ec36eb1bbfbbeafd98799818804e94528bde09db50a87a9aac0f0eaaf56eff2 2074}
+    {read-pkg-up read-pkg-up-1.0.1.tgz e7058ddcb7a13ab36cf55795d6a31629e5be82f206a50d35a10b91d17c7e4726 2072}
+    {require-directory require-directory-2.1.1.tgz 703bee0844360383fe4a8792d4a5a562647426a053e7597a1d272ac554f386c8 4372}
+    {require-main-filename require-main-filename-1.0.1.tgz 63a72dd24ef77958d01bcf2797a2e5fe57e1c5d11579fbd1bdc8b784c89999c3 2133}
+    {resolve resolve-1.22.12.tgz c6a29dbf1f4c0754a94387b379e699f5594216e16ef0d5ee17ccf9518f844dc1 33636}
+    {sax sax-1.6.0.tgz d424acd207642df18c2d814411907b9a108ff1dfca341cfddf523bd57af699f4 16571}
+    {semver semver-5.7.2.tgz e548374dbc4898ddcf349bde966885ac87949be21fd04cd096f53fef0ce655f9 17872}
+    {set-blocking set-blocking-2.0.0.tgz d934aee7db9e09da09e87724743315ffe888130aa6e04fbbdecac985f6ae693d 2212}
+    {spdx-correct spdx-correct-3.2.0.tgz f106c7a567d9bcaee76f55353be4ceec5909df30134d25864b71324fe4e46278 7240}
+    {spdx-exceptions spdx-exceptions-2.5.0.tgz c5295dd22415e8b60a5af2560e7461954f660bcb591be7c5622e463956d33256 1621}
+    {spdx-expression-parse spdx-expression-parse-3.0.1.tgz 01a89e6a60412e344e74ed81f370fd7d33bbb658773f0cee6e2f15ea15449d1f 4427}
+    {spdx-license-ids spdx-license-ids-3.0.23.tgz fea7d95340e83a403c73463ea683cdde960029d956a86a023af6e283fd1e82fe 4929}
+    {string-width string-width-1.0.2.tgz 97e54ded8cca6d24a58e8d0650fcfe80fb4094894c2078136b4ad0f24059e25d 2083}
+    {strip-ansi strip-ansi-3.0.1.tgz 1c9d385a4118959514f84dce8d7bb2dafc802f0272dd00348aa18d17b95b793a 1734}
+    {strip-bom strip-bom-2.0.0.tgz ad9ed163db6586739e6576b48ea76349b83ad460fee5c8e6a8fb481883fd0653 1789}
+    {supports-preserve-symlinks-flag supports-preserve-symlinks-flag-1.0.0.tgz 97da1160af5344534182e72502978374d20875d32c6071cd2dae997be604f7f9 3810}
+    {uri-js uri-js-4.4.1.tgz 5612de52afe83da73e66b519e83aa56aa81151c844b90bcf8e045df5ecec8d2d 132003}
+    {validate-npm-package-license validate-npm-package-license-3.0.4.tgz 0166efb34d41a131d4df2a75f8ff84314be35c0dacf6fec265602de66777fd8c 5675}
+    {which-module which-module-1.0.0.tgz 2099f8a4be322bae4d0d5c55b16e8916fab3f73a22b08bc22dd3c3faaae54786 2088}
+    {wrap-ansi wrap-ansi-2.1.0.tgz 4e9c683a8ddd125984393f2c2cc014037483458a863c00bfcba7429dd8123490 3546}
+    {y18n y18n-3.2.2.tgz ac7a166a921edf31c773fab8c303bab810ec60f682bbeb64d34b5c52242d7a39 3602}
+    {yargs yargs-6.6.0.tgz 8d14a9e2e26a8fddf5d6039e420c8d5c277ef69407bf27c44d2af5328d5669a9 65305}
+    {yargs-parser yargs-parser-4.2.1.tgz 40ccc8971a9d6adfcbb671694eb9f716d1c2082240aa202ae3a61757eccaef34 10830}
+}
+
+extract.suffix      .tgz
+distname            ${name}-${version}
+master_sites        https://registry.npmjs.org/${name}/-/
+checksums           ${distname}${extract.suffix} \
+                    sha256  f261a9840e8c244ab6721917081bda04138e500b6d5727e672ba1b635ee9ceec \
+                    size    277040
+
+# Register every dep tarball as a distfile. Scoped packages (@types/*) live
+# under a different registry path than their filename suggests, so each dep
+# gets its own tagged master_sites entry.
+set nsite 0
+foreach dep ${npm_deps} {
+    lassign ${dep} dname dfile dsha dsize
+    incr nsite
+    master_sites-append https://registry.npmjs.org/${dname}/-/:npm${nsite}
+    distfiles-append    ${dfile}:npm${nsite}
+    checksums-append    ${dfile} sha256 ${dsha} size ${dsize}
+}
+
+# Only the main tarball is auto-extracted (root dir "package"); deps are
+# placed into node_modules by post-extract.
+extract.only        ${distname}${extract.suffix}
+worksrcdir          package
+
+# node is needed only at run time; nothing is compiled.
+depends_run         path:bin/node:nodejs22
+
+post-extract {
+    foreach dep ${npm_deps} {
+        lassign ${dep} dname dfile dsha dsize
+        set dest ${worksrcpath}/node_modules/${dname}
+        xinstall -d ${dest}
+        # `system`, not Tcl exec: trace mode blocks raw exec of /usr/bin tools
+        system "/usr/bin/tar -xzf [shellescape ${distpath}/${dfile}] \
+            --strip-components=1 -C [shellescape ${dest}]"
+    }
+}
+
+use_configure       no
+build               {}
+
+destroot {
+    set modroot ${prefix}/lib/node_modules/${name}
+    xinstall -d ${destroot}${modroot} ${destroot}${prefix}/bin
+    copy {*}[glob ${worksrcpath}/*] ${destroot}${modroot}
+
+    # npm tarballs ship bin scripts mode 644; npm normally fixes that at
+    # install time, so do it here, and pin the shebang to the MacPorts node.
+    foreach script {netlistsvg.js exportLayout.js} {
+        set f ${destroot}${modroot}/bin/${script}
+        file attributes ${f} -permissions 0755
+        reinplace "s|#!/usr/bin/env node|#!${prefix}/bin/node|" ${f}
+    }
+    ln -s ${modroot}/bin/netlistsvg.js ${destroot}${prefix}/bin/netlistsvg
+    ln -s ${modroot}/bin/exportLayout.js ${destroot}${prefix}/bin/netlistsvg-dumplayout
+}
+
+test.run            yes
+test {
+    set tj ${workpath}/test.json
+    set fp [open ${tj} w]
+    puts ${fp} {{"modules":{"top":{"ports":{"a":{"direction":"input","bits":[2]},"b":{"direction":"input","bits":[3]},"y":{"direction":"output","bits":[4]}},"cells":{"and1":{"type":"$and","port_directions":{"A":"input","B":"input","Y":"output"},"connections":{"A":[2],"B":[3],"Y":[4]}}}}}}}
+    close ${fp}
+    system "${prefix}/bin/node [shellescape ${worksrcpath}/bin/netlistsvg.js] \
+        [shellescape ${tj}] -o [shellescape ${workpath}/test.svg]"
+    if {![file exists ${workpath}/test.svg]} {
+        error "netlistsvg did not produce an SVG"
+    }
+}
+
+livecheck.type      none
