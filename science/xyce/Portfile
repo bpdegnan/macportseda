@@ -4,7 +4,7 @@ PortGroup           cmake 1.1
 
 name                xyce
 version             7.9
-revision            1
+revision            2
 categories          science
 
 maintainers     {gmail.com:degnan.68k @bpdegnan} \
@@ -34,6 +34,16 @@ depends_lib-append  port:fftw-3 \
                     port:bison \
                     port:flex \
                     port:lapack
+
+# macOS 26's restructured libc++ <cmath> (abs() split into __math/abs.h) makes
+# the explicit-template form std::abs<double>(x) ambiguous (multiple candidate
+# overloads now match the explicit <double> argument). Plain std::abs(x)
+# resolves fine via normal overload resolution on the already-double argument;
+# drop the unneeded/now-broken explicit template argument.
+post-patch {
+    reinplace {s|std::abs<double>(|std::abs(|g} \
+        ${worksrcpath}/src/LinearAlgebraServicesPKG/N_LAS_BlockSystemHelpers.C
+}
 
 
 set trilinos_component_paths [list \

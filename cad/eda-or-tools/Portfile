@@ -4,16 +4,14 @@ PortSystem          1.0
 
 name                eda-or-tools
 version             9.14.6206
-revision            2
+revision            3
 categories          cad math
 license             Apache-2
 maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
 platforms           macosx
 
-# Prebuilt binary is Intel; both the build host and the check host are Intel
-# 2019/Ventura-era Macs. For Apple Silicon, fetch the arm64 tarball + checksums
-# and flip this to arm64 (see the distfile name below).
-supported_archs     x86_64
+# Google ships separate prebuilt tarballs per arch; pick the matching one.
+supported_archs     x86_64 arm64
 
 description         Prebuilt Google OR-Tools for OpenROAD (private EDA prefix)
 long_description    Google OR-Tools ${version} C++ libraries, repackaged from \
@@ -27,12 +25,20 @@ long_description    Google OR-Tools ${version} C++ libraries, repackaged from \
 homepage            https://developers.google.com/optimization
 
 master_sites        https://github.com/google/or-tools/releases/download/v9.14/
-distfiles           or-tools_x86_64_macOS-15.5_cpp_v${version}.tar.gz
-worksrcdir          or-tools_x86_64_macOS-15.5_cpp_v${version}
 
-checksums           rmd160  bee9f40cd7141344fe9381c2e58e9c62cc8d3cb3 \
+if {${configure.build_arch} eq "arm64"} {
+    distfiles       or-tools_arm64_macOS-15.5_cpp_v${version}.tar.gz
+    worksrcdir      or-tools_arm64_macOS-15.5_cpp_v${version}
+    checksums       rmd160  225cf5e58f383387b597618415f13422edae78ff \
+                    sha256  7dd3fc35acc74a85f44e39099dcc2caa698d7a99e659e8d8456ce25bafe4a63b \
+                    size    45709462
+} else {
+    distfiles       or-tools_x86_64_macOS-15.5_cpp_v${version}.tar.gz
+    worksrcdir      or-tools_x86_64_macOS-15.5_cpp_v${version}
+    checksums       rmd160  bee9f40cd7141344fe9381c2e58e9c62cc8d3cb3 \
                     sha256  de7ed91b0fe90094fb5f5ebd19869b69a8d52b9752e456752208a22a05b14f7f \
                     size    48625675
+}
 
 set edaprefix       ${prefix}/libexec/eda
 

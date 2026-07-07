@@ -5,7 +5,7 @@ PortGroup           active_variants 1.1
 
 name                xcircuit
 version             3.10.30
-revision            3
+revision            4
 set branch          [join [lrange [split ${version} .] 0 1] .]
 categories          x11 cad
 maintainers         {khindenburg @kurthindenburg} openmaintainer
@@ -60,6 +60,12 @@ configure.cflags-append -Wno-return-type
 # these flags are accepted no-ops).
 configure.cflags-append -Wno-error=implicit-function-declaration \
                         -Wno-error=int-conversion
+
+# autoconf on this toolchain auto-selects -std=gnu23; C23 removed K&R-style
+# (unprototyped) function definitions outright, which this codebase still uses
+# throughout (e.g. functions.c's UCopyCTM). Force back to gnu17, which still
+# accepts them; appended after the autoconf-selected -std so it wins.
+configure.cflags-append -std=gnu17
 
 configure.args      --with-tcl=${prefix}/lib \
                     --with-tk=${prefix}/lib/tk-x11 \

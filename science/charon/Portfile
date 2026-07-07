@@ -5,7 +5,7 @@ PortGroup           cmake 1.1
 
 name                charon
 version             2.2.0
-revision            2
+revision            3
 categories          science
 license             GPL-3
 maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
@@ -65,9 +65,15 @@ set charon_prefix   ${prefix}/libexec/charon
 # __is_convertible builtin) and the full version-skew flag set proven to let
 # Trilinos 13.4 / Charon v2.2 build on gcc13 + the 2024 system libraries.
 configure.cxx_stdlib    libstdc++
+# macOS 26's SDK headers (mach/port.h's xnu_static_assert_struct_size* macros)
+# use the C11 spelling _Static_assert. Clang's C++ mode accepts that spelling
+# as a compatibility extension; GCC's g++ never picked it up and only knows
+# the C++11 keyword static_assert, so any C++ TU that transitively includes
+# <mach/mach_init.h> (e.g. bundled gtest) fails to parse. Alias it for GCC.
 configure.cxxflags-append \
     -fpermissive -include cstdint \
     -DNETCDF_ENABLE_LEGACY_MACROS -DBOOST_STACKTRACE_GNU_SOURCE_NOT_REQUIRED \
+    -D_Static_assert=static_assert \
     -I${prefix}/include/openmpi-gcc13
 configure.cflags-append \
     -DNETCDF_ENABLE_LEGACY_MACROS -I${prefix}/include/openmpi-gcc13

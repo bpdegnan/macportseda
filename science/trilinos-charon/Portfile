@@ -6,7 +6,7 @@ PortGroup           github 1.0
 
 name                trilinos-charon
 version             13.4.0
-revision            0
+revision            1
 categories          science
 license             BSD
 maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
@@ -65,6 +65,13 @@ configure.cxxflags-append -DNETCDF_ENABLE_LEGACY_MACROS
 # Boost.Stacktrace (pulled in by Teuchos) errors unless told _Unwind_Backtrace
 # is usable without _GNU_SOURCE. On macOS it is, so use Boost's own opt-out.
 configure.cxxflags-append -DBOOST_STACKTRACE_GNU_SOURCE_NOT_REQUIRED
+
+# macOS 26's SDK headers (mach/port.h's xnu_static_assert_struct_size* macros)
+# use the C11 spelling _Static_assert. Clang's C++ mode accepts that spelling
+# as a compatibility extension; GCC's g++ never picked it up and only knows
+# the C++11 keyword static_assert, so any C++ TU that transitively includes
+# <mach/mach_init.h> (e.g. bundled gtest) fails to parse. Alias it for GCC.
+configure.cxxflags-append -D_Static_assert=static_assert
 
 # Trilinos 13.4 has const-correctness constructs (e.g. const void* -> void* in
 # STK's MPI neighbor-collective calls) that GCC 13 rejects but flags as

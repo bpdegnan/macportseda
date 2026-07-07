@@ -8,7 +8,7 @@ PortGroup           github 1.0
 # Not in stock MacPorts.
 github.setup        fpaquet gtksheet 4.3.14 V
 github.tarball_from archive
-revision            0
+revision            1
 categories          x11 devel
 maintainers         nomaintainer
 license             LGPL-2.1+
@@ -36,5 +36,12 @@ autoreconf.args     -fvi
 
 # gtk-doc / glade / introspection all default to off.
 configure.args      --disable-gtk-doc
+
+# gtksheet.c assigns a GtkSheet*-typed focus-event handler straight into a
+# GtkWidgetClass vtable slot (GtkWidget*-typed) without a cast, relying on the
+# GTK convention that such handlers are called on the subclass. Newer clang
+# promotes -Wincompatible-function-pointer-types to a hard error by default;
+# downgrade it back to a warning.
+configure.cflags-append -Wno-error=incompatible-function-pointer-types
 
 destroot.destdir    DESTDIR=${destroot}

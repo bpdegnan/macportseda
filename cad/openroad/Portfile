@@ -24,7 +24,7 @@ github.setup        The-OpenROAD-Project OpenROAD 26Q3
 github.tarball_from archive
 name                openroad
 version             26Q3
-revision            1
+revision            3
 distname            OpenROAD-26Q3
 worksrcdir          OpenROAD-26Q3
 
@@ -53,7 +53,7 @@ set fmt_sha         553ec11ec06fbe0beebfbb45f9dc3c9eabd83d28
 master_sites-append \
     https://github.com/The-OpenROAD-Project/OpenSTA/archive/:sta \
     https://github.com/The-OpenROAD-Project/abc/archive/:abc \
-    https://github.com/povik/yosys-slang/archive/:slangelab \
+    https://github.com/povik/sv-elab/archive/:slangelab \
     https://github.com/MikePopoloski/slang/archive/:slang \
     https://github.com/fmtlib/fmt/archive/:fmt
 distfiles-append    ${sta_sha}.tar.gz:sta ${abc_sha}.tar.gz:abc \
@@ -74,9 +74,9 @@ checksums \
         sha256  0cbf538e60d0303d0e00360d8973aaad7dae198954bed6e34cc31c9a13b3f802 \
         size    7662401 \
     ${slangelab_sha}.tar.gz \
-        rmd160  33e466a9ead330cf012563a1f00f3efe57be3c9a \
-        sha256  d319a1f49116fb9f30341bf06324e40e0ceadfe05d0fa7b00aed4dc0dc6723f1 \
-        size    132767 \
+        rmd160  575f677c2dab3f71eefcbeb4909f0601e86796c3 \
+        sha256  ea31b4a205ebb1fe5ec3789bcd66f21f4975e73c0901622af667f843b833ff10 \
+        size    132788 \
     ${slang_sha}.tar.gz \
         rmd160  ae683d436257eaa7d67e960294979f7a283cba6a \
         sha256  ed21154a6eae279e99045c8fa0a7ae2e1e9ca572d3975ef1f22a811a89a8b8b0 \
@@ -91,9 +91,11 @@ post-extract {
     move ${workpath}/OpenSTA-${sta_sha} ${worksrcpath}/src/sta
     file delete -force ${worksrcpath}/third-party/abc
     move ${workpath}/abc-${abc_sha} ${worksrcpath}/third-party/abc
-    # slang frontend: slang-elab, and its nested slang + fmt
+    # slang frontend: slang-elab (upstream repo povik/yosys-slang was renamed
+    # to povik/sv-elab, changing the archive's top-level directory name), and
+    # its nested slang + fmt
     file delete -force ${worksrcpath}/third-party/slang-elab
-    move ${workpath}/yosys-slang-${slangelab_sha} ${worksrcpath}/third-party/slang-elab
+    move ${workpath}/sv-elab-${slangelab_sha} ${worksrcpath}/third-party/slang-elab
     file delete -force ${worksrcpath}/third-party/slang-elab/third_party/slang
     move ${workpath}/slang-${slang_sha} ${worksrcpath}/third-party/slang-elab/third_party/slang
     file delete -force ${worksrcpath}/third-party/slang-elab/third_party/fmt

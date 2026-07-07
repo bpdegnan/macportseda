@@ -4,7 +4,7 @@ PortGroup           github 1.0
 
 name                trilinos16
 version             16.1.0
-revision            1
+revision            2
 categories          science
 maintainers         {gmail.com:degnan.68k @bpdegnan} \
                     openmaintainer
@@ -29,6 +29,13 @@ depends_lib-append  port:gcc13 \
                     port:SuiteSparse \
                     port:netcdf
 
+# The vendored Kokkos 4.5.1 snapshot (packages/kokkos, pulled in transitively
+# by Sacado/Intrepid2) specializes std::is_same/is_same_v for its own types,
+# which newer clang (macOS 26's Xcode) hard-errors on by default as UB per
+# [namespace.std]p1. Upstream Kokkos dropped this pattern in later releases;
+# suppress the diagnostic rather than patching every occurrence in a vendored
+# snapshot.
+configure.cxxflags-append -Wno-invalid-specialization
 
 configure.args-append \
     -DCMAKE_BUILD_TYPE=Release \
