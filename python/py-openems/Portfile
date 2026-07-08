@@ -1,0 +1,58 @@
+# -*- coding: utf-8; mode: tcl; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- vim:fenc=utf-8:ft=tcl:et:sw=4:ts=4:sts=4
+
+PortSystem          1.0
+PortGroup           python 1.0
+PortGroup           github 1.0
+
+# Same distfile/commit as the cad/openEMS port; the cython bindings live in
+# the python/ subdir of the same repo and must match the installed libraries.
+github.setup        thliebig openEMS 32c5c6b537b33a8b70f9ba4f5c9a8ecbb12777b3
+github.tarball_from archive
+name                py-openems
+version             0.0.36.20260122
+revision            0
+worksrcdir          openEMS-${github.version}/python
+
+categories-append   cad science
+license             GPL-3
+maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+platforms           macosx
+
+description         python (cython) bindings for the openEMS FDTD solver
+long_description    Cython bindings for openEMS (links libopenEMS + libnf2ff). \
+                    This is the scripting frontend for this tree's minimalist \
+                    (octave-free) openEMS: define geometry via py-csxcad, run \
+                    FDTD simulations, and post-process fields/S-parameters in \
+                    python. See https://docs.openems.de/python/ for tutorials.
+
+homepage            https://github.com/thliebig/openEMS
+
+checksums           rmd160  8824177c39eaea6a8a3a1ad0d766bca276b0f5e2 \
+                    sha256  fc2b44c4817bca4085ac7166d000394cfbaa3313bffb8fd9401d7173f3bbab43 \
+                    size    1789578
+
+python.versions     313
+python.default_version 313
+
+# Legacy setup.py build (see py-csxcad for why not pep517).
+python.pep517       no
+
+if {${name} ne ${subport}} {
+    # py-csxcad is needed at BUILD time too: cython cimports CSXCAD's .pxd
+    # files from the installed CSXCAD python package.
+    depends_build-append \
+        port:py${python.version}-cython \
+        port:py${python.version}-setuptools
+    depends_lib-append \
+        port:openEMS \
+        port:py${python.version}-csxcad \
+        port:py${python.version}-numpy \
+        port:py${python.version}-h5py
+
+    # setup.py refuses to run without this (it cannot guess the C++ prefix);
+    # it derives -I/-L/-rpath for libopenEMS/libnf2ff/libCSXCAD from it.
+    build.env-append    OPENEMS_INSTALL_PATH=${prefix}
+    destroot.env-append OPENEMS_INSTALL_PATH=${prefix}
+
+    livecheck.type      none
+}

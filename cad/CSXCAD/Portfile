@@ -1,0 +1,59 @@
+# -*- coding: utf-8; mode: tcl; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- vim:fenc=utf-8:ft=tcl:et:sw=4:ts=4:sts=4
+
+PortSystem          1.0
+PortGroup           boost 1.0
+PortGroup           cmake 1.1
+PortGroup           github 1.0
+
+boost.version       1.81
+
+# Same pinned commit as stock MacPorts CSXCAD (known-good on macOS); this local
+# port SHADOWS the stock one so nothing here ever pulls stock's full vtk.
+github.setup        thliebig CSXCAD f5e47643a28d6efd42cc10b61b848903e6599581
+github.tarball_from archive
+version             20260207-0.6.3-[string range ${github.version} 0 7]
+revision            0
+
+checksums           rmd160  58617d9251d6b834677f1d0a8539456c25e25ff3 \
+                    sha256  45816ea46cc4e9f6cd5e90f2835c04c09d3ce20bc699ae3af9c7bb16d09b88e5 \
+                    size    207477
+
+categories          cad science
+license             GPL-3
+maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+platforms           macosx
+
+description         C++ geometry/property description library for openEMS
+long_description    CSXCAD is a C++ library to describe geometrical objects \
+                    and their physical or non-physical properties, used by the \
+                    openEMS FDTD field solver. This minimalist port links the \
+                    eda-vtk IO-only VTK subset instead of the full MacPorts \
+                    vtk, so no rendering/Qt stack is pulled in.
+
+homepage            https://github.com/thliebig/CSXCAD
+
+# Stock sets 2017 rather than upstream's 2011: VTK 9 headers need it.
+compiler.cxx_standard 2017
+
+# Stock patches: disable the MPICH probe, fix a missing <clocale> include.
+patchfiles-append   patch-no-mpich.diff \
+                    clocale_fix.patch
+
+depends_build-append \
+    path:bin/pkg-config:pkgconfig
+
+# CGAL 5+ is header-only (CGAL::CGAL is an interface target over gmp/mpfr).
+depends_lib-append \
+    port:cgal6 \
+    port:fparser \
+    port:hdf5 \
+    port:tinyxml \
+    port:eda-vtk
+
+set edaprefix       ${prefix}/libexec/eda
+
+configure.args-append \
+    -DFPARSER_ROOT_DIR=${prefix} \
+    -DVTK_DIR=${edaprefix}/lib/cmake/vtk-9.6
+
+livecheck.type      none

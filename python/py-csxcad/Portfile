@@ -1,0 +1,56 @@
+# -*- coding: utf-8; mode: tcl; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- vim:fenc=utf-8:ft=tcl:et:sw=4:ts=4:sts=4
+
+PortSystem          1.0
+PortGroup           python 1.0
+PortGroup           github 1.0
+
+# Same distfile/commit as the cad/CSXCAD port; the cython bindings live in the
+# python/ subdir of the same repo and must match the installed C++ library.
+github.setup        thliebig CSXCAD f5e47643a28d6efd42cc10b61b848903e6599581
+github.tarball_from archive
+name                py-csxcad
+version             0.6.3.20260207
+revision            0
+worksrcdir          CSXCAD-${github.version}/python
+
+categories-append   cad science
+license             LGPL-3
+maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+platforms           macosx
+
+description         python (cython) bindings for the CSXCAD geometry library
+long_description    Cython bindings for CSXCAD, the geometry/property \
+                    description library of the openEMS FDTD solver. Together \
+                    with py-openems this is the scripting frontend that \
+                    replaces octave in this tree's minimalist openEMS build.
+
+homepage            https://github.com/thliebig/CSXCAD
+
+checksums           rmd160  58617d9251d6b834677f1d0a8539456c25e25ff3 \
+                    sha256  45816ea46cc4e9f6cd5e90f2835c04c09d3ce20bc699ae3af9c7bb16d09b88e5 \
+                    size    207477
+
+python.versions     313
+python.default_version 313
+
+# Legacy setup.py build on purpose: the repo's pyproject.toml wires a custom
+# pip backend (bootstrap/) that vendors CSXCAD from a sibling checkout; the
+# plain setup.py path just compiles the .pyx against the installed port.
+python.pep517       no
+
+if {${name} ne ${subport}} {
+    depends_build-append \
+        port:py${python.version}-cython \
+        port:py${python.version}-setuptools
+    depends_lib-append \
+        port:CSXCAD \
+        port:py${python.version}-numpy \
+        port:py${python.version}-matplotlib
+
+    # setup.py refuses to run without this (it cannot guess the C++ prefix);
+    # it derives -I/-L/-rpath for libCSXCAD from it.
+    build.env-append    CSXCAD_INSTALL_PATH=${prefix}
+    destroot.env-append CSXCAD_INSTALL_PATH=${prefix}
+
+    livecheck.type      none
+}

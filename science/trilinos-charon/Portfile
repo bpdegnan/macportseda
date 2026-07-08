@@ -95,6 +95,21 @@ configure.cxxflags-append -I${prefix}/include/openmpi-gcc13
 # charon port points Trilinos_DIR at ${tri_prefix}/lib/cmake/Trilinos.
 set tri_prefix      ${prefix}/libexec/trilinos-charon
 
+# BUILD GATE: trilinos16's headers in ${prefix}/include (Trilinos 16 Teuchos/
+# STK/SEACAS) shadow this build's own 13.4 headers through the TPL
+# -I${prefix}/include, silently mixing header versions in one TU (the mpi.h
+# stub shim above only covers mpi.h). Deactivate it while this builds — same
+# gate as the charon port. Fail fast instead of hours in:
+pre-build {
+    if {![catch {registry_active trilinos16} res] && [llength ${res}]} {
+        ui_error "trilinos16 is active: its ${prefix}/include Trilinos-16\
+            headers shadow this Trilinos 13.4 build's own headers."
+        ui_error "Run:  sudo port -f deactivate trilinos16 && sudo port install\
+            trilinos-charon && sudo port activate trilinos16"
+        return -code error "deactivate trilinos16 before building trilinos-charon"
+    }
+}
+
 # MPI compiler wrappers from the openmpi-gcc13 subport.
 set mpicc           ${prefix}/bin/mpicc-openmpi-gcc13
 set mpicxx          ${prefix}/bin/mpicxx-openmpi-gcc13

@@ -171,13 +171,15 @@ pre-deactivate {
 # these flags, Percept disabled). The full build is a combined Trilinos(Panzer)
 # + Charon compile - multi-hour.
 #
-# BUILD REQUIREMENT: the serial trilinos16 port installs a stub
-# ${prefix}/include/mpi.h that shadows openmpi's real header for some packages
-# (STK/SEACAS). The CMAKE_PROJECT_TOP_LEVEL_INCLUDES shim above
-# (openmpi-first.cmake, same trick as trilinos-charon) prepends openmpi's
-# include dir to the global search so the real mpi.h wins even with trilinos16
-# active. Belt and braces: deactivating trilinos16 for the build still avoids
-# the shadowing entirely:
+# BUILD REQUIREMENT: trilinos16 must be DEACTIVATED while this builds. Its
+# headers in ${prefix}/include shadow the bundled Trilinos 13.4 copies via the
+# -I${prefix}/include that the netCDF/HDF5 TPLs drag onto every compile line:
+#  - Teuchos_any.hpp (Trilinos 16) uses std::is_constructible_v — C++17-only,
+#    fails hard in this -std=c++14 build (seen 2026-07: stk_util ParameterList).
+#  - its stub mpi.h shadows openmpi's real header for STK/SEACAS; the
+#    CMAKE_PROJECT_TOP_LEVEL_INCLUDES shim above (openmpi-first.cmake, same
+#    trick as trilinos-charon) protects against that one, but not the Teuchos
+#    shadow, so deactivation is REQUIRED, not just belt-and-braces:
 #     sudo port -f deactivate trilinos16
 #     sudo port install charon
 #     sudo port activate trilinos16
@@ -185,5 +187,17 @@ pre-deactivate {
 # DURING an earlier install in the same batch, e.g. right after trilinos-charon
 # finishes, which is exactly when the shim is needed.)
 # =====================================================================
+
+# Fail fast (seconds, not hours into the build) if the gate above is not met.
+pre-build {
+    if {![catch {registry_active trilinos16} res] && [llength ${res}]} {
+        ui_error "trilinos16 is active: its ${prefix}/include Trilinos-16\
+            headers (e.g. Teuchos_any.hpp, C++17-only) shadow charon's bundled\
+            Trilinos 13.4 and break this -std=c++14 build."
+        ui_error "Run:  sudo port -f deactivate trilinos16 && sudo port install\
+            charon && sudo port activate trilinos16"
+        return -code error "deactivate trilinos16 before building charon"
+    }
+}
 
 livecheck.type      none

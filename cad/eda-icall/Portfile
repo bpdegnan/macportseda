@@ -3,7 +3,7 @@
 PortSystem          1.0
 
 name                eda-icall
-version             1.0
+version             1.1
 revision            0
 categories          cad
 license             MIT
@@ -16,11 +16,12 @@ description         Metaport: the full open-source sky130 EDA toolchain
 long_description    Installs everything in this tree needed for SkyWater \
                     sky130 IC work: digital RTL-to-GDS (yosys, sby, iverilog, \
                     verilator, OpenSTA, openroad + the LibreLane-pinned \
-                    openroad-ll), analog design and simulation (xschem, \
-                    ngspice, xyce, openvaf), layout and physical verification \
-                    (magic, netgen-lvs, klayout, xcircuit), waveforms \
-                    (gtkwave), the volare PDK manager, and the Skim EPS/PDF \
-                    viewer. Board-level (kicad) and TCAD (charon) are separate.
+                    openroad-ll, netlistsvg), analog design and simulation \
+                    (xschem, eda-ngspice, xyce, openvaf), layout and physical \
+                    verification (magic, netgen-lvs, klayout, xcircuit), \
+                    waveforms (gtkwave), the volare PDK manager, and the Skim \
+                    EPS/PDF viewer. Board-level (kicad) and TCAD (charon) are \
+                    separate.
 
 # Metaport: nothing to fetch or build.
 distfiles
@@ -35,8 +36,9 @@ depends_lib-append \
     port:OpenSTA \
     port:openroad \
     port:openroad-ll \
+    port:netlistsvg \
     port:xschem \
-    port:ngspice \
+    port:eda-ngspice \
     port:xyce \
     port:openvaf \
     port:magic \
@@ -69,6 +71,10 @@ cannot do for you (see the macportseda README for details):
      (deactivate boost spdlog protobuf3-cpp OpenSTA; reactivate after).
      Binary-less first installs of this metaport hit that on fresh machines.
   4. X11 GUIs (xschem, magic, netgen-lvs, xcircuit) need XQuartz.
+  5. The simulator is the pinned eda-ngspice (ngspice 46): the binary is
+     'eda-ngspice', or put ${prefix}/libexec/eda/bin early in PATH to get it
+     as plain 'ngspice'. (The stock MacPorts ngspice port coexists and owns
+     ${prefix}/bin/ngspice if installed.)
 "
 
 livecheck.type      none

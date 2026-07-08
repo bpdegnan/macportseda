@@ -127,6 +127,8 @@ depends_build-append \
     path:bin/bison:bison \
     path:bin/flex:flex \
     port:swig \
+    port:swig-tcl \
+    port:swig-python \
     port:llvm-19
 
 depends_lib-append \

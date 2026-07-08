@@ -33,6 +33,14 @@ macportseda/
     │   └── Portfile
     ├── netlistsvg/     # SVG schematics from yosys JSON (sky130 PDK dep)
     │   └── Portfile
+    ├── eda-vtk/        # minimal VTK IO subset (private prefix) for openEMS
+    │   └── Portfile
+    ├── eda-ngspice/    # pinned ngspice 46 (private prefix) for the analog flow
+    │   └── Portfile
+    ├── CSXCAD/         # openEMS geometry lib (shadows stock; eda-vtk based)
+    │   └── Portfile
+    ├── openEMS/        # EC-FDTD EM solver, octave-free (shadows stock)
+    │   └── Portfile
     ├── eda-or-tools/   # pinned OR-Tools (private prefix) for OpenROAD
     │   └── Portfile
     ├── eda-lemon/      # pinned LEMON graph lib (private prefix) for OpenROAD
@@ -42,6 +50,8 @@ macportseda/
     ├── eda-spdlog/     # pinned spdlog 1.16 vs eda-fmt (private prefix) for OpenROAD
     │   └── Portfile
     ├── openroad/       # OpenROAD RTL-to-GDS P&R (builds & runs — see notes)
+    │   └── Portfile
+    ├── openroad-ll/    # OpenROAD @ LibreLane's validated rev (private prefix)
     │   └── Portfile
     └── (see science/ and x11/ for the rest)
 x11/
@@ -76,6 +86,12 @@ python/
 │   └── Portfile
 ├── py-zstandard/
 │   └── Portfile
+├── py-cxxheaderparser/ # build dep of yosys +pyosys
+│   └── Portfile
+├── py-csxcad/          # python bindings for CSXCAD (openEMS frontend)
+│   └── Portfile
+├── py-openems/         # python bindings for openEMS
+│   └── Portfile
 └── py-volare/
     └── Portfile
 aqua/
@@ -91,10 +107,10 @@ Ports live under a category directory (`cad`) as MacPorts expects.
    the rsync line so local ports take precedence:
 
    ```
-   sudo $EDITOR $(port dir macports-base >/dev/null 2>&1; echo)/opt/local/etc/macports/sources.conf
+   sudo $EDITOR /opt/local/etc/macports/sources.conf
    ```
 
-   (Usually `/opt/local/etc/macports/sources.conf`.) Add:
+   Add:
 
    ```
    file:///Users/degs/private/projects/macportseda
@@ -133,7 +149,10 @@ Ports live under a category directory (`cad`) as MacPorts expects.
    | xyce | `sudo port install xyce` | Parallel SPICE; pulls `trilinos16`. |
    | py-volare | `sudo port install py-volare` | PDK manager; py313, installs `volare`. |
    | skim-app | `sudo port install skim-app` | Skim PDF/EPS reader → `/Applications/MacPorts`. |
-   | kicad | see below ⚠️ | Full EDA suite + libraries. **Needs `boost` deactivated to build.** |
+   | netlistsvg | `sudo port install netlistsvg` | SVG schematics from yosys JSON (sky130 PDK build dep). |
+   | eda-ngspice | `sudo port install eda-ngspice` | Pinned ngspice 46 → `eda-ngspice` on PATH (stock ngspice keeps the plain name). |
+   | openEMS (python) | `sudo port install py313-openems` | Octave-free EM solver chain: pulls eda-vtk, CSXCAD, openEMS, py313-csxcad. |
+   | kicad | see below ⚠️ | Full EDA suite + libraries. **Needs `boost` deactivated to build.** Simulates on eda-ngspice-lib (ngspice 46). |
    | trilinos-charon / charon | see below ⚠️ | TCAD; **need `trilinos16` deactivated to build.** |
 
    Installing `OpenSTA` pulls in the local `cudd` port automatically.
@@ -141,14 +160,22 @@ Ports live under a category directory (`cad`) as MacPorts expects.
    **Build-time deactivation gotchas** (MacPorts can't do these automatically —
    the build *fails* without them):
 
+   If a build already failed because a gate was missed, run
+   `sudo port clean <port>` before retrying with the gate applied — the
+   leftover CMake cache in the work directory remembers the shadowed include
+   paths and reproduces the failure even after deactivation.
+
    - **kicad** conflicts with the umbrella `boost` port during the build:
      ```
      sudo port -f deactivate boost
      sudo port install kicad            # long build; pulls symbols/footprints/3D/templates
      sudo port activate boost
      ```
-   - **charon** and **trilinos-charon** are shadowed by `trilinos16`'s stub
-     `mpi.h` during the build:
+   - **charon** and **trilinos-charon** are shadowed by `trilinos16`'s headers
+     in `${prefix}/include` during the build (its Trilinos-16 `Teuchos_any.hpp`
+     is C++17-only and breaks charon's C++14 compile; its stub `mpi.h` hides
+     openmpi's). Both Portfiles fail fast with instructions if the gate is
+     missed:
      ```
      sudo port -f deactivate trilinos16
      sudo port install charon           # or trilinos-charon
@@ -195,11 +222,15 @@ every file, so the archive needs no special trust.
 | yosys | [YosysHQ/yosys v0.66 `yosys-src.tar.gz`](https://github.com/YosysHQ/yosys/releases/download/v0.66/yosys-src.tar.gz) (release asset, bundles ABC) |
 | sby | [YosysHQ/sby @ d3e72d2](https://github.com/YosysHQ/sby/archive/d3e72d26e8634bca4ca16f3e4d84331481f06ab6/sby-d3e72d26e8634bca4ca16f3e4d84331481f06ab6.tar.gz) |
 | netlistsvg | [npm netlistsvg 1.0.2](https://registry.npmjs.org/netlistsvg/-/netlistsvg-1.0.2.tgz) + 70 pinned npm dep tarballs from registry.npmjs.org (all listed in the Portfile; no npm at build time) |
+| eda-vtk | [Kitware/vtk v9.6.2](https://github.com/Kitware/vtk/archive/v9.6.2/vtk-9.6.2.tar.gz) (same distfile as stock vtk) |
+| eda-ngspice (+ eda-ngspice-lib) | [ngspice 46 (SourceForge)](https://sourceforge.net/projects/ngspice/files/ng-spice-rework/46/ngspice-46.tar.gz) |
+| CSXCAD (+ py313-csxcad) | [thliebig/CSXCAD @ f5e4764](https://github.com/thliebig/CSXCAD/archive/f5e47643a28d6efd42cc10b61b848903e6599581/CSXCAD-f5e47643a28d6efd42cc10b61b848903e6599581.tar.gz) (stock MacPorts pin) |
+| openEMS (+ py313-openems) | [thliebig/openEMS @ 32c5c6b](https://github.com/thliebig/openEMS/archive/32c5c6b537b33a8b70f9ba4f5c9a8ecbb12777b3/openEMS-32c5c6b537b33a8b70f9ba4f5c9a8ecbb12777b3.tar.gz) (stock MacPorts pin) |
 | eda-or-tools | [google/or-tools v9.14 prebuilt macOS](https://github.com/google/or-tools/releases/download/v9.14/or-tools_x86_64_macOS-15.5_cpp_v9.14.6206.tar.gz) |
 | eda-lemon | [lemon.cs.elte.hu 1.3.1](https://lemon.cs.elte.hu/pub/sources/lemon-1.3.1.tar.gz) (**404s** — [Spack mirror fallback](https://mirror.spack.io/_source-cache/archive/71/71b7c725f4c0b4a8ccb92eb87b208701586cf7a96156ebd821ca3ed855bad3c8.tar.gz), keyed by sha256) |
 | eda-fmt | [fmtlib/fmt 12.1.0](https://github.com/fmtlib/fmt/archive/12.1.0/fmt-12.1.0.tar.gz) |
 | eda-spdlog | [gabime/spdlog v1.16.0](https://github.com/gabime/spdlog/archive/v1.16.0/spdlog-1.16.0.tar.gz) |
-| openroad | [OpenROAD 26Q3](https://github.com/The-OpenROAD-Project/OpenROAD/archive/26Q3/OpenROAD-26Q3.tar.gz) + vendored pins: [its OpenSTA fork](https://github.com/The-OpenROAD-Project/OpenSTA/archive/8572175ac45c42ce8d3d772f73bbb059786b9c66.tar.gz), [abc](https://github.com/The-OpenROAD-Project/abc/archive/d527cfab4ad731b767ea0a2be2021d920d3afece.tar.gz), yosys-slang/slang (commits in Portfile) |
+| openroad | [OpenROAD 26Q3](https://github.com/The-OpenROAD-Project/OpenROAD/archive/26Q3/OpenROAD-26Q3.tar.gz) + vendored pins: [its OpenSTA fork](https://github.com/The-OpenROAD-Project/OpenSTA/archive/8572175ac45c42ce8d3d772f73bbb059786b9c66.tar.gz), [abc](https://github.com/The-OpenROAD-Project/abc/archive/d527cfab4ad731b767ea0a2be2021d920d3afece.tar.gz), sv-elab (ex yosys-slang; repo renamed 2026-07, tarball checksums changed)/slang (commits in Portfile) |
 | openroad-ll | [OpenROAD @ dcf3613](https://github.com/The-OpenROAD-Project/OpenROAD/archive/dcf36133a369abc8f3c5e5738cd4d82e4903c0e0.tar.gz) (LibreLane's validated rev) + matching vendored pins (see Portfile) |
 | xcircuit | [opencircuitdesign.com 3.10.30](http://opencircuitdesign.com/xcircuit/archive/xcircuit-3.10.30.tgz) |
 | gtksheet | [fpaquet/gtksheet V4.3.14](https://github.com/fpaquet/gtksheet/archive/V4.3.14/gtksheet-4.3.14.tar.gz) |
@@ -409,9 +440,9 @@ The whole tree builds on macOS 15.3 / Xcode 16.2 with the following caveats:
   bison/flex/pkgconfig (build) + tcl/readline/libtommath/zlib (lib).
 - The release tarball is *flat* (no top directory), hence `extract.mkdir yes`.
 - Verified: synthesizes RTL to gates and runs ABC technology mapping.
-- This is the synthesis half only; the digital P&R side (OpenROAD) is not
-  packaged (heavy Bazel/OR-Tools dependency cascade, and not needed for the
-  analog-focused flow).
+- The digital P&R side is packaged too — see the `openroad`/`openroad-ll`
+  notes (this bullet used to say OpenROAD wasn't packaged; that predates the
+  26Q3 CMake port).
 
 ## openroad notes (RTL-to-GDS P&R — builds & runs)
 
@@ -480,6 +511,59 @@ The whole tree builds on macOS 15.3 / Xcode 16.2 with the following caveats:
 - Verified: `port test netlistsvg` renders an SVG from a small `$and` netlist,
   and the installed binary does the same.
 
+## eda-ngspice notes (pinned ngspice for the analog flow)
+
+- ngspice **46** in the private prefix `libexec/eda`, COEXISTING with the
+  stock MacPorts ngspice (44.2), which stays at the release cadence. On PATH
+  as **`eda-ngspice`**; plain `ngspice` remains stock's. Put
+  `libexec/eda/bin` early in PATH to make 46 the default.
+- **eda-ngspice-lib** subport: libngspice 46 (+ sharedspice.h + ngspice.pc)
+  in `libexec/eda`, verified through the shared API (ctypes init/load/run).
+  The tree's **kicad** port now depends on it and its ngspice loader is
+  patched to `libexec/eda/lib` — KiCad 10 simulates on ngspice 46, not
+  stock's 44.2. Codemodels (`lib/ngspice/*.cm`) come from the eda-ngspice
+  binary port (runtime dep of the lib subport, `--enable-relpath`).
+- Same recipe as the stock port (the user maintains that one): cider, xspice,
+  pss, readline, X11 plotting; both 44.2 patches still apply to 46 (targets
+  verified). **OSDI is default-on since ngspice 45** — no flag needed.
+- Verified: RC-divider transient (`port test`), and the full
+  **openvaf -> OSDI -> ngspice 46** chain: a Verilog-A resistor compiled with
+  `openvaf-r`, loaded via `pre_osdi`, gives an exact 1.000 V divider op-point.
+- OSDI usage notes learned: `pre_osdi file.osdi` must be in the FIRST
+  .control block (or .spiceinit) so devices exist before parsing; ngspice
+  lowercases netlists, so keep Verilog-A parameter names lowercase; plain VA
+  parameters are MODEL parameters (`.model m res_va r=1k`), not instance
+  parameters, unless the VA declares `(*type="instance"*)`.
+
+## openEMS notes (EC-FDTD EM solver, octave-free)
+
+- openEMS (EM field solver for antennas/RF/on-chip passives) without the
+  stock port's octave dependency. Four ports: **eda-vtk** (minimal VTK),
+  **CSXCAD**, **openEMS**, and the python frontend **py313-csxcad /
+  py313-openems**. `sudo port install py313-openems` pulls the whole chain.
+- **eda-vtk** is the minimalist lever: openEMS/CSXCAD need only four VTK IO
+  modules (IOXML, IOGeometry, IOLegacy, IOPLY — see their CMakeLists), so
+  eda-vtk builds just those (+internal closure) into `libexec/eda`. No
+  rendering, no Qt, no python wrapping; VTK's vendored third-party libs mean
+  ZERO port dependencies (dylibs link only libSystem/libc++). ~20 min build
+  vs hours for full vtk. Same distfile/checksum as the stock vtk port.
+- **CSXCAD/openEMS shadow the stock ports by name** (same pinned commits and
+  patches as stock) so `port install openEMS` can never drag in octave/vtk.
+  Octave was runtime-only in stock; the matlab `.m` scripts still install
+  under `share/openEMS/matlab` in case octave is ever wanted.
+- The python bindings live in the same two repos (`python/` subdir, same
+  distfiles). They build via legacy `setup.py` (`python.pep517 no`) because
+  upstream's pyproject.toml wires a custom pip backend that vendors CSXCAD
+  from a sibling checkout. Env `CSXCAD_INSTALL_PATH`/`OPENEMS_INSTALL_PATH`
+  = `${prefix}` is required by their setup.py. py313-openems needs
+  py313-csxcad at BUILD time (cython cimports its .pxd files).
+- Deliberately skipped: QCSXCAD/AppCSXCAD (GUI viewer — would pull Qt5 + VTK
+  rendering back in; view field dumps with ParaView if needed) and MPI.
+- Verified end-to-end: a WR-90 TE10 waveguide FDTD sim via python
+  (AddRectWaveGuidePort) gives S11 = -19.5 dB, S21 = -0.02 dB @ 25 GHz;
+  compressed-SSE multithreaded engine, ~116 MCells/s on the Ventura i7.
+  Tutorials: https://docs.openems.de/python/openEMS/Tutorials/
+
 ## skim-app notes (Skim PDF/EPS reader)
 
 - Skim, the macOS PDF/PostScript reader/annotator, for viewing EPS plots from
@@ -511,6 +595,10 @@ The whole tree builds on macOS 15.3 / Xcode 16.2 with the following caveats:
     `libnng.a`, GNU-tar for the bitmap archive, and a klayout-style
     install-name rewrite (`files/fix-install-names.sh`) so the `.kiface`/3D
     plugins resolve the kicad libs.
+- **Simulator backend:** since rev 4 kicad depends on `eda-ngspice-lib` and
+  its ngspice loader searches `${prefix}/libexec/eda/lib` — the simulator runs
+  on the tree's pinned **ngspice 46**, not stock's libngspice (see the
+  eda-ngspice notes).
 - **Data libraries** (`kicad-symbols`/`-footprints`/`-packages3D`/`-templates`)
   are subports installed from GitLab 10.0.4 archives. The `kicad-docs` subport
   was **dropped**: CERN's prebuilt docs tarballs stop at 8.0.0-rc3, so there is
@@ -541,9 +629,10 @@ The whole tree builds on macOS 15.3 / Xcode 16.2 with the following caveats:
   ```
 - `gtkwave` has historically been finicky to build here, which is exactly why
   pinning a working revision in-tree is worthwhile.
-- `ngspice` and `openEMS` are deliberately **left on stock MacPorts** (not
-  vendored). Both are used here occasionally; neither is pinned by any flow,
-  so tracking stock is fine.
+- `ngspice` and `openEMS` used to be left on stock MacPorts; as of 2026-07
+  both are in-tree: `openEMS`/`CSXCAD` shadow stock (octave-free, eda-vtk —
+  see the openEMS notes) and `eda-ngspice` pins ngspice 46 for the flow while
+  stock ngspice 44.2 keeps the plain name (see the eda-ngspice notes).
 
 ## lepton-eda / gtksheet notes (gEDA schematic capture & netlisting)
 
@@ -626,13 +715,15 @@ The whole tree builds on macOS 15.3 / Xcode 16.2 with the following caveats:
   `CMakeLists`).
 - The solver binary is `charon_mp.exe`; a `post-activate` hook symlinks it to
   `${prefix}/bin/charon` (with a `pre-deactivate` cleanup).
-- **Build-time caveat:** `trilinos16`'s serial stub `${prefix}/include/mpi.h`
-  shadows openmpi's real header during the compile. Both `charon` and
-  `trilinos-charon` now inject `files/openmpi-first.cmake` via
-  `CMAKE_PROJECT_TOP_LEVEL_INCLUDES`, which prepends openmpi's include dir to
-  the global search so the real `mpi.h` wins even with `trilinos16` active.
-  Deactivating `trilinos16` for the build (`sudo port -f deactivate trilinos16`
-  before, `sudo port activate trilinos16` after) is still the belt-and-braces
-  procedure — note that MacPorts' rev-upgrade can re-activate `trilinos16` on
-  its own mid-batch (it did so right after `trilinos-charon` finished
-  installing, which is what originally broke the follow-on charon build).
+- **Build-time caveat:** `trilinos16` must be **deactivated** while `charon`
+  or `trilinos-charon` builds — this is required, not belt-and-braces. Two
+  distinct shadows through the TPL `-I${prefix}/include`: the serial stub
+  `mpi.h` hides openmpi's real header (mitigated by `files/openmpi-first.cmake`
+  via `CMAKE_PROJECT_TOP_LEVEL_INCLUDES`), and Trilinos-16's `Teuchos_any.hpp`
+  (C++17 `std::is_constructible_v`) breaks charon's C++14 compile of the
+  bundled Trilinos 13.4 — the shim cannot help there (seen 2026-07, stk_util).
+  Both Portfiles carry a `pre-build` check that aborts in seconds with the
+  recovery one-liner if `trilinos16` is active. Note MacPorts' rev-upgrade can
+  re-activate `trilinos16` on its own mid-batch (it did so right after
+  `trilinos-charon` finished installing once), so upgrade these ports one at a
+  time, re-deactivating in between.

@@ -1,0 +1,88 @@
+# -*- coding: utf-8; mode: tcl; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- vim:fenc=utf-8:ft=tcl:et:sw=4:ts=4:sts=4
+
+PortSystem          1.0
+PortGroup           boost 1.0
+PortGroup           cmake 1.1
+PortGroup           github 1.0
+
+boost.version       1.81
+
+# Same pinned commit as stock MacPorts openEMS (known-good on macOS); this
+# local port SHADOWS the stock one. Differences from stock: NO octave
+# dependency (stock's octave dep is runtime-only, for its matlab/.m interface),
+# and the vtk dep is the minimal eda-vtk IO subset instead of full vtk. The
+# supported scripting frontend here is python (py-openems / py-csxcad).
+github.setup        thliebig openEMS 32c5c6b537b33a8b70f9ba4f5c9a8ecbb12777b3
+github.tarball_from archive
+version             20260122-[string range ${github.version} 0 7]
+revision            0
+
+checksums           rmd160  8824177c39eaea6a8a3a1ad0d766bca276b0f5e2 \
+                    sha256  fc2b44c4817bca4085ac7166d000394cfbaa3313bffb8fd9401d7173f3bbab43 \
+                    size    1789578
+
+categories          cad science
+license             GPL-3
+maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+platforms           macosx
+
+description         free and open-source EC-FDTD electromagnetic field solver
+long_description    openEMS is a free and open-source electromagnetic field \
+                    solver using the EC-FDTD method, for antenna, RF and \
+                    on-chip passive (inductor, transmission line) simulation. \
+                    Minimalist build: no octave (drive it from python via \
+                    py-openems, or hand it XML directly), and VTK comes from \
+                    the IO-only eda-vtk subset. The matlab/octave .m scripts \
+                    are still installed under share/openEMS/matlab for anyone \
+                    who later adds octave themselves.
+
+homepage            https://github.com/thliebig/openEMS
+
+compiler.cxx_standard 2011
+
+# Stock patches: missing <clocale> include, lumped-RLC extension include fix
+# (upstream PR 144).
+patchfiles-append   clocale_fix.patch \
+                    0001-operator_ext_lumpedRLC.h-fix-includes.patch
+
+depends_build-append \
+    port:bison \
+    port:flex \
+    path:bin/pkg-config:pkgconfig
+
+# cgal6 kept from stock even though only CSXCAD uses it directly: CSXCAD's
+# exported cmake config expects CGAL to be findable downstream.
+depends_lib-append \
+    port:cgal6 \
+    port:CSXCAD \
+    port:fparser \
+    port:hdf5 \
+    port:tinyxml \
+    port:eda-vtk
+
+set edaprefix       ${prefix}/libexec/eda
+
+configure.args-append \
+    -DFPARSER_ROOT_DIR=${prefix} \
+    -DCSXCAD_ROOT_DIR=${prefix} \
+    -DVTK_DIR=${edaprefix}/lib/cmake/vtk-9.6
+
+# Smoke test: the freshly built solver binary must start and print its banner.
+test.run            yes
+test {
+    system "${cmake.build_dir}/openEMS 2>&1 | head -5 > ${workpath}/openems-banner.txt || true"
+    set fp [open ${workpath}/openems-banner.txt r]
+    set out [read ${fp}]
+    close ${fp}
+    if {![string match -nocase "*openEMS*" ${out}]} {
+        error "openEMS binary did not run: ${out}"
+    }
+}
+
+notes "
+openEMS is installed WITHOUT octave support (minimalist build). Drive it from
+python: sudo port install py313-openems, then see the openEMS python
+tutorials at https://docs.openems.de/python/openEMS/Tutorials/
+"
+
+livecheck.type      none

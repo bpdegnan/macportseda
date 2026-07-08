@@ -1,0 +1,61 @@
+# -*- coding: utf-8; mode: tcl; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- vim:fenc=utf-8:ft=tcl:et:sw=4:ts=4:sts=4
+
+PortSystem          1.0
+PortGroup           cmake 1.1
+PortGroup           github 1.0
+
+github.setup        Kitware vtk 9.6.2 v
+github.tarball_from archive
+name                eda-vtk
+revision            0
+
+categories          cad graphics
+license             BSD
+maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+platforms           macosx
+
+description         minimal VTK IO subset (private EDA prefix) for openEMS/CSXCAD
+long_description    A minimal modular build of VTK ${version} providing ONLY the \
+                    four IO modules openEMS and CSXCAD link against (IOXML, \
+                    IOGeometry, IOLegacy, IOPLY) and their internal closure - \
+                    no rendering, no Qt, no OpenGL, no python wrapping. Installed \
+                    into the private prefix ${prefix}/libexec/eda so it can never \
+                    collide with the full MacPorts vtk port. VTK's vendored \
+                    third-party libraries are used (default), so this port has \
+                    no library dependencies at all - the built dylibs link only \
+                    libSystem and libc++.
+
+homepage            https://vtk.org/
+
+checksums           rmd160  5b25818b50f7922633ecb8a92de511c8eca189f8 \
+                    sha256  de5c02499c550aa09052b2d5f3823a8cae54c72ce1b0014afcde2dabd8e390ea \
+                    size    54875775
+
+set edaprefix       ${prefix}/libexec/eda
+cmake.install_prefix ${edaprefix}
+
+# Flag set validated by a trial build (2026-07-08, Ventura Intel, AppleClang):
+# all five VTK module groups off, the four needed modules explicitly on; the
+# module system pulls in the required Common*/IOCore closure automatically.
+# Consumers find this with -DVTK_DIR=${edaprefix}/lib/cmake/vtk-9.6.
+configure.args-append \
+    -DBUILD_SHARED_LIBS=ON \
+    -DVTK_GROUP_ENABLE_StandAlone=DONT_WANT \
+    -DVTK_GROUP_ENABLE_Rendering=DONT_WANT \
+    -DVTK_GROUP_ENABLE_Imaging=DONT_WANT \
+    -DVTK_GROUP_ENABLE_Views=DONT_WANT \
+    -DVTK_GROUP_ENABLE_Web=DONT_WANT \
+    -DVTK_GROUP_ENABLE_MPI=DONT_WANT \
+    -DVTK_MODULE_ENABLE_VTK_IOXML=YES \
+    -DVTK_MODULE_ENABLE_VTK_IOGeometry=YES \
+    -DVTK_MODULE_ENABLE_VTK_IOLegacy=YES \
+    -DVTK_MODULE_ENABLE_VTK_IOPLY=YES \
+    -DVTK_WRAP_PYTHON=OFF \
+    -DVTK_BUILD_TESTING=OFF \
+    -DVTK_BUILD_EXAMPLES=OFF \
+    -DVTK_BUILD_DOCUMENTATION=OFF
+
+# On a version bump: re-check the VTK component lists in CSXCAD's and openEMS's
+# CMakeLists.txt (find_package(VTK ... COMPONENTS ...)) still name only these
+# four modules, and update the consumers' -DVTK_DIR vtk-<ver> path.
+livecheck.type      none
