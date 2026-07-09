@@ -1,10 +1,9 @@
 # macportseda
 
-A local [MacPorts](https://www.macports.org/) port tree for EDA tools.  Tested on MacOS 13 and MacOS 15 (see the macOS 15 notes below). (I tried the new MacOS and they used more power and did less)
+A local [MacPorts](https://www.macports.org/) port tree for EDA tools.  Tested on MacOS 13, 15 and 26 on arm64. (I tried the new MacOS and they used more power and did less)
 This work is motivated by the fact that my needs that generally don't overlap with most communities.  
 I always felt bad contributing to macports because I'm not a very good at software engineering, and the lack of experience made me a bad collaborator.  I'm still poor at GIT.
 
-Tested on my macOS 13 and macOS 15 machines.
 
 Regarding Skywater's 130 PDK, I've never tried py-voltare; however, I use the [https://github.com/bpdegnan/spicesupport](https://github.com/bpdegnan/spicesupport) repo and the [installskywater.sh](https://raw.githubusercontent.com/bpdegnan/spicesupport/refs/heads/main/installskywater.sh) script in that repo.
 
@@ -152,6 +151,7 @@ Ports live under a category directory (`cad`) as MacPorts expects.
    | netlistsvg | `sudo port install netlistsvg` | SVG schematics from yosys JSON (sky130 PDK build dep). |
    | eda-ngspice | `sudo port install eda-ngspice` | Pinned ngspice 46 → `eda-ngspice` on PATH (stock ngspice keeps the plain name). |
    | openEMS (python) | `sudo port install py313-openems` | Octave-free EM solver chain: pulls eda-vtk, CSXCAD, openEMS, py313-csxcad. |
+   | openroad / openroad-ll | see below ⚠️ | RTL-to-GDS P&R. **Need `boost spdlog protobuf3-cpp OpenSTA` deactivated to build.** |
    | kicad | see below ⚠️ | Full EDA suite + libraries. **Needs `boost` deactivated to build.** Simulates on eda-ngspice-lib (ngspice 46). |
    | trilinos-charon / charon | see below ⚠️ | TCAD; **need `trilinos16` deactivated to build.** |
 
@@ -165,6 +165,14 @@ Ports live under a category directory (`cad`) as MacPorts expects.
    leftover CMake cache in the work directory remembers the shadowed include
    paths and reproduces the failure even after deactivation.
 
+   - **openroad** and **openroad-ll** hit four header-shadowing gates (details
+     in the openroad notes below). Both Portfiles fail fast with these exact
+     instructions if a gate is missed:
+     ```
+     sudo port -f deactivate boost spdlog protobuf3-cpp OpenSTA
+     sudo port install openroad         # and/or openroad-ll; ~40 min each
+     sudo port activate boost spdlog protobuf3-cpp OpenSTA
+     ```
    - **kicad** conflicts with the umbrella `boost` port during the build:
      ```
      sudo port -f deactivate boost
@@ -500,6 +508,11 @@ The whole tree builds on macOS 15.3 / Xcode 16.2 with the following caveats:
   ```
   (openroad no longer installs its own `sta`/headers/libOpenSTA.a, so it coexists
   with the standalone OpenSTA port once reactivated.)
+  Both openroad and openroad-ll **fail fast** via a `pre-build` check if any
+  of the four is still active, printing these commands; if a build already
+  failed with a gate missed, `sudo port clean` the port before retrying
+  (stale CMake cache). Their swig needs (`swig-tcl`/`swig-python`) are
+  declared deps since 2026-07-08, so those install automatically.
 - Full blow-by-blow, incl. the libomp link fix and every gate, in memory
   ([[openroad-port-facts]]).
 
