@@ -1,13 +1,14 @@
 # -*- coding: utf-8; mode: tcl; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- vim:fenc=utf-8:ft=tcl:et:sw=4:ts=4:sts=4
 
 PortSystem          1.0
+PortGroup           eda-github 1.0
 PortGroup           github 1.0
 
 # Tim Edwards' netgen: netlist comparison / LVS, the companion tool to magic.
 # Packaged as "netgen-lvs" because MacPorts already ships an unrelated
 # math/netgen (the Schoeberl FEM mesh generator).
 github.setup        RTimothyEdwards netgen 1.5.321
-revision            1
+revision            2
 name                netgen-lvs
 
 # Fetch the git archive tarball via its fully-qualified refs/tags URL. (The
@@ -40,18 +41,18 @@ checksums           rmd160  bf5ba33ca4438c728504267bafaf71321b81049e \
 # LVS never opens a window. Its Tk graphics link only -lX11 (the heavier
 # Xaw/Motif libs are for the legacy non-Tcl build).
 depends_lib-append  port:tcl \
-                    port:tk-x11 \
+                    port:tk8-x11 \
                     port:xorg-libX11
 
 # Point the build at the MacPorts Tcl (tclConfig.sh in ${prefix}/lib) and the
-# X11 Tk (tkConfig.sh and headers under the tk-x11 layout).
+# X11 Tk (tkConfig.sh and headers under the tk8-x11 layout).
 configure.args-append \
                     --with-tcl=${prefix}/lib \
                     --with-tclincls=${prefix}/include \
                     --with-tcllibs=${prefix}/lib \
-                    --with-tk=${prefix}/lib/tk-x11 \
-                    --with-tkincls=${prefix}/include/tk-x11 \
-                    --with-tklibs=${prefix}/lib/tk-x11
+                    --with-tk=${prefix}/lib/tk8-x11 \
+                    --with-tkincls=${prefix}/include/tk8-x11 \
+                    --with-tklibs=${prefix}/lib/tk8-x11
 
 # This build system pipes its real build and install through `tee ... make.log`
 # / `>> install.log`, which hides output and can mask failures by always

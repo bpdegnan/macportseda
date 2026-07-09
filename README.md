@@ -186,6 +186,28 @@ Ports live under a category directory (`cad`) as MacPorts expects.
    running X server — install **XQuartz** (see the xschem notes). `klayout`
    (Qt6) and `skim-app` are native Cocoa and don't.
 
+## failure reports go to GitHub, not MacPorts
+
+Every port in this tree includes the tree's own `eda-github` PortGroup
+(`_resources/port1.0/group/eda-github-1.0.tcl`). When a standard phase
+(fetch/checksum/extract/patch/configure/build/destroot/test) fails, it prints
+a banner directing the user to report at
+<https://github.com/bpdegnan/macportseda/issues> and explicitly NOT to file
+MacPorts trac tickets — these ports are not in the official tree and the
+MacPorts maintainers should not be bothered with them.
+
+Notes:
+- The final `Follow https://guide.macports.org/#project.tickets ...` line is
+  printed by the `port` client itself on any failure and cannot be suppressed
+  from a Portfile; the GitHub banner appears directly above it.
+- Phases a Portfile overrides with its own body (e.g. a custom `destroot {}`)
+  bypass the wrapped defaults, so failures inside those blocks don't get the
+  banner. The pre-build gate checks (openroad/charon families) print their
+  own GitHub-free instructions already.
+- `port lint` reports "Line 4 has unrecognized PortGroup" for every port:
+  lint only knows the default tree's PortGroups, not local-tree ones. It is
+  cosmetic — parsing, indexing and building are unaffected.
+
 ## distfiles archive (offline insurance)
 
 `distfiles/` holds a copy of every source tarball the tree's ports fetch,
@@ -372,7 +394,11 @@ The whole tree builds on macOS 15.3 / Xcode 16.2 with the following caveats:
 - Tim Edwards' netgen (LVS), built from the `RTimothyEdwards/netgen` `1.5.321`
   tag. Named `netgen-lvs` to avoid colliding with MacPorts' unrelated
   `math/netgen` (a FEM mesh generator) — `port install netgen-lvs`.
-- Needs `tk-x11`: netgen's Tcl build refuses to compile without X11, so the X11
+- Needs `tk8-x11` (was `tk-x11` until MacPorts' 2026-07 Tcl/Tk 8/9 port split;
+  the old name is a `replaced_by` stub with **no checksums**, and dependency
+  installs ignore `replaced_by`, so depending on it breaks upgrades —
+  netgen-lvs/magic/xcircuit were all retargeted to `tk8-x11` paths on
+  2026-07-09): netgen's Tcl build refuses to compile without X11, so the X11
   Tk is pulled in even though batch LVS opens no window.
 - The build uses the `tcllibrary` / `install-tcl-real` make targets directly
   because netgen's default targets pipe through `make.log`/`install.log`, which

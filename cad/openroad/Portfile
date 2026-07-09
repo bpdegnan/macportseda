@@ -1,6 +1,7 @@
 # -*- coding: utf-8; mode: tcl; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- vim:fenc=utf-8:ft=tcl:et:sw=4:ts=4:sts=4
 
 PortSystem          1.0
+PortGroup           eda-github 1.0
 PortGroup           cmake 1.1
 PortGroup           github 1.0
 # boost181 (>=1.78, C++20-clean) via the boost PortGroup. This also sets
@@ -122,6 +123,26 @@ set edaprefix       ${prefix}/libexec/eda
 # `#pragma once`, the dbSta SWIG wrapper ends up including LibertyClass.hh et al.
 # twice -> "redefinition" errors. Deactivate it for the build:
 #   sudo port -f deactivate OpenSTA   (reactivate after).
+
+# Fail fast (seconds, not an hour into the build) if any gate above is unmet.
+# If a build already failed with a gate active, ALSO `sudo port clean` this
+# port first: the leftover CMake cache remembers the shadowed include paths.
+pre-build {
+    set blockers {}
+    foreach gate {boost spdlog protobuf3-cpp OpenSTA} {
+        if {![catch {registry_active ${gate}} res] && [llength ${res}]} {
+            lappend blockers ${gate}
+        }
+    }
+    if {[llength ${blockers}]} {
+        ui_error "Header-shadowing gate: deactivate [join ${blockers} {, }]\
+            before building ${subport} (see the SHADOWING GATE comments)."
+        ui_error "Run:  sudo port clean ${subport} && sudo port -f deactivate\
+            [join ${blockers} { }] && sudo port install ${subport} &&\
+            sudo port activate [join ${blockers} { }]"
+        return -code error "deactivate [join ${blockers} {, }] before building ${subport}"
+    }
+}
 
 depends_build-append \
     path:bin/bison:bison \

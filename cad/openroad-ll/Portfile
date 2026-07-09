@@ -1,6 +1,7 @@
 # -*- coding: utf-8; mode: tcl; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- vim:fenc=utf-8:ft=tcl:et:sw=4:ts=4:sts=4
 
 PortSystem          1.0
+PortGroup           eda-github 1.0
 PortGroup           cmake 1.1
 
 name                openroad-ll
@@ -79,6 +80,25 @@ cmake.install_prefix ${llprefix}
 # for the full explanations): deactivate boost, spdlog, protobuf3-cpp and
 # OpenSTA for the build, reactivate after. The private INSTALL prefix does not
 # help at COMPILE time -- ${prefix}/include still shadows the eda bundle.
+
+# Fail fast if any gate is unmet; `port clean` first if a gated-less build
+# already failed (stale CMake cache keeps the shadowed paths).
+pre-build {
+    set blockers {}
+    foreach gate {boost spdlog protobuf3-cpp OpenSTA} {
+        if {![catch {registry_active ${gate}} res] && [llength ${res}]} {
+            lappend blockers ${gate}
+        }
+    }
+    if {[llength ${blockers}]} {
+        ui_error "Header-shadowing gate: deactivate [join ${blockers} {, }]\
+            before building ${subport}."
+        ui_error "Run:  sudo port clean ${subport} && sudo port -f deactivate\
+            [join ${blockers} { }] && sudo port install ${subport} &&\
+            sudo port activate [join ${blockers} { }]"
+        return -code error "deactivate [join ${blockers} {, }] before building ${subport}"
+    }
+}
 
 depends_build-append \
     path:bin/bison:bison \
