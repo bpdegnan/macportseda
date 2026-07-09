@@ -51,14 +51,22 @@ set abc_sha         d527cfab4ad731b767ea0a2be2021d920d3afece
 set slangelab_sha   82effc8d9541be69e1ed3ec44759a4449f5d9247
 set slang_sha       f04e81565793c768b747a8fd058f3e7aeceee1b5
 set fmt_sha         553ec11ec06fbe0beebfbb45f9dc3c9eabd83d28
+# The slangelab distfile is stored under a REPO-PREFIXED local name: upstream
+# renamed povik/yosys-slang -> povik/sv-elab (2026-07), which changed the
+# archive's contents/checksums while keeping the same <sha>.tar.gz filename,
+# so machines with the old tarball cached failed checksum until a manual
+# `port clean --dist openroad`. The site URL below already names the full
+# remote file; the trailing `?` turns MacPorts' appended distfile name into a
+# query string GitHub ignores, so the fetch lands under the collision-proof
+# local name.
 master_sites-append \
     https://github.com/The-OpenROAD-Project/OpenSTA/archive/:sta \
     https://github.com/The-OpenROAD-Project/abc/archive/:abc \
-    https://github.com/povik/sv-elab/archive/:slangelab \
+    https://github.com/povik/sv-elab/archive/${slangelab_sha}.tar.gz?:slangelab \
     https://github.com/MikePopoloski/slang/archive/:slang \
     https://github.com/fmtlib/fmt/archive/:fmt
 distfiles-append    ${sta_sha}.tar.gz:sta ${abc_sha}.tar.gz:abc \
-                    ${slangelab_sha}.tar.gz:slangelab \
+                    sv-elab-${slangelab_sha}.tar.gz:slangelab \
                     ${slang_sha}.tar.gz:slang ${fmt_sha}.tar.gz:fmt
 
 checksums \
@@ -74,7 +82,7 @@ checksums \
         rmd160  b1ecec8f04f35fee50fc9d2287fad851286fd4e1 \
         sha256  0cbf538e60d0303d0e00360d8973aaad7dae198954bed6e34cc31c9a13b3f802 \
         size    7662401 \
-    ${slangelab_sha}.tar.gz \
+    sv-elab-${slangelab_sha}.tar.gz \
         rmd160  575f677c2dab3f71eefcbeb4909f0601e86796c3 \
         sha256  ea31b4a205ebb1fe5ec3789bcd66f21f4975e73c0901622af667f843b833ff10 \
         size    132788 \
