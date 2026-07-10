@@ -1,0 +1,20 @@
+--- base/prints.c.orig
++++ base/prints.c
+@@ -24,6 +24,8 @@
+ extern	FILE  *logfile;
+ 
+ 
++#ifndef TCL_IRSIM
++
+ public void logprint( s )
+   register char  *s;
+   {
+@@ -43,8 +45,6 @@
+       }
+   }
+ 
+-#ifndef TCL_IRSIM
+-
+ /* VARARGS */
+ 
+ public void lprintf(FILE *max, ...)

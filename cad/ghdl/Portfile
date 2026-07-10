@@ -1,0 +1,120 @@
+# -*- coding: utf-8; mode: tcl; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- vim:fenc=utf-8:ft=tcl:et:sw=4:ts=4:sts=4
+
+PortSystem          1.0
+PortGroup           eda-github 1.0
+
+name                ghdl
+version             5.1.1
+revision            0
+
+categories          cad science lang
+license             GPL-2+
+maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+platforms           macosx
+
+description         GHDL VHDL simulator (LLVM backend, official prebuilt)
+long_description    GHDL analyzes, elaborates and simulates VHDL (87/93/2002/ \
+                    2008, partial 2019) designs, with GHW waveform output that \
+                    gtkwave reads. GHDL is written in Ada and MacPorts has no \
+                    usable GNAT, so this port repackages upstream's official \
+                    per-architecture prebuilt LLVM-backend binaries \
+                    (eda-or-tools precedent) into ${prefix}/libexec/ghdl. The \
+                    bundles are self-contained and rpath-relative (own \
+                    libgcc_s, kept OUT of ${prefix}/lib so it can never \
+                    shadow the MacPorts libgcc runtime).
+
+homepage            https://github.com/ghdl/ghdl
+
+master_sites        https://github.com/ghdl/ghdl/releases/download/v${version}/
+
+# v5.1.1 is the newest release shipping BOTH macOS architectures (v6.0.0
+# dropped the x86_64 asset). Same version everywhere = portable across the
+# Intel and arm64 machines. Minimum macOS: 13 (x86_64 asset), 14 (aarch64
+# asset) - both below every machine in the fleet. On a version bump, verify
+# upstream still publishes an x86_64 asset before moving.
+supported_archs     x86_64 arm64
+
+if {${configure.build_arch} eq "arm64"} {
+    distfiles       ghdl-llvm-${version}-macos14-aarch64.tar.gz
+    worksrcdir      ghdl-llvm-${version}-macos14-aarch64
+    checksums       rmd160  301ef591b64a51a5ce7fd9db81a65155acfbe27b \
+                    sha256  e858a3ee3cee22c976354ee7a66ab6377beec1a9383462f0ba583a8df73f46c1 \
+                    size    40630075
+} else {
+    distfiles       ghdl-llvm-${version}-macos13-x86_64.tar.gz
+    worksrcdir      ghdl-llvm-${version}-macos13-x86_64
+    checksums       rmd160  d1eeccfb9e9064f51ee115721d4424eadabe4080 \
+                    sha256  4c35a9d6028d11cbfc7b2a98e0cdb28a56e268e5f586d7246904fec40bc8193a \
+                    size    41441376
+}
+
+set ghdlprefix      ${prefix}/libexec/ghdl
+
+use_configure       no
+build {}
+
+# ghdl -e links simulation binaries with the system C toolchain at RUNTIME;
+# the Xcode Command Line Tools provide it on every MacPorts machine, so no
+# port dependency is declared.
+
+destroot {
+    xinstall -d ${destroot}${ghdlprefix}
+    foreach d {bin include lib} {
+        copy ${worksrcpath}/${d} ${destroot}${ghdlprefix}/${d}
+    }
+    # Expose the user-facing tools. ghdl MUST be a wrapper, not a symlink:
+    # it locates ghdl1-llvm and its std/ieee libraries relative to the path
+    # it was invoked as, WITHOUT resolving symlinks, so a bin/ghdl symlink
+    # makes it look under ${prefix}/lib/ghdl and fail. exec'ing the real
+    # binary gives it its true libexec location. ghwdump only reads files,
+    # so a plain symlink is fine there.
+    xinstall -d ${destroot}${prefix}/bin
+    set fp [open ${destroot}${prefix}/bin/ghdl w]
+    puts ${fp} "#!/bin/sh"
+    puts ${fp} "exec ${ghdlprefix}/bin/ghdl \"\$@\""
+    close ${fp}
+    file attributes ${destroot}${prefix}/bin/ghdl -permissions 0755
+    ln -s ${ghdlprefix}/bin/ghwdump ${destroot}${prefix}/bin/ghwdump
+}
+
+# Smoke test: analyze/elaborate/run a VHDL-2008 counter testbench; the LLVM
+# backend exercises codegen plus the runtime link step.
+test.run            yes
+test {
+    set tdir ${workpath}/ghdltest
+    file mkdir ${tdir}
+    set fp [open ${tdir}/counter.vhdl w]
+    puts ${fp} "library ieee;"
+    puts ${fp} "use ieee.std_logic_1164.all;"
+    puts ${fp} "use ieee.numeric_std.all;"
+    puts ${fp} "entity counter_tb is end entity;"
+    puts ${fp} "architecture sim of counter_tb is"
+    puts ${fp} "    signal clk : std_logic := '0';"
+    puts ${fp} "    signal cnt : unsigned(3 downto 0) := (others => '0');"
+    puts ${fp} "begin"
+    puts ${fp} "    process begin"
+    puts ${fp} "        for i in 1 to 20 loop"
+    puts ${fp} "            clk <= not clk; wait for 5 ns;"
+    puts ${fp} "        end loop;"
+    puts ${fp} "        assert cnt = 10 report \"count wrong\" severity failure;"
+    puts ${fp} "        report \"GHDL_TEST_OK\" severity note;"
+    puts ${fp} "        wait;"
+    puts ${fp} "    end process;"
+    puts ${fp} "    process(clk) begin"
+    puts ${fp} "        if rising_edge(clk) then cnt <= cnt + 1; end if;"
+    puts ${fp} "    end process;"
+    puts ${fp} "end architecture;"
+    close ${fp}
+    set ghdlbin ${worksrcpath}/bin/ghdl
+    system -W ${tdir} "${ghdlbin} -a --std=08 counter.vhdl && \
+        ${ghdlbin} -e --std=08 counter_tb && \
+        ${ghdlbin} -r --std=08 counter_tb > out.txt 2>&1"
+    set fp [open ${tdir}/out.txt r]
+    set out [read ${fp}]
+    close ${fp}
+    if {![string match "*GHDL_TEST_OK*" ${out}]} {
+        error "GHDL simulation did not pass: ${out}"
+    }
+}
+
+livecheck.type      none

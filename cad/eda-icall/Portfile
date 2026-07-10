@@ -3,7 +3,7 @@
 PortSystem          1.0
 PortGroup           eda-github 1.0
 name                eda-icall
-version             1.1
+version             1.2
 revision            0
 categories          cad
 license             MIT
@@ -16,9 +16,9 @@ description         Metaport: the full open-source sky130 EDA toolchain
 long_description    Installs everything in this tree needed for SkyWater \
                     sky130 IC work: digital RTL-to-GDS (yosys, sby, iverilog, \
                     verilator, OpenSTA, openroad + the LibreLane-pinned \
-                    openroad-ll, netlistsvg), analog design and simulation \
-                    (xschem, eda-ngspice, xyce, openvaf), layout and physical \
-                    verification (magic, netgen-lvs, klayout, xcircuit), \
+                    openroad-ll, netlistsvg, sv2v, eqy, mcy), analog design and simulation \
+                    (xschem, eda-ngspice, xyce, openvaf, irsim), layout and physical \
+                    verification (magic, netgen-lvs, klayout, xcircuit, cvc-rv), \
                     waveforms (gtkwave), the volare PDK manager, and the Skim \
                     EPS/PDF viewer. Board-level (kicad) and TCAD (charon) are \
                     separate.
@@ -37,6 +37,11 @@ depends_lib-append \
     port:openroad \
     port:openroad-ll \
     port:netlistsvg \
+    port:sv2v \
+    port:eqy \
+    port:mcy \
+    port:cvc-rv \
+    port:irsim \
     port:xschem \
     port:eda-ngspice \
     port:xyce \

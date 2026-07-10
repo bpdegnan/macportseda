@@ -1,0 +1,57 @@
+# -*- coding: utf-8; mode: tcl; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- vim:fenc=utf-8:ft=tcl:et:sw=4:ts=4:sts=4
+
+PortSystem          1.0
+PortGroup           eda-github 1.0
+PortGroup           github 1.0
+
+# Version-locked to the tree's yosys (same release train as eqy/sby).
+github.setup        YosysHQ mcy 0.66 v
+github.tarball_from archive
+name                mcy
+revision            0
+
+categories          cad science
+license             ISC
+maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+platforms           macosx
+supported_archs     noarch
+
+description         MCY - mutation cover with Yosys (testbench quality metric)
+long_description    mcy injects mutations into a design with yosys and checks \
+                    whether the test suite catches them, yielding a coverage \
+                    metric for testbench quality. Pure python driver - the \
+                    upstream Qt GUI is deliberately NOT built (it would drag \
+                    Qt5 in - use the textual reports or the optional flask \
+                    dashboard, mcy-dash, which needs py313-flask at runtime \
+                    if you want it).
+
+homepage            https://github.com/YosysHQ/mcy
+
+checksums           rmd160  1f3c1a53476369bdff183168a95a3089be094ebc \
+                    sha256  82387bcb6fc1129fc1dabfb6e1931474910ea79d5e7eda358da87b6c70384219 \
+                    size    6405747
+
+set pybranch        3.13
+depends_lib-append  port:yosys \
+                    port:python313
+
+use_configure       no
+# Upstream's default make target cmake-builds the Qt GUI; the python core
+# needs no build at all, so bypass make entirely.
+build {}
+
+destroot {
+    xinstall -d ${destroot}${prefix}/bin \
+        ${destroot}${prefix}/share/mcy/dash \
+        ${destroot}${prefix}/share/mcy/scripts
+    xinstall -m 755 ${worksrcpath}/mcy.py ${destroot}${prefix}/bin/mcy
+    xinstall -m 755 ${worksrcpath}/mcy-dash.py ${destroot}${prefix}/bin/mcy-dash
+    foreach f {mcy mcy-dash} {
+        reinplace "s|#!/usr/bin/env python3|#!${prefix}/bin/python${pybranch}|" \
+            ${destroot}${prefix}/bin/${f}
+    }
+    copy {*}[glob ${worksrcpath}/dash/*] ${destroot}${prefix}/share/mcy/dash
+    copy {*}[glob ${worksrcpath}/scripts/*] ${destroot}${prefix}/share/mcy/scripts
+}
+
+livecheck.type      none

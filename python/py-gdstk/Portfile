@@ -1,0 +1,55 @@
+# -*- coding: utf-8; mode: tcl; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- vim:fenc=utf-8:ft=tcl:et:sw=4:ts=4:sts=4
+
+PortSystem          1.0
+PortGroup           eda-github 1.0
+PortGroup           python 1.0
+
+name                py-gdstk
+version             1.0.0
+revision            0
+
+categories-append   cad science
+license             BSL-1
+maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+platforms           macosx
+
+description         python library for GDSII/OASIS layout creation
+long_description    gdstk (GDSII Tool Kit) is a fast C++/python library for \
+                    creating and editing GDSII and OASIS layout files - the \
+                    scripting side of layout automation (parametric cells, \
+                    ADC layout generators) alongside klayout/magic.
+
+homepage            https://github.com/heitzmann/gdstk
+
+master_sites        pypi:g/gdstk
+distname            gdstk-${version}
+
+checksums           rmd160  4801e757927d311793fb1f7463da1b99346f3a54 \
+                    sha256  6fb748a0728466c9985718e516b266d1f1135ba3d7efbe618110aaf0f9124572 \
+                    size    321135
+
+python.versions     313
+python.default_version 313
+# scikit-build-core PEP 517 backend (cmake-driven C++ extension).
+python.pep517_backend scikit_build_core
+
+if {${name} ne ${subport}} {
+    depends_build-append \
+        port:cmake \
+        port:py${python.version}-scikit-build-core \
+        port:py${python.version}-numpy
+    depends_lib-append \
+        port:zlib \
+        port:qhull \
+        port:py${python.version}-numpy
+
+    # Upstream's CMakeLists hardcodes a universal (x86_64;arm64) build; pin
+    # it to the port's actual build arch.
+    build.env-append \
+        CMAKE_ARGS=-DCMAKE_OSX_ARCHITECTURES=${configure.build_arch}
+    destroot.env-append \
+        CMAKE_ARGS=-DCMAKE_OSX_ARCHITECTURES=${configure.build_arch}
+
+
+    livecheck.type  none
+}

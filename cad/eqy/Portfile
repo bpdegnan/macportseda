@@ -1,0 +1,64 @@
+# -*- coding: utf-8; mode: tcl; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- vim:fenc=utf-8:ft=tcl:et:sw=4:ts=4:sts=4
+
+PortSystem          1.0
+PortGroup           eda-github 1.0
+PortGroup           github 1.0
+
+# Version-locked to the tree's yosys: eqy vX.Y is released alongside yosys
+# vX.Y and its plugins compile against the yosys headers. Bump BOTH together.
+github.setup        YosysHQ eqy 0.66 v
+github.tarball_from archive
+name                eqy
+revision            0
+
+categories          cad science
+license             ISC
+maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+platforms           macosx
+
+description         EQY - equivalence checking with Yosys (RTL vs netlist)
+long_description    eqy proves (or refutes) formal equivalence between two \
+                    designs, e.g. RTL versus the post-synthesis netlist from \
+                    the LibreLane/OpenROAD flow. It partitions the designs and \
+                    discharges each partition with SAT via sby-style engines. \
+                    Completes the YosysHQ formal suite around sby.
+
+homepage            https://github.com/YosysHQ/eqy
+
+checksums           rmd160  a41f40aadacb6d8c97055a0a3d475cd875764fec \
+                    sha256  b9a3bac5c88baff4976d18dfbce551ab688b34c3027079f9d60be79a80b9b1b0 \
+                    size    509789
+
+set pybranch        3.13
+depends_build-append \
+    path:bin/pkg-config:pkgconfig
+# yosys at build time too: the eqy_* plugins compile against yosys headers
+# via yosys-config.
+depends_lib-append  port:yosys \
+                    port:sby \
+                    port:python313
+
+use_configure       no
+
+# Same .gittag dance as sby: the Makefile derives its version from .gittag
+# (falling back to `git describe`, which fails in a tarball).
+post-extract {
+    set fp [open ${worksrcpath}/.gittag w]
+    puts ${fp} "eqy-${version}"
+    close ${fp}
+}
+
+# The Makefile's build target is `build`, not `all`.
+build.target        build
+build.args          YOSYS_CONFIG=${prefix}/bin/yosys-config \
+                    PREFIX=${prefix}
+destroot.args       YOSYS_CONFIG=${prefix}/bin/yosys-config \
+                    PREFIX=${prefix}
+
+# Point the installed script at the MacPorts interpreter (sby pattern).
+post-destroot {
+    reinplace "s|#!/usr/bin/env python3|#!${prefix}/bin/python${pybranch}|" \
+        ${destroot}${prefix}/bin/eqy
+}
+
+livecheck.type      none

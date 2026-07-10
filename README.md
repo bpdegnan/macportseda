@@ -32,7 +32,15 @@ macportseda/
     │   └── Portfile
     ├── netlistsvg/     # SVG schematics from yosys JSON (sky130 PDK dep)
     │   └── Portfile
-    ├── sv2v/           # SystemVerilog -> Verilog-2005 (prebuilt binary)
+    ├── sv2v/           # SystemVerilog -> Verilog-2005 (Haskell, source-built)
+    │   └── Portfile
+    ├── ghdl/           # GHDL VHDL simulator (per-arch prebuilt, llvm backend)
+    │   └── Portfile
+    ├── eqy/            # equivalence checking with yosys (RTL vs netlist)
+    │   └── Portfile
+    ├── mcy/            # mutation cover with yosys (testbench quality)
+    │   └── Portfile
+    ├── cvc-rv/         # CVC_RV ERC/reliability checks on CDL netlists
     │   └── Portfile
     ├── eda-vtk/        # minimal VTK IO subset (private prefix) for openEMS
     │   └── Portfile
@@ -67,6 +75,8 @@ science/
 │   └── Portfile
 ├── iverilog/          # vendored stock snapshot
 │   └── Portfile
+├── irsim/             # vendored stock snapshot + clang-15/Tcl-dylib fixes
+│   └── Portfile
 ├── verilator/         # vendored stock snapshot (LibreLane lint step)
 │   └── Portfile
 ├── magic/             # vendored snapshot, bumped to 8.3.660 for LibreLane
@@ -88,6 +98,8 @@ python/
 ├── py-zstandard/
 │   └── Portfile
 ├── py-cxxheaderparser/ # build dep of yosys +pyosys
+│   └── Portfile
+├── py-gdstk/           # GDSII/OASIS layout scripting (C++ ext)
 │   └── Portfile
 ├── py-csxcad/          # python bindings for CSXCAD (openEMS frontend)
 │   └── Portfile
@@ -131,9 +143,10 @@ Ports live under a category directory (`cad`) as MacPorts expects.
    sudo port install eda-icall
    ```
 
-   (a metaport pulling yosys, sby, iverilog, verilator, OpenSTA, openroad,
-   openroad-ll, xschem, ngspice, xyce, openvaf, magic, netgen-lvs, klayout,
-   xcircuit, gtkwave, py-volare, skim-app — kicad and charon/TCAD stay
+   (a metaport pulling yosys, sby, eqy, mcy, iverilog, verilator, OpenSTA,
+   openroad, openroad-ll, netlistsvg, sv2v, xschem, eda-ngspice, xyce,
+   openvaf, irsim, magic, netgen-lvs, cvc-rv, klayout, xcircuit, gtkwave,
+   py-volare, skim-app — kicad, ghdl, openEMS and charon/TCAD stay
    separate). Mind the variant prerequisites in the macOS 15 notes and the
    build-time gates below if ports build from source; `port notes eda-icall`
    summarizes them. Or install ports individually:
@@ -152,6 +165,11 @@ Ports live under a category directory (`cad`) as MacPorts expects.
    | skim-app | `sudo port install skim-app` | Skim PDF/EPS reader → `/Applications/MacPorts`. |
    | netlistsvg | `sudo port install netlistsvg` | SVG schematics from yosys JSON (sky130 PDK build dep). |
    | sv2v | `sudo port install sv2v` | SystemVerilog→Verilog-2005. Built from source (Haskell, offline-vendored); native on x86_64 and arm64. |
+   | eqy / mcy | `sudo port install eqy mcy` | Formal equivalence (RTL vs netlist) + mutation coverage; version-locked to yosys 0.66. |
+   | cvc-rv | `sudo port install cvc-rv` | ERC/reliability checks on extracted CDL netlists (binary: `cvc_rv`). |
+   | irsim | `sudo port install irsim` | Switch-level simulator (vendored + fixed; stock is silently broken on Xcode 15+). |
+   | py-gdstk | `sudo port install py313-gdstk` | GDS/OASIS layout scripting for python 3.13. |
+   | ghdl | `sudo port install ghdl` | VHDL simulator (87→2008, partial 2019). Per-arch official prebuilt, native on x86_64 (macOS≥13) and arm64 (macOS≥14); GHW waves open in gtkwave. |
    | eda-ngspice | `sudo port install eda-ngspice` | Pinned ngspice 46 → `eda-ngspice` on PATH (stock ngspice keeps the plain name). |
    | openEMS (python) | `sudo port install py313-openems` | Octave-free EM solver chain: pulls eda-vtk, CSXCAD, openEMS, py313-csxcad. |
    | openroad / openroad-ll | see below ⚠️ | RTL-to-GDS P&R. **Need `boost spdlog protobuf3-cpp OpenSTA` deactivated to build.** |
@@ -256,6 +274,11 @@ every file, so the archive needs no special trust.
 | sby | [YosysHQ/sby @ d3e72d2](https://github.com/YosysHQ/sby/archive/d3e72d26e8634bca4ca16f3e4d84331481f06ab6/sby-d3e72d26e8634bca4ca16f3e4d84331481f06ab6.tar.gz) |
 | netlistsvg | [npm netlistsvg 1.0.2](https://registry.npmjs.org/netlistsvg/-/netlistsvg-1.0.2.tgz) + 70 pinned npm dep tarballs from registry.npmjs.org (all listed in the Portfile; no npm at build time) |
 | sv2v | [zachjs/sv2v v0.0.13](https://github.com/zachjs/sv2v/archive/v0.0.13/sv2v-0.0.13.tar.gz) + 10 pinned Hackage tarballs from [hackage.haskell.org](https://hackage.haskell.org/) (listed in the Portfile; no network/index at build time) |
+| eqy / mcy | [YosysHQ/eqy v0.66](https://github.com/YosysHQ/eqy/archive/v0.66/eqy-0.66.tar.gz), [YosysHQ/mcy v0.66](https://github.com/YosysHQ/mcy/archive/v0.66/mcy-0.66.tar.gz) |
+| cvc-rv | [d-m-bailey/cvc v1.1.7](https://github.com/d-m-bailey/cvc/archive/v1.1.7/cvc-1.1.7.tar.gz) |
+| irsim | [opencircuitdesign.com 9.7.117](http://opencircuitdesign.com/irsim/archive/irsim-9.7.117.tgz) |
+| py-gdstk | [PyPI gdstk 1.0.0](https://files.pythonhosted.org/packages/source/g/gdstk/gdstk-1.0.0.tar.gz) |
+| ghdl | [ghdl/ghdl v5.1.1 prebuilt](https://github.com/ghdl/ghdl/releases/tag/v5.1.1) — per-arch release assets: `ghdl-llvm-5.1.1-macos13-x86_64.tar.gz` + `ghdl-llvm-5.1.1-macos14-aarch64.tar.gz` (archive BOTH) |
 | eda-vtk | [Kitware/vtk v9.6.2](https://github.com/Kitware/vtk/archive/v9.6.2/vtk-9.6.2.tar.gz) (same distfile as stock vtk) |
 | eda-ngspice (+ eda-ngspice-lib) | [ngspice 46 (SourceForge)](https://sourceforge.net/projects/ngspice/files/ng-spice-rework/46/ngspice-46.tar.gz) |
 | CSXCAD (+ py313-csxcad) | [thliebig/CSXCAD @ f5e4764](https://github.com/thliebig/CSXCAD/archive/f5e47643a28d6efd42cc10b61b848903e6599581/CSXCAD-f5e47643a28d6efd42cc10b61b848903e6599581.tar.gz) (stock MacPorts pin) |
@@ -586,6 +609,57 @@ The whole tree builds on macOS 15.3 / Xcode 16.2 with the following caveats:
 - `port test` verifies an always_ff/logic module converts to
   `always @(posedge ...)` / `reg`. Version-bump procedure is in the Portfile
   header (networked `cabal build --dry-run` → update the pin list).
+
+## verification additions (eqy, mcy, cvc-rv, irsim) & checktools.sh
+
+- **eqy/mcy v0.66** — version-locked to yosys 0.66 (YosysHQ releases them in
+  lockstep; bump all three together). eqy's yosys plugins compile against the
+  yosys port's headers; both scripts get the sby-style `.gittag` +
+  python3.13-shebang treatment. mcy's Qt GUI is deliberately not built.
+- **cvc-rv 1.1.7** — ERC on extracted CDL netlists. Must build with
+  **gcc13/libstdc++**: its mmap_allocator pokes libstdc++ internals
+  (`_M_impl`) that libc++ lacks; also patches obstack's `stdint-gcc.h`
+  include. Binary is `cvc_rv`. Quirk: EVERY cvc_rv invocation (even
+  `--version`) writes a `default.cvcrc` template into the current directory
+  — run it from a work dir, not somewhere you care about.
+- **irsim 9.7.117** — vendored stock snapshot **plus real fixes**: stock
+  builds "successfully" on Xcode 15+ but silently omits `tclirsim.dylib`
+  (the opencircuitdesign Makefiles swallow subdir failures — same trap as
+  netgen). Fixes: `-Wno-error=implicit-function-declaration/int-conversion`
+  appended to the TOP-LEVEL `defs.mak` (configure ignores env CFLAGS; and
+  `scripts/defs.mak` is a decoy copy), `-noprebind` stripped (removed in
+  Xcode 15 ld), `-fno-common`→`-fcommon`, and a patch guarding base
+  `logprint` with `#ifndef TCL_IRSIM` (duplicate symbol vs tclirsim.c).
+- **py313-gdstk 1.0.0** — GDS/OASIS scripting; upstream CMake hardcodes a
+  universal build, overridden to the port's build_arch via `CMAKE_ARGS`.
+- **`./checktools.sh`** smoke-tests the whole INSTALLED toolchain (28 tools,
+  seconds, no sudo, no GUIs) — run it after upgrades or on a new machine.
+  Exit code = number of failures.
+
+## ghdl notes (VHDL simulator)
+
+- GHDL **5.1.1**, LLVM backend, from upstream's **official per-architecture
+  prebuilt bundles** (GHDL is Ada; MacPorts has no usable GNAT — same
+  repackage precedent as eda-or-tools). **v5.1.1 chosen deliberately for
+  portability**: it is the newest release with BOTH macOS assets
+  (`macos13-x86_64` for the Intel boxes, `macos14-aarch64` for arm64) — the
+  same GHDL version on every machine. v6.0.0 dropped the x86_64 asset, so
+  check assets before any version bump.
+- Installs the self-contained bundle into `libexec/ghdl` (it carries its own
+  `libgcc_s`, which must never land in `${prefix}/lib` where it could shadow
+  the MacPorts libgcc runtime). `${prefix}/bin/ghdl` is a **wrapper script,
+  not a symlink** — ghdl locates `ghdl1-llvm` and its precompiled std/ieee
+  libraries relative to its invocation path *without resolving symlinks*, so
+  a symlink breaks it (found the hard way).
+- `ghdl -e` links simulation binaries with the system C toolchain at
+  runtime (Xcode CLT — present on every MacPorts machine, no dep declared).
+- GHW waveforms (`ghdl -r ... --wave=x.ghw`) open in the tree's gtkwave;
+  `ghwdump` is also installed. cocotb supports GHDL for Python testbenches.
+- Verified: VHDL-2008 counter testbench analyzes/elaborates/simulates with
+  the correct result via `port test` AND the installed wrapper.
+- Not included (possible follow-up): **ghdl-yosys-plugin** for VHDL
+  *synthesis* through yosys → OpenROAD; needs a libghdl matched to our
+  yosys 0.66 and a plugin build — scope it like openEMS if wanted.
 
 ## eda-ngspice notes (pinned ngspice for the analog flow)
 
