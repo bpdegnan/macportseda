@@ -1,0 +1,216 @@
+# -*- coding: utf-8; mode: tcl; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- vim:fenc=utf-8:ft=tcl:et:sw=4:ts=4:sts=4
+
+PortSystem          1.0
+PortGroup           eda-github 1.0
+PortGroup           github 1.0
+
+github.setup        zachjs sv2v 0.0.13 v
+github.tarball_from archive
+name                sv2v
+revision            1
+
+categories          cad lang
+license             BSD
+maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+platforms           macosx
+
+# Built FROM SOURCE with ghc-prebuilt, natively on both architectures
+# (revision 0 repackaged upstream's x86_64-only release binary and needed
+# Rosetta on Apple Silicon).
+supported_archs     x86_64 arm64
+
+description         SystemVerilog to Verilog-2005 converter
+long_description    sv2v converts synthesizable SystemVerilog into plain \
+                    Verilog-2005 that tools with weak SV support (iverilog, \
+                    older yosys frontends) can read: always_ff/always_comb, \
+                    logic, interfaces, packages, parametrized types, etc. \
+                    Haskell program, built offline with the MacPorts \
+                    ghc-prebuilt toolchain and a fully vendored, pinned \
+                    Hackage dependency closure (10 tarballs - no network and \
+                    no Hackage index at build time).
+
+homepage            https://github.com/zachjs/sv2v
+
+# ============================================================================
+# Vendored Hackage closure (everything non-boot that the cabal solver picked
+# on ghc 9.14.1, including the alex/happy build tools, so the MacPorts
+# alex/happy ports are NOT needed). Each entry: {name version}. The tarballs
+# extract into ${workpath} and are listed in cabal.project as LOCAL packages
+# with `active-repositories: none` - the solver never consults a repository.
+#
+# The raw tarballs carry stale upper bounds on boot libraries (base < 4.22
+# etc.) that Hackage relaxed via metadata revisions our offline build never
+# sees; pre-configure rewrites those bounds in the vendored .cabal files
+# (same effect as the Hackage revisions, pinned versions make it safe).
+#
+# On a version bump: with ghc/cabal-prebuilt installed, run a NETWORKED
+#   cabal build --dry-run
+# in the new source tree, update this list to the plan it prints, refresh
+# checksums, and re-test. sv2v's githash usage has a no-git fallback
+# (tGitInfoCwdTry), so tarball builds report the plain cabal version.
+# ============================================================================
+set hackage_deps {
+    {alex 3.5.4.2}
+    {cmdargs 0.10.22}
+    {githash 0.1.7.0}
+    {happy 2.2}
+    {happy-lib 2.2}
+    {hashable 1.5.1.0}
+    {primitive 0.9.1.0}
+    {th-compat 0.1.7}
+    {vector 0.13.2.0}
+    {vector-stream 0.1.0.1}
+}
+
+checksums           sv2v-0.0.13.tar.gz \
+                    rmd160  c14e2abd4b5443974c508544757db9d485495360 \
+                    sha256  4ce7df8c6fa3857da6a2b69343c29e7c627a4283090f2b07221aa9ef956a88c8 \
+                    size    310248 \
+                    alex-3.5.4.2.tar.gz \
+                    rmd160  a3d49cab3571df03b5b795ff9bfa770b98c58242 \
+                    sha256  df481dc960e2c59a30395f7335031fd4ef8773b8a42894a4f2320e00ff474418 \
+                    size    94432 \
+                    cmdargs-0.10.22.tar.gz \
+                    rmd160  a18e3ba976ebe093c37cc424b44cb7c30b6551b3 \
+                    sha256  b8b12e7f8795cf13037bb062d453b86c788eae62558586f59e9419aabe6e9bef \
+                    size    65154 \
+                    githash-0.1.7.0.tar.gz \
+                    rmd160  3a48df9c70adcff44f1e2cd6acfbd6797e2097b2 \
+                    sha256  1ad5e7c26bd9c9c4e4c3232206694b153845fe11f227e39d214eef0d95f330d4 \
+                    size    7661 \
+                    happy-2.2.tar.gz \
+                    rmd160  19157e43be1e3327457bfc9107e9a7706fcc8e95 \
+                    sha256  2e9345c99a61bc29b5a1b9d5c1ea791cbea219499a4c01ed71f33c3af34a5eb0 \
+                    size    62273 \
+                    happy-lib-2.2.tar.gz \
+                    rmd160  a7f02503fc9e9fd0a0d427e54a92629f36230936 \
+                    sha256  d2e0662b12b52008787c380b94acd4f6ed0a0af04bb0d433ed8c4ac00f1e3003 \
+                    size    94570 \
+                    hashable-1.5.1.0.tar.gz \
+                    rmd160  d67fd92817970f3f48b340f49fdb4df8a0bfa4b7 \
+                    sha256  ed0b7c10ce92c9ffe45420dadc38c6d39db486ff3633ff13567cc9f75f79b112 \
+                    size    90605 \
+                    primitive-0.9.1.0.tar.gz \
+                    rmd160  964fb60f1d2897e5c0caca684518a7502f40ebaf \
+                    sha256  44b4de41813c7bc5db8a57f87c3612a069b65086946268ba165097252ebd3d76 \
+                    size    61724 \
+                    th-compat-0.1.7.tar.gz \
+                    rmd160  398bad5eac7c45645bbd526afe23cba151adf3d6 \
+                    sha256  9e26f12230d38ae56dcf94f8c139799dc3b7376f3434d35ce74847a0a24fd5ff \
+                    size    14763 \
+                    vector-0.13.2.0.tar.gz \
+                    rmd160  0c9799701f50289ec8535427f986d74af9960c1c \
+                    sha256  28f203c786cbf8ac6dc3fea3378ec36f34173d505fb4a1dd60fc8418ad91c423 \
+                    size    185739 \
+                    vector-stream-0.1.0.1.tar.gz \
+                    rmd160  e91801a5b84d9744f52d302fc3c1a47107f4b7dc \
+                    sha256  d0f507334bdea5431a2f07f525a97f29e76522c32210f5de6d5a2b4f1d42bf7c \
+                    size    12577
+
+# Register each Hackage tarball as a tagged distfile.
+set _n 0
+foreach dep ${hackage_deps} {
+    lassign ${dep} dname dver
+    incr _n
+    master_sites-append https://hackage.haskell.org/package/${dname}-${dver}/:hk${_n}
+    distfiles-append    ${dname}-${dver}.tar.gz:hk${_n}
+}
+unset _n
+
+depends_build-append \
+    port:ghc-prebuilt \
+    port:cabal-prebuilt
+# The ghc-prebuilt runtime links these MacPorts libs into produced binaries.
+depends_lib-append \
+    port:libiconv \
+    port:libffi
+
+set cabalhome       ${workpath}/.cabal-home
+set cabalenv        "CABAL_DIR=${cabalhome} HOME=${workpath} PATH=${cabalhome}/bin:${prefix}/bin:/usr/bin:/bin"
+
+use_configure       no
+
+pre-build {
+    # cabal locates ghc/ghc-pkg by name; expose the prebuilt toolchain the
+    # same way the stock haskell_cabal PortGroup does for bootstrap builds.
+    set ghcver [lindex [regexp -all -inline {[0-9.]+} \
+        [exec ${prefix}/bin/ghc-prebuilt --version]] 0]
+    xinstall -d ${cabalhome}/bin
+    ln -sf ${prefix}/lib/ghc-${ghcver}-prebuilt/bin/ghc-${ghcver} \
+        ${cabalhome}/bin/ghc
+    ln -sf ${prefix}/lib/ghc-${ghcver}-prebuilt/bin/ghc-pkg-${ghcver} \
+        ${cabalhome}/bin/ghc-pkg
+
+    # Two fixups on the vendored .cabal files:
+    # 1. Relax stale boot-library upper bounds (offline stand-in for the
+    #    Hackage metadata revisions; see header).
+    # 2. Strip test-suite/benchmark stanzas AND test/bench-named
+    #    sub-libraries (e.g. vector's `library benchmarks-O2`): cabal solves
+    #    ALL components of local packages regardless of tests:/benchmarks:
+    #    False, and those components want tasty et al, which is a large tree
+    #    deliberately not vendored. Named sub-libraries that are real build
+    #    deps (happy-lib's grammar/frontend/backend-*) are kept.
+    set awkstrip {BEGIN{skip=0} /^[A-Za-z]/{skip = (tolower($0) ~ /^(test-suite|benchmark)/ || tolower($0) ~ /^library[ \t]+[a-z0-9-]*(test|bench)/) ? 1 : 0} skip==0{print}}
+    foreach dep ${hackage_deps} {
+        lassign ${dep} dname dver
+        foreach cf [glob -nocomplain ${workpath}/${dname}-${dver}/*.cabal] {
+            reinplace -E {s@(base|template-haskell|ghc-prim|deepseq|bytestring|text|containers|filepath|directory|process|transformers|mtl|array|stm|exceptions)([[:space:]]*(>=?[[:space:]]*[0-9.]+[[:space:]]*)?&&[[:space:]]*<[[:space:]]*)[0-9][0-9.]*@\1\29@g} ${cf}
+            system "/usr/bin/awk [shellescape ${awkstrip}] [shellescape ${cf}] \
+                > [shellescape ${cf}.stripped] && /bin/mv [shellescape ${cf}.stripped] [shellescape ${cf}]"
+        }
+    }
+
+    # cabal.project: vendored dirs as local packages, no repositories at all.
+    # tests/benchmarks MUST be off explicitly: local packages otherwise get
+    # their test components solved, and vector's test-suite wants tasty (a
+    # large tree deliberately NOT vendored).
+    set fp [open ${worksrcpath}/cabal.project w]
+    puts ${fp} "packages: ."
+    foreach dep ${hackage_deps} {
+        lassign ${dep} dname dver
+        puts ${fp} "          ${workpath}/${dname}-${dver}"
+    }
+    puts ${fp} "active-repositories: none"
+    puts ${fp} "tests: False"
+    puts ${fp} "benchmarks: False"
+    close ${fp}
+}
+
+build {
+    system -W ${worksrcpath} \
+        "env ${cabalenv} ${prefix}/bin/cabal-prebuilt build --offline \
+         -j${build.jobs} exe:sv2v"
+}
+
+destroot {
+    set bin [glob ${worksrcpath}/dist-newstyle/build/*/ghc-*/sv2v-${version}/x/sv2v/build/sv2v/sv2v]
+    xinstall -m 755 ${bin} ${destroot}${prefix}/bin/sv2v
+    set docdir ${prefix}/share/doc/${name}
+    xinstall -d ${destroot}${docdir}
+    xinstall -m 644 -W ${worksrcpath} \
+        CHANGELOG.md LICENSE NOTICE README.md \
+        ${destroot}${docdir}
+}
+
+# Smoke test: a SystemVerilog always_ff/logic module must convert to
+# Verilog-2005 (always @(posedge ...) + reg).
+test.run            yes
+test {
+    set sv ${workpath}/t.sv
+    set fp [open ${sv} w]
+    puts ${fp} "module t(input logic clk, d, output logic q);"
+    puts ${fp} "always_ff @(posedge clk) q <= d;"
+    puts ${fp} "endmodule"
+    close ${fp}
+    set bin [glob ${worksrcpath}/dist-newstyle/build/*/ghc-*/sv2v-${version}/x/sv2v/build/sv2v/sv2v]
+    system "${bin} [shellescape ${sv}] > ${workpath}/t.v 2>${workpath}/t.err"
+    set fp [open ${workpath}/t.v r]
+    set out [read ${fp}]
+    close ${fp}
+    if {![string match "*always @(posedge clk)*" ${out}] ||
+        ![string match "*output reg q*" ${out}]} {
+        error "sv2v did not produce expected Verilog-2005: ${out}"
+    }
+}
+
+livecheck.type      none

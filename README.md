@@ -32,6 +32,8 @@ macportseda/
     │   └── Portfile
     ├── netlistsvg/     # SVG schematics from yosys JSON (sky130 PDK dep)
     │   └── Portfile
+    ├── sv2v/           # SystemVerilog -> Verilog-2005 (prebuilt binary)
+    │   └── Portfile
     ├── eda-vtk/        # minimal VTK IO subset (private prefix) for openEMS
     │   └── Portfile
     ├── eda-ngspice/    # pinned ngspice 46 (private prefix) for the analog flow
@@ -149,6 +151,7 @@ Ports live under a category directory (`cad`) as MacPorts expects.
    | py-volare | `sudo port install py-volare` | PDK manager; py313, installs `volare`. |
    | skim-app | `sudo port install skim-app` | Skim PDF/EPS reader → `/Applications/MacPorts`. |
    | netlistsvg | `sudo port install netlistsvg` | SVG schematics from yosys JSON (sky130 PDK build dep). |
+   | sv2v | `sudo port install sv2v` | SystemVerilog→Verilog-2005. Built from source (Haskell, offline-vendored); native on x86_64 and arm64. |
    | eda-ngspice | `sudo port install eda-ngspice` | Pinned ngspice 46 → `eda-ngspice` on PATH (stock ngspice keeps the plain name). |
    | openEMS (python) | `sudo port install py313-openems` | Octave-free EM solver chain: pulls eda-vtk, CSXCAD, openEMS, py313-csxcad. |
    | openroad / openroad-ll | see below ⚠️ | RTL-to-GDS P&R. **Need `boost spdlog protobuf3-cpp OpenSTA` deactivated to build.** |
@@ -252,6 +255,7 @@ every file, so the archive needs no special trust.
 | yosys | [YosysHQ/yosys v0.66 `yosys-src.tar.gz`](https://github.com/YosysHQ/yosys/releases/download/v0.66/yosys-src.tar.gz) (release asset, bundles ABC) |
 | sby | [YosysHQ/sby @ d3e72d2](https://github.com/YosysHQ/sby/archive/d3e72d26e8634bca4ca16f3e4d84331481f06ab6/sby-d3e72d26e8634bca4ca16f3e4d84331481f06ab6.tar.gz) |
 | netlistsvg | [npm netlistsvg 1.0.2](https://registry.npmjs.org/netlistsvg/-/netlistsvg-1.0.2.tgz) + 70 pinned npm dep tarballs from registry.npmjs.org (all listed in the Portfile; no npm at build time) |
+| sv2v | [zachjs/sv2v v0.0.13](https://github.com/zachjs/sv2v/archive/v0.0.13/sv2v-0.0.13.tar.gz) + 10 pinned Hackage tarballs from [hackage.haskell.org](https://hackage.haskell.org/) (listed in the Portfile; no network/index at build time) |
 | eda-vtk | [Kitware/vtk v9.6.2](https://github.com/Kitware/vtk/archive/v9.6.2/vtk-9.6.2.tar.gz) (same distfile as stock vtk) |
 | eda-ngspice (+ eda-ngspice-lib) | [ngspice 46 (SourceForge)](https://sourceforge.net/projects/ngspice/files/ng-spice-rework/46/ngspice-46.tar.gz) |
 | CSXCAD (+ py313-csxcad) | [thliebig/CSXCAD @ f5e4764](https://github.com/thliebig/CSXCAD/archive/f5e47643a28d6efd42cc10b61b848903e6599581/CSXCAD-f5e47643a28d6efd42cc10b61b848903e6599581.tar.gz) (stock MacPorts pin) |
@@ -549,6 +553,39 @@ The whole tree builds on macOS 15.3 / Xcode 16.2 with the following caveats:
   and re-check the tree is still flat).
 - Verified: `port test netlistsvg` renders an SVG from a small `$and` netlist,
   and the installed binary does the same.
+
+## sv2v notes (SystemVerilog → Verilog-2005, built from source)
+
+- zachjs/sv2v v0.0.13: converts synthesizable SystemVerilog (always_ff/
+  always_comb, logic, interfaces, packages...) to Verilog-2005 for tools with
+  weak SV frontends (iverilog; yosys without the slang plugin). Not in stock
+  MacPorts.
+- It's a **Haskell** program, **built from source, offline, native on both
+  architectures** (rev 0 repackaged upstream's x86_64-only binary and needed
+  Rosetta on Apple Silicon; rev 1 replaced it). Toolchain: MacPorts
+  `ghc-prebuilt` + `cabal-prebuilt` (official-bindist repackages, binary
+  archives — no GHC bootstrap build).
+- Offline Hackage vendoring (this tree's npm/crates pattern, adapted): the 10
+  non-boot packages the cabal solver picked — including the **alex/happy**
+  build tools, so those MacPorts ports aren't needed — are pinned as
+  checksummed distfiles, extracted, and listed in a generated cabal.project
+  as **local packages** with `active-repositories: none`; `cabal build
+  --offline` never touches a repository or index. Three tricks were needed
+  (all in the Portfile, commented):
+  1. Raw Hackage tarballs carry stale `base < 4.x` bounds that Hackage only
+     fixed via metadata *revisions* an offline build never sees →
+     pre-build relaxes boot-lib upper bounds in the vendored .cabal files.
+  2. cabal solves ALL components of local packages (ignoring `tests: False`
+     and `--disable-tests`) → test-suite/benchmark stanzas AND test/bench
+     sub-libraries (vector's `library benchmarks-O2` wants tasty) are
+     stripped; load-bearing sub-libraries (happy-lib's) are kept.
+  3. cabal finds ghc/ghc-pkg by name → symlinks into a private CABAL_DIR
+     (same trick as the stock haskell_cabal PortGroup's bootstrap mode).
+- sv2v's githash version stamp has a no-git fallback (`tGitInfoCwdTry`), so
+  tarball builds report the plain cabal version — no git needed.
+- `port test` verifies an always_ff/logic module converts to
+  `always @(posedge ...)` / `reg`. Version-bump procedure is in the Portfile
+  header (networked `cabal build --dry-run` → update the pin list).
 
 ## eda-ngspice notes (pinned ngspice for the analog flow)
 
