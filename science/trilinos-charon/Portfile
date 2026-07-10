@@ -103,10 +103,27 @@ set tri_prefix      ${prefix}/libexec/trilinos-charon
 # gate as the charon port. Fail fast instead of hours in:
 pre-build {
     if {![catch {registry_active trilinos16} res] && [llength ${res}]} {
-        ui_error "trilinos16 is active: its ${prefix}/include Trilinos-16\
-            headers shadow this Trilinos 13.4 build's own headers."
-        ui_error "Run:  sudo port -f deactivate trilinos16 && sudo port install\
-            trilinos-charon && sudo port activate trilinos16"
+        foreach _l {
+            ""
+            ""
+            "****************************************************************"
+            "****************************************************************"
+            "**                                                            **"
+            "**   BUILD GATE: deactivate trilinos16 first.                 **"
+            "**                                                            **"
+            "**   trilinos16 is active; its Trilinos-16 headers in         **"
+            "**   the prefix shadow this Trilinos 13.4 build.              **"
+            "**                                                            **"
+            "**   Run:                                                     **"
+            "**     sudo port -f deactivate trilinos16                     **"
+            "**     sudo port install trilinos-charon                      **"
+            "**     sudo port activate trilinos16                          **"
+            "**                                                            **"
+            "****************************************************************"
+            "****************************************************************"
+            ""
+            ""
+        } { ui_error $_l }
         return -code error "deactivate trilinos16 before building trilinos-charon"
     }
 }

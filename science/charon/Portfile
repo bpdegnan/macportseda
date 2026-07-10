@@ -192,11 +192,29 @@ pre-deactivate {
 # Fail fast (seconds, not hours into the build) if the gate above is not met.
 pre-build {
     if {![catch {registry_active trilinos16} res] && [llength ${res}]} {
-        ui_error "trilinos16 is active: its ${prefix}/include Trilinos-16\
-            headers (e.g. Teuchos_any.hpp, C++17-only) shadow charon's bundled\
-            Trilinos 13.4 and break this -std=c++14 build."
-        ui_error "Run:  sudo port -f deactivate trilinos16 && sudo port install\
-            charon && sudo port activate trilinos16"
+        foreach _l {
+            ""
+            ""
+            "****************************************************************"
+            "****************************************************************"
+            "**                                                            **"
+            "**   BUILD GATE: deactivate trilinos16 first.                 **"
+            "**                                                            **"
+            "**   trilinos16 is active; its Trilinos-16 headers in         **"
+            "**   the prefix (e.g. Teuchos_any.hpp, C++17-only) shadow     **"
+            "**   charon's bundled Trilinos 13.4 and break this            **"
+            "**   -std=c++14 build.                                        **"
+            "**                                                            **"
+            "**   Run:                                                     **"
+            "**     sudo port -f deactivate trilinos16                     **"
+            "**     sudo port install charon                               **"
+            "**     sudo port activate trilinos16                          **"
+            "**                                                            **"
+            "****************************************************************"
+            "****************************************************************"
+            ""
+            ""
+        } { ui_error $_l }
         return -code error "deactivate trilinos16 before building charon"
     }
 }
