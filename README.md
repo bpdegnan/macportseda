@@ -395,6 +395,27 @@ The whole tree builds on macOS 15.3 / Xcode 16.2 with the following caveats:
   `~/.venvs/cocotb/bin/python`; a `cocotb-config` shim in `~/.local/bin`
   covers the legacy Makefile flow.
 
+## memory compilers (OpenRAM, DFFRAM — venvs, not ports)
+
+Flow drivers, so they follow the LibreLane/cocotb pattern (uv venv +
+wrapper in `~/.local/bin`), NOT MacPorts ports:
+
+- **OpenRAM** (`openram myconfig.py`): real 6T SRAM macro compiler; venv at
+  `~/.venvs/openram` (pip `openram`, currently 1.2.48). The wrapper runs the
+  packaged `sram_compiler.py`. Needs `PDK_ROOT` (sky130A) at run time plus
+  MacPorts magic/netgen/klayout for DRC/LVS. sky130 is its silicon-proven
+  target; porting to the s7 proxy means writing an OpenRAM technology dir
+  (bitcell/sense-amp cells + rules) — real work, tracked separately.
+- **DFFRAM** (`dffram 32x32`): flip-flop/latch RAM built from STANDARD CELLS
+  via a **LibreLane plugin** (repo moved to AUCOHL/DFFRAM; needs
+  librelane>=2.4). Venv at `~/.venvs/dffram` with the repo cloned inside it;
+  wrapper puts `libexec/openroad-ll/bin` first on PATH like the librelane
+  wrapper. Works on ANY std-cell process — this is the zero-bitcell-work
+  path for small memories (FIFOs, register files, calibration tables) on
+  the s7 proxy.
+- Rule of thumb: DFFRAM up to a few KB or on s7; OpenRAM when sky130 needs
+  real SRAM density.
+
 ## OpenSTA notes
 
 - Upstream (`parallaxsw/OpenSTA`) publishes no git tags or releases, so the
