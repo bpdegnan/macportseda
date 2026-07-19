@@ -1,0 +1,72 @@
+# -*- coding: utf-8; mode: tcl; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- vim:fenc=utf-8:ft=tcl:et:sw=4:ts=4:sts=4
+
+PortSystem          1.0
+PortGroup           eda-github 1.0
+PortGroup           python 1.0
+
+name                eda-cace
+version             2.11.0
+revision            0
+
+categories          cad
+license             Apache-2
+supported_archs     noarch
+platforms           {darwin any}
+maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+
+description         Circuit Automatic Characterization Engine (analog flow validation)
+long_description    CACE (Circuit Automatic Characterization Engine) drives \
+                    ngspice/xyce plus magic/netgen/klayout to characterize an \
+                    analog block against a datasheet of parameters and emit an \
+                    annotated results datasheet -- the analog-side flow \
+                    validation counterpart to LibreLane on the digital side. \
+                    Installs the `cace` CLI and the `cace-web` Flask GUI. \
+                    Provide a sky130A PDK (via ciel or installskywater) and \
+                    set PDK_ROOT at run time.  Named eda-cace (not py-cace) \
+                    because it is an application, not a reusable library.
+
+homepage            https://github.com/fossi-foundation/cace
+
+checksums           rmd160  8f561022abbe61d160b9ff674e9a1655584783b4 \
+                    sha256  4591d001eea9b92973ceb9a177af8eb3fce469cf2c71449e258c970eb349587a \
+                    size    2722546
+
+# Application port: the name is not py-*, so the python portgroup builds a
+# SINGLE version at python.default_version, defines no pyXY- subports, and
+# installs the console scripts unsuffixed (cace, cace-web) into ${prefix}/bin.
+# Pinned to python 3.12 (matplotlib's TkAgg backend + the analog-flow venvs).
+python.rootname     cace
+python.default_version 312
+
+# setuptools.build_meta backend (pyproject build-system).
+python.pep517       yes
+
+# version = {attr = "cace.__version__"} + PKG-INFO in the sdist, so
+# setuptools_scm resolves 2.11.0 without git; it is only a build requirement.
+depends_build-append \
+                    port:py${python.version}-setuptools \
+                    port:py${python.version}-setuptools_scm
+
+depends_lib-append  port:py${python.version}-matplotlib \
+                    port:py${python.version}-numpy \
+                    port:py${python.version}-Pillow \
+                    port:py${python.version}-rich \
+                    port:py${python.version}-flask \
+                    port:py${python.version}-mpld3 \
+                    port:py${python.version}-ciel \
+                    port:py${python.version}-tkinter
+
+# The framework python3.12 puts ~/Library/Python/3.12 (pip --user site) on
+# sys.path AHEAD of the MacPorts packages, so a stale --user click/flask there
+# silently shadows the port deps and breaks cace-web (ImportError on newer
+# click symbols).  Make the installed console scripts ignore the user site
+# (python -s) so eda-cace runs against its declared deps only.
+# The real scripts live in the framework bin (${prefix}/bin/{cace,cace-web}
+# are symlinks the portgroup makes to them), so rewrite the shebang there.
+post-destroot {
+    foreach s {cace cace-web} {
+        reinplace "1s|\$| -s|" ${destroot}${python.prefix}/bin/${s}
+    }
+}
+
+livecheck.type      none

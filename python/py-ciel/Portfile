@@ -1,0 +1,53 @@
+# -*- coding: utf-8; mode: tcl; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- vim:fenc=utf-8:ft=tcl:et:sw=4:ts=4:sts=4
+
+PortSystem          1.0
+PortGroup           eda-github 1.0
+PortGroup           python 1.0
+
+name                py-ciel
+version             2.6.1
+revision            0
+
+categories-append   cad
+license             Apache-2
+supported_archs     noarch
+platforms           {darwin any}
+maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+
+description         Version manager and builder for open-source PDKs (volare successor)
+long_description    Ciel is the FOSSi Foundation's continuation of Volare: a \
+                    version manager (and builder) for builds of open-source \
+                    PDKs such as Sky130 and GF180MCU. It fetches prebuilt PDK \
+                    tarballs by version so EDA flows can pin a known-good PDK. \
+                    Packaged here because the eda-cace port depends on it, and \
+                    it stands alone as the maintained replacement for volare.
+
+homepage            https://github.com/fossi-foundation/ciel
+
+checksums           rmd160  6e20b520b8375e0e7d4ca18ae9650c0b2cb7e6e3 \
+                    sha256  e4fcfb303f5c603752b51541c4cf47baf6b08f300f5df65d36372234451896ec \
+                    size    26608
+
+python.versions     311 312 313
+python.default_version 313
+
+# Built with poetry-core (same as py-volare; the portgroup pulls the backend).
+python.pep517_backend   poetry
+
+if {${name} ne ${subport}} {
+    depends_lib-append      port:py${python.version}-click \
+                            port:py${python.version}-httpx \
+                            port:py${python.version}-pcpp \
+                            port:py${python.version}-yaml \
+                            port:py${python.version}-rich \
+                            port:py${python.version}-zstandard
+
+    # Provide an unsuffixed `ciel` for the default Python version.
+    if {${python.version} eq ${python.default_version}} {
+        post-destroot {
+            ln -s ciel-${python.branch} ${destroot}${prefix}/bin/ciel
+        }
+    }
+
+    livecheck.type          none
+}

@@ -62,6 +62,8 @@ macportseda/
     │   └── Portfile
     ├── openroad-ll/    # OpenROAD @ LibreLane's validated rev (private prefix)
     │   └── Portfile
+    ├── eda-cace/       # CACE analog characterization engine (cace, cace-web)
+    │   └── Portfile
     └── (see science/ and x11/ for the rest)
 x11/
 ├── gtksheet/          # GtkSheet widget lib (lepton-attrib dependency)
@@ -104,6 +106,8 @@ python/
 ├── py-csxcad/          # python bindings for CSXCAD (openEMS frontend)
 │   └── Portfile
 ├── py-openems/         # python bindings for openEMS
+│   └── Portfile
+├── py-ciel/            # PDK version manager (volare successor; eda-cace dep)
 │   └── Portfile
 └── py-volare/
     └── Portfile
@@ -172,6 +176,8 @@ Ports live under a category directory (`cad`) as MacPorts expects.
    | ghdl | `sudo port install ghdl` | VHDL simulator (87→2008, partial 2019). Per-arch official prebuilt, native on x86_64 (macOS≥13) and arm64 (macOS≥14); GHW waves open in gtkwave. |
    | eda-ngspice | `sudo port install eda-ngspice` | Pinned ngspice 46 → `eda-ngspice` on PATH (stock ngspice keeps the plain name). |
    | openEMS (python) | `sudo port install py313-openems` | Octave-free EM solver chain: pulls eda-vtk, CSXCAD, openEMS, py313-csxcad. |
+   | eda-cace | `sudo port install eda-cace` | Analog characterization (`cace`, `cace-web`). App port on py312; pulls `py-ciel`. Set `PDK_ROOT` at run time. See CACE notes. |
+   | py-ciel | `sudo port install py-ciel` | PDK version manager (volare successor); installs `ciel`. Also an eda-cace dep. |
    | openroad / openroad-ll | see below ⚠️ | RTL-to-GDS P&R. **Need `boost spdlog protobuf3-cpp OpenSTA` deactivated to build.** |
    | kicad | see below ⚠️ | Full EDA suite + libraries. **Needs `boost` deactivated to build.** Simulates on eda-ngspice-lib (ngspice 46). |
    | trilinos-charon / charon | see below ⚠️ | TCAD; **need `trilinos16` deactivated to build.** |
@@ -304,6 +310,8 @@ every file, so the archive needs no special trust.
 | py-pcpp | [PyPI pcpp 1.30](https://files.pythonhosted.org/packages/source/p/pcpp/pcpp-1.30.tar.gz) |
 | py-zstandard | [PyPI zstandard 0.25.0](https://files.pythonhosted.org/packages/source/z/zstandard/zstandard-0.25.0.tar.gz) |
 | py-volare | [PyPI volare 0.20.6](https://files.pythonhosted.org/packages/source/v/volare/volare-0.20.6.tar.gz) |
+| py-ciel | [PyPI ciel 2.6.1](https://files.pythonhosted.org/packages/source/c/ciel/ciel-2.6.1.tar.gz) |
+| eda-cace | [PyPI cace 2.11.0](https://files.pythonhosted.org/packages/source/c/cace/cace-2.11.0.tar.gz) |
 | py-cxxheaderparser | [PyPI cxxheaderparser 1.9.1](https://files.pythonhosted.org/packages/source/c/cxxheaderparser/cxxheaderparser-1.9.1.tar.gz) |
 | skim-app | [SourceForge Skim 1.7.15](https://downloads.sourceforge.net/project/skim-app/Skim/Skim-1.7.15/Skim-1.7.15.dmg) (prebuilt .dmg) |
 
@@ -415,6 +423,46 @@ wrapper in `~/.local/bin`), NOT MacPorts ports:
   the s7 proxy.
 - Rule of thumb: DFFRAM up to a few KB or on s7; OpenRAM when sky130 needs
   real SRAM density.
+
+## CACE notes (analog characterization — `eda-cace` port)
+
+- **CACE** (Circuit Automatic Characterization Engine, `cace design.yaml`):
+  drives ngspice/xyce + magic/netgen/klayout to characterize an analog block
+  against a datasheet of parameters and emit an annotated results datasheet.
+  This is the analog-side flow validation (the counterpart to LibreLane on
+  the digital side).
+- **Now a MacPorts port**, `cad/eda-cace` (was a venv). `sudo port install
+  eda-cace` installs the `cace` CLI and the `cace-web` Flask GUI on PATH.
+  Named `eda-cace` (not `py-cace`) because it is an application, not a
+  reusable library; it is an *app-style* python port (name is not `py-*`, so
+  the python portgroup builds a single version at `python.default_version`
+  with no `pyXY-` subports and installs the console scripts unsuffixed).
+  Pinned to **python 3.12** (matplotlib's TkAgg backend + the analog venvs).
+  Needs `PDK_ROOT` (sky130A via ciel/installskywater) at run time.
+- **`py-ciel` dependency port** (`python/py-ciel`): CACE's only dep missing
+  from MacPorts. Ciel is the FOSSi Foundation's continuation of volare (same
+  deps: click/httpx/pcpp/yaml/rich/zstandard — all already present) and
+  ships an unsuffixed `ciel` for the default python like py-volare. Every
+  other CACE dep (matplotlib, numpy, Pillow, rich, flask, **mpld3 0.5.10**
+  exactly) is already in MacPorts.
+- **Tk is a declared dep now** (`py${v}-tkinter`): CACE hard-imports
+  matplotlib's TkAgg backend, so the port pulls it in. (In the old venv you
+  had to `sudo port install py312-tkinter` by hand or `cace` died with
+  `ModuleNotFoundError: No module named '_tkinter'`.)
+- **user-site shadowing gotcha** (why the scripts run `python -s`): the
+  framework python3.12 puts `~/Library/Python/3.12` (a `pip install --user`
+  site) on `sys.path` *ahead* of the MacPorts packages. A stale `--user`
+  click 7.1.2 there shadows the port's click 8.3.3 and breaks `cace-web`
+  (`ImportError: cannot import name 'ParameterSource' from click.core`). The
+  port's `post-destroot` appends `-s` to the `cace`/`cace-web` shebangs so
+  they ignore the user site and run against their declared deps only. If you
+  migrated from the venv, also remove the stale drivers so the port wins on
+  PATH: `rm ~/.local/bin/cace ~/.local/bin/cace-web` (the old venv wrappers,
+  earlier in PATH than `/opt/local/bin`), and consider clearing the whole
+  `~/Library/Python/3.12` `--user` stack — it shadows *every* MacPorts
+  python3.12 tool, not just cace.
+- The install is the easy part; the actual work is writing a CACE datasheet
+  (YAML: parameters, testbenches, limits) for a real circuit — that's design.
 
 ## OpenSTA notes
 
