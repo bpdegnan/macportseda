@@ -13,9 +13,9 @@ PortGroup           cmake 1.1
 # so when bumping the pinned commit you must INCREMENT revision (a reset to 0
 # would sort BELOW an already-installed higher revision and port would refuse
 # the upgrade).
-github.setup        parallaxsw OpenSTA 12f1577fe4f9574580b718d78afdb86e3735cedc
+github.setup        parallaxsw OpenSTA 87ce5680dfa92aa98f07b587df5deb032f6593af
 version             3.1.0
-revision            2
+revision            3
 
 categories          cad
 license             GPL-3
@@ -29,9 +29,9 @@ long_description    OpenSTA is a gate-level static timing verifier. As a \
 
 homepage            https://github.com/parallaxsw/OpenSTA
 
-checksums           rmd160  cfc6336e929273fe458ddeca54f825b16ea7e761 \
-                    sha256  e28218ec6bd18fbe7e53be50c3cf0bda65e1d42d927edcd4e5f640e918e2f35a \
-                    size    13888324
+checksums           rmd160  c362b515f6e314e7eb8333aea0112edbbffd908e \
+                    sha256  95826b464e62f61270e7a7337efb77a56faef8013a429f24b7496be614d3584a \
+                    size    13904657
 
 # OpenSTA uses C++20 three-way comparison (operator<=>) on std::string in
 # network/Network.cc. The libc++ in older macOS SDKs (e.g. the Ventura
@@ -39,19 +39,6 @@ checksums           rmd160  cfc6336e929273fe458ddeca54f825b16ea7e761 \
 # so the build fails. Replace those three sites with std::string::compare(),
 # which has identical sign semantics and needs no newer standard library.
 patchfiles-append   patch-Network-string-spaceship.diff
-
-# LOCAL FIX (not upstream as of commit 12f1577f, 2026-07-14): WriteSpice::
-# gatePortValues took an arbitrary Cudd_FirstCube of the Boolean difference
-# df/dinput, ignoring the arc's transition directions. That mis-sensitized
-# the SPICE decks for (a) non-unate gates whose difference is a tautology
-# (xor2/xnor2 -> side inputs all don't-care -> tied low, wrong arc sense) and
-# (b) mux select arcs (arbitrary data assignment, unrelated to the output
-# edge). The patch constrains the side-input cube to the cofactor matching
-# THIS arc's input/driver edges (f1&~f0 non-inverting, f0&~f1 inverting),
-# threading the input RiseFall from stageGateInputPath at the call site.
-# Acceptance test is the user's edge-level deck audit (zap/ibex canaries):
-# zero flipped decks, t_arrive succeeds and equals t_arrivx in every log.
-patchfiles-append   patch-gatePortValues-arc-sense.diff
 
 # bison (>= 3.2), flex and swig (>= 3.0, with the Tcl backend) generate the
 # parsers and Tcl bindings at build time. The macOS system bison/flex are too
