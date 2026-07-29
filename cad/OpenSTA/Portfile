@@ -15,7 +15,7 @@ PortGroup           cmake 1.1
 # the upgrade).
 github.setup        parallaxsw OpenSTA 87ce5680dfa92aa98f07b587df5deb032f6593af
 version             3.1.0
-revision            3
+revision            4
 
 categories          cad
 license             GPL-3
@@ -39,6 +39,23 @@ checksums           rmd160  c362b515f6e314e7eb8333aea0112edbbffd908e \
 # so the build fails. Replace those three sites with std::string::compare(),
 # which has identical sign semantics and needs no newer standard library.
 patchfiles-append   patch-Network-string-spaceship.diff
+
+# write_path_spice gave a sequential cell's asynchronous set/reset pins no
+# value, so they fell through to the tie low default in
+# writeSubcktInstVoltSrcs() -- which for an active low set/reset is the
+# ASSERTED level. The flop output is then held at a constant, never makes the
+# transition the reported path took, and the deck's arrival measurements come
+# up empty: every path launching from such a flop yields an unusable deck.
+# Deassert those pins from the complement of the liberty clear/preset
+# expressions instead. Submitted upstream as parallaxsw/OpenSTA issue #480;
+# DROP this patch once the pinned commit above includes the fix (it will then
+# fail to apply). Sibling of the #474/#475 non-unate side input fix, which is
+# already in the pinned commit.
+#
+# Source only: the upstream change also adds test/write_path_spice_async_set_reset
+# (a gzipped liberty among other files), which a unified diff cannot carry and
+# this port does not run anyway.
+patchfiles-append   patch-WriteSpice-async-set-reset.diff
 
 # bison (>= 3.2), flex and swig (>= 3.0, with the Tcl backend) generate the
 # parsers and Tcl bindings at build time. The macOS system bison/flex are too
