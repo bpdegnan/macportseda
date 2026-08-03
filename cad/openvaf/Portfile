@@ -7,19 +7,29 @@ PortGroup           cargo 1.0
 
 # OpenVAF-Reloaded develops on a single "mob" branch. The first tag (v24.0.0mob)
 # had 2022-era codegen that segfaults emitting OSDI metadata on LLVM 18; the
-# v24.0.1mob tag (2026-06-29) is the first that builds and runs cleanly for us
-# (it also adds Verilog-A arrays / laplace_nd / events / absdelay). We pin that
-# tag. github.tarball_from archive + tag prefix "v" -> tag v24.0.1mob.
-github.setup        OpenVAF OpenVAF-Reloaded 24.0.1mob v
+# v24.0.1mob tag (2026-06-29) was the first that built and ran cleanly for us.
+#
+# We are now pinned PAST that tag to a mob commit, because v24.0.1mob is still
+# the newest tag upstream publishes while mob has moved 44 commits ahead with a
+# large set of genuine compiler fixes we want: the 2026-07-04 bugfix sweep
+# (noise_table crash, ac_stim panic, idt initial condition, idtmod wrap/offset,
+# laplace_nd feedthrough, whole-array-assignment ICE, array lower-bound
+# indexing, $simparam$str, string-var-init ICE, three latent MIR CFG bugs) and
+# the VAMS-2023 wave (repaired ceil/hypot/$clog2 codegen, expm1/ln1p,
+# $min/$max/$abs, $rtoi/$itor, named events, dynamic transition() tolerances,
+# real cross/above/timer/absdelta signatures, break/continue/return).
+# Re-pin to a tag if upstream ever publishes a newer one.
+set mob_commit      3369a83f9c626f6d298f9f881379f561ce432e27
+github.setup        OpenVAF OpenVAF-Reloaded ${mob_commit}
 github.tarball_from archive
 name                openvaf
-version             24.0.1mob
+# Tag version + mob-commit date (dotted, so it sorts above plain 24.0.1mob).
+version             24.0.1mob.20260801
 revision            0
 
-# The github archive of tag v24.0.1mob extracts to OpenVAF-Reloaded-24.0.1mob
-# (GitHub drops the leading "v"); pin distname/worksrcdir so the checksum key
-# and the extracted dir line up.
-distname            OpenVAF-Reloaded-24.0.1mob
+# The github archive of a commit extracts to OpenVAF-Reloaded-<full sha>; pin
+# distname/worksrcdir so the checksum key and the extracted dir line up.
+distname            OpenVAF-Reloaded-${mob_commit}
 worksrcdir          ${distname}
 
 categories          cad science
@@ -37,9 +47,9 @@ long_description    OpenVAF is a Verilog-A compiler that compiles compact \
 homepage            https://github.com/OpenVAF/OpenVAF-Reloaded
 
 checksums           ${distname}${extract.suffix} \
-                        rmd160  3ccbc3d78e8d30e92341d9c85997ac46fa6f990d \
-                        sha256  5e3197b5e9118c9fa28c2ef0102377542f765d3e0791d1273c125a1dabd46b4b \
-                        size    2291458
+                        rmd160  a1baea63ff59d4b3ddc612ddb0975c29b3b4ea94 \
+                        sha256  a3107368a00c15115983926cf96604dc0826169761c62c614d01b576fd6ada3a \
+                        size    2335712
 
 # --- LLVM backend -----------------------------------------------------------
 # The fork selects the LLVM major via a cargo feature and supports 18-22. We use
@@ -259,16 +269,24 @@ destroot {
 }
 
 # ============================================================================
-# WORKING. Pinned to release tag v24.0.1mob (2026-06-29) -- a strict descendant
-# of the mob commit we first proved, now a real tag. Verified: `openvaf-r
-# model.va` compiles a Verilog-A model to a <model>.osdi Mach-O shared library.
-# LLVM is statically linked (force-static), so the binary is self-contained.
-# Binary is "openvaf-r".
+# WORKING. Pinned to mob commit 3369a83f (2026-08-01), 44 commits past the
+# v24.0.1mob tag. Verified: `openvaf-r model.va` compiles a Verilog-A model to a
+# <model>.osdi Mach-O shared library. LLVM is statically linked (force-static),
+# so the binary is self-contained. Binary is "openvaf-r".
 #
-# To bump: change github.setup + version + distname to the new tag, refresh the
-# checksum, and regenerate cargo.crates from that tag's Cargo.lock (parse the
-# lock for name/version/sha256). Re-check the salsa git rev/account and that
-# mir_llvm still carries the prefer-dynamic feature we flip.
+# NOTE on this bump: Cargo.lock was byte-identical between v24.0.1mob and this
+# commit, so cargo.crates below did NOT need regenerating, the salsa git rev is
+# unchanged, mir_llvm still carries the prefer-dynamic feature we flip, and
+# --features llvm18 / -p openvaf-driver still apply. Only the distfile changed.
+#
+# To bump: change mob_commit + version + refresh the checksum. Then re-verify the
+# four things above -- if Cargo.lock changed, regenerate cargo.crates from it
+# (parse the lock for name/version/sha256) and re-check the salsa git rev/account.
+#
+# Watch upstream PR #17 ("Link libc++/libc++abi on macOS for static LLVM
+# builds"): it touches openvaf-driver/build.rs for exactly the static-LLVM-on-
+# macOS configuration this port uses, so it may interact with the force-static
+# reinplace when it merges.
 # ============================================================================
 
 livecheck.type      none

@@ -275,7 +275,7 @@ every file, so the archive needs no special trust.
 | netgen-lvs | [RTimothyEdwards/netgen 1.5.321](https://github.com/RTimothyEdwards/netgen/archive/refs/tags/1.5.321.tar.gz) |
 | klayout | [KLayout/klayout v0.30.9](https://github.com/KLayout/klayout/archive/refs/tags/v0.30.9.tar.gz) |
 | gtkwave | [SourceForge gtkwave 3.3.117](https://downloads.sourceforge.net/project/gtkwave/gtkwave-3.3.117/gtkwave-3.3.117.tar.gz) |
-| openvaf | [OpenVAF/OpenVAF-Reloaded v24.0.1mob](https://github.com/OpenVAF/OpenVAF-Reloaded/archive/v24.0.1mob/OpenVAF-Reloaded-24.0.1mob.tar.gz) + pinned crates from [crates.io](https://static.crates.io/crates/) + the [pascalkuthe/salsa](https://github.com/pascalkuthe/salsa) fork (all listed in the Portfile) |
+| openvaf | [OpenVAF/OpenVAF-Reloaded @ 3369a83](https://github.com/OpenVAF/OpenVAF-Reloaded/archive/3369a83f9c626f6d298f9f881379f561ce432e27/OpenVAF-Reloaded-3369a83f9c626f6d298f9f881379f561ce432e27.tar.gz) (mob commit, past the v24.0.1mob tag) + pinned crates from [crates.io](https://static.crates.io/crates/) + the [pascalkuthe/salsa](https://github.com/pascalkuthe/salsa) fork (all listed in the Portfile) |
 | yosys | [YosysHQ/yosys v0.66 `yosys-src.tar.gz`](https://github.com/YosysHQ/yosys/releases/download/v0.66/yosys-src.tar.gz) (release asset, bundles ABC) |
 | sby | [YosysHQ/sby @ d3e72d2](https://github.com/YosysHQ/sby/archive/d3e72d26e8634bca4ca16f3e4d84331481f06ab6/sby-d3e72d26e8634bca4ca16f3e4d84331481f06ab6.tar.gz) |
 | netlistsvg | [npm netlistsvg 1.0.2](https://registry.npmjs.org/netlistsvg/-/netlistsvg-1.0.2.tgz) + 70 pinned npm dep tarballs from registry.npmjs.org (all listed in the Portfile; no npm at build time) |
@@ -545,10 +545,21 @@ wrapper in `~/.local/bin`), NOT MacPorts ports:
   (`salsa`) is an unpublished git fork (`pascalkuthe/salsa`), pulled via
   `cargo.crates_github` (a `post-extract` exposes its `salsa-macros` member as
   its own directory-source entry and drops the PortGroup's stray `branch` line).
-- **Pinned to the `v24.0.1mob` tag.** The older `v24.0.0mob` tag has 2022-era
-  codegen that **segfaults** emitting OSDI metadata on LLVM 18 (which
-  originally forced pinning a mob-branch commit); upstream has since tagged
-  the fix.
+- **Pinned to mob commit `3369a83f` (2026-08-01)**, 44 commits past the
+  `v24.0.1mob` tag. The tag is still upstream's newest, but the `mob` branch had
+  moved well ahead with fixes worth having: the 2026-07-04 bugfix sweep
+  (noise_table crash, `ac_stim` panic, `idt` initial condition, `idtmod`
+  wrap/offset, `laplace_nd` feedthrough, whole-array-assignment ICE, array
+  lower-bound indexing, `$simparam$str`) and the VAMS-2023 wave (repaired
+  `ceil`/`hypot`/`$clog2` codegen, `expm1`/`ln1p`, `$min`/`$max`/`$abs`,
+  `$rtoi`/`$itor`, named events, dynamic `transition()` tolerances). Verified by
+  A/B: the tag rejects `expm1`/`$max` as unknown, this pin compiles them.
+  The oldest tag `v24.0.0mob` has 2022-era codegen that **segfaults** emitting
+  OSDI metadata on LLVM 18 — never pin it.
+- The bump was cheap because `Cargo.lock` was byte-identical tag→mob: the
+  crate pin list needed no regeneration and the salsa rev was unchanged. Check
+  that first on any future bump (the Portfile header lists all four things to
+  re-verify).
 - **LLVM:** the fork supports LLVM 18-21 selected by a cargo feature. The
   Portfile uses MacPorts `llvm-18` (`--features llvm18`,
   `LLVM_SYS_181_PREFIX=${prefix}/libexec/llvm-18`) and forces **static** LLVM
