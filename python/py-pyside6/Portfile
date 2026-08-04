@@ -5,7 +5,7 @@ PortGroup           eda-github 1.0
 PortGroup           python 1.0
 PortGroup           qt6 1.0
 
-# VENDORED SNAPSHOT of the stock MacPorts py-pyside6 PLUS TWO REAL FIXES.
+# VENDORED SNAPSHOT of the stock MacPorts py-pyside6 PLUS THREE REAL FIXES.
 # Needed here because eda-freecad requires Shiboken6 + PySide6 (FreeCAD's
 # find_package(Shiboken6)/find_package(PySide6), see its
 # cMake/FreeCAD_Helpers/SetupShibokenAndPyside.cmake) and the stock port cannot
@@ -27,11 +27,31 @@ PortGroup           qt6 1.0
 #     the matching llvm bin dir to the build PATH so the port is independent of
 #     `port select` (no global select juggling needed).
 #
+#  3. IMPORTED-TARGET INCLUDE DIRS (in the +extracmakepcfiles variant, at the
+#     bottom): the stock reinplaces that try to relocate the include dirs match
+#     ${_IMPORT_PREFIX}/<dir>/include, but the real content is
+#     ${_IMPORT_PREFIX}/include/<dir> -- the components are REVERSED, so those
+#     regexes never fire. The imported targets keep pointing into
+#     ${prefix}/include/{shiboken6,PySide6}, which this port never creates, so
+#     every CMake consumer (eda-freecad) dies at CONFIGURE time with
+#       Imported target "Shiboken6::libshiboken" includes non-existent path
+#       "/opt/local/include/shiboken6"
+#     Compounding it, the shiboken headers install under
+#     shiboken6_GENERATOR/include, not shiboken6/include, so stock's
+#     shiboken6.pc includedir is wrong for the same reason.
+#
 # Keep -addonmodules for the FreeCAD use case: the addon set drags in
 # qt67-qtwebengine (a full Chromium build) plus llvm-22/clang-22 -- 38 extra
 # ports -- and FreeCAD needs only the base modules.
+#
+# EXIT PATH -- this fork is meant to be temporary. All three are upstream
+# MacPorts bugs, not tree-specific ones. After any `port sync`, diff this file
+# against the stock Portfile (`diff <this> "$(port dir py-pyside6)/Portfile"`,
+# using a stock checkout) and DELETE this whole directory if upstream has fixed
+# them. Note the fixes may already be unnecessary at PySide6 6.11 on macOS 14+ --
+# try stock first on a newer machine before assuming this fork is needed.
 name                py-pyside6
-revision            2
+revision            3
 categories-append   devel aqua
 
 maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
@@ -65,7 +85,23 @@ if {[vercmp ${qt6.version} 6.8] >= 0} {
 
     set clang_version   18
 }
-python.versions     310 311 312 313 314
+# DELIBERATELY NARROWED to 312 (stock declares 310 311 312 313 314).
+#
+# This port SHADOWS the stock MacPorts py-pyside6 by name, and stock py-pyside6
+# has real consumers at other python versions -- py313-pyside6 is used by
+# py313-pyside6-fluent-widgets / -frameless-window, and py314-pyside6 by
+# cutter-rizin, ghost-downloader and the same widget ports. Declaring only 312
+# means our tree's index contains just py-pyside6 + py312-pyside6, so requests
+# for py313-/py314-pyside6 find nothing here and FALL THROUGH to the stock port.
+# Those consumers therefore keep using unmodified upstream MacPorts, and since
+# each python version installs into its own site-packages there is no file
+# conflict between ours and stock.
+#
+# Keep this at the single version eda-freecad/eda-pivy use (their py_ver). If
+# FreeCAD is ever moved to another python, change it here AND there together --
+# and check the reverse-dependency list above before widening.
+python.versions     312
+python.default_version 312
 
 distname            pyside-setup-everywhere-src-${version}
 master_sites        https://download.qt.io/official_releases/QtForPython/pyside6/PySide6-${version}-src
@@ -103,6 +139,12 @@ if {${name} ne ${subport}} {
     # FIX 2 (see header): put the clang matching LLVM_INSTALL_DIR FIRST on PATH.
     # shiboken loads libclang from LLVM_INSTALL_DIR but execs bare `clang++`, so
     # a mismatched `port select clang` otherwise dyld-crashes the ApiExtractor.
+    #
+    # The prepend is applied unconditionally BUT the dir is the same one stock
+    # already guarantees via `depends_build port:clang-${clang_version}`, so it
+    # cannot point somewhere that will not exist by build time. Kept as a plain
+    # prepend (not an ${os.major} test) so it stays correct on every system: it
+    # simply makes the compiler match LLVM_INSTALL_DIR, whatever that resolves to.
     build.env-append \
         LLVM_INSTALL_DIR=${prefix}/libexec/llvm-${clang_version} \
         PATH=${prefix}/libexec/llvm-${clang_version}/bin:${prefix}/bin:${prefix}/sbin:/usr/bin:/bin:/usr/sbin:/sbin
@@ -225,6 +267,50 @@ if {${name} ne ${subport}} {
                 {*}[glob ${destroot}${prefix}/lib/cmake/Shiboken6*/*Config*.cmake]
             reinplace "s|SHIBOKEN_SHARED_LIBRARY_DIR \".*\"|SHIBOKEN_SHARED_LIBRARY_DIR \"${python.pkgd}/shiboken6\"|g" \
                 {*}[glob ${destroot}${prefix}/lib/cmake/Shiboken6*/*Config*.cmake]
+
+            # ---- FIX 3 (see header): imported-target include dirs ----
+            # The two stock reinplaces above that try to rewrite the include dir
+            # use the pattern  ${_IMPORT_PREFIX}/<dir>/include  but the real
+            # content is  ${_IMPORT_PREFIX}/include/<dir>  -- the components are
+            # REVERSED, so those regexes never match anything. The imported
+            # targets therefore keep pointing into ${prefix}/include, which this
+            # port never populates, and every CMake consumer dies at CONFIGURE
+            # time with e.g.
+            #   Imported target "Shiboken6::libshiboken" includes non-existent
+            #   path "/opt/local/include/shiboken6"
+            # On top of that, the shiboken headers are installed under
+            # shiboken6_GENERATOR/include, not shiboken6/include -- so the stock
+            # shiboken6.pc includedir is wrong for the same reason.
+            #
+            # DETECTION, NOT ASSUMPTION -- and NEVER FATAL. This port shadows the
+            # stock py-pyside6, so it is also what an older machine (e.g. macOS
+            # 10.15, where the qt6 portgroup offers Qt 6.4) would build. If the
+            # layout there differs and we cannot find the headers, we must leave
+            # stock behaviour completely untouched and carry on, rather than
+            # failing a build that would otherwise have worked. Locating the
+            # header also means this keeps working when upstream moves things
+            # between PySide6 versions.
+            set sbk_hdr [glob -nocomplain ${destroot}${python.pkgd}/shiboken6*/include/shiboken.h]
+            if {[llength ${sbk_hdr}] > 0} {
+                set sbk_abs [file dirname [lindex ${sbk_hdr} 0]]
+                # strip the destroot prefix -> the path as installed
+                set sbk_inc [string range ${sbk_abs} [string length ${destroot}] end]
+                reinplace "s|\${_IMPORT_PREFIX}/include/shiboken6|${sbk_inc}|g" \
+                    {*}[glob ${destroot}${prefix}/lib/cmake/Shiboken6*/*Targets*.cmake]
+                reinplace "s|includedir=.*|includedir=${sbk_inc}|g" \
+                    ${destroot}${prefix}/lib/pkgconfig/shiboken6.pc
+                ui_msg "${subport}: shiboken6 include dir set to ${sbk_inc}"
+            } else {
+                ui_warn "${subport}: could not locate shiboken.h under ${python.pkgd}/shiboken6*/include; leaving the stock include paths alone. If a CMake consumer later reports 'Imported target \"Shiboken6::libshiboken\" includes non-existent path', FIX 3 needs updating for this PySide6 version."
+            }
+
+            # Same reversed-path defect for PySide6. It did not abort the
+            # eda-freecad configure (FreeCAD links the Shiboken6 target), but it
+            # is the identical latent bug, so fix it too.
+            if {[file isdirectory ${destroot}${python.pkgd}/PySide6/include]} {
+                reinplace "s|\${_IMPORT_PREFIX}/include/PySide6|${python.pkgd}/PySide6/include|g" \
+                    {*}[glob ${destroot}${prefix}/lib/cmake/PySide6*/*Targets*.cmake]
+            }
         }
     }
 

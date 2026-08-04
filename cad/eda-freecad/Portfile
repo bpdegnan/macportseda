@@ -60,6 +60,26 @@ set coin_micro      [lindex [split ${coin_version} .] 2]
 
 cmake.install_prefix ${prefix}/libexec/freecad
 
+# ---- PLATFORM GATE ----------------------------------------------------------
+# FreeCAD ${version} needs a Qt 6.7-era Qt plus a matching PySide6/Shiboken6.
+# The qt6_info PortGroup only offers those from os.major 21 (macOS 12 Monterey)
+# upward -- on older systems the newest Qt 6 available is 6.4
+#   qt67 {6.7 {24 23 22 21}}   qt64 {6.4 {24 23 22 21 20 19 18}}
+# and py-pyside6 would try to pair PySide6 6.7.3 with Qt 6.4. So fail FAST and
+# clearly on the user's older machines (10.13 / 10.15) rather than burning hours
+# in a ~1M-LOC C++ build that cannot succeed. Verified target: macOS 13 and 14+.
+if {${os.major} < 21} {
+    known_fail          yes
+    pre-fetch {
+        ui_error "${subport} needs macOS 12 (Monterey) or newer."
+        ui_error "This system is macOS ${macosx_version} (Darwin ${os.major}), where the"
+        ui_error "newest Qt 6 MacPorts offers is 6.4 -- too old for FreeCAD ${version},"
+        ui_error "which requires a Qt 6.7-era Qt with a matching PySide6/Shiboken6."
+        ui_error "Nothing is installed or changed by this failure."
+        return -code error "unsupported platform for ${subport}"
+    }
+}
+
 depends_build-append \
                     port:pkgconfig
 
