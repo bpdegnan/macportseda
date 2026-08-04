@@ -451,7 +451,7 @@ wrapper in `~/.local/bin`), NOT MacPorts ports:
   | `python/py-pyside6` | vendored stock snapshot + 3 real fixes | **builds** (6.11.1 on macOS 15, 6.7.3 on macOS 13) |
   | `cad/eda-coin` | Coin3D 4.0.10, private prefix | **builds & verified** (rev 2: Apple OpenGL, not mesa) |
   | `cad/eda-pivy` | pivy 0.6.11 vs eda-coin, py312 | **builds**, reports `SIM Coin 4.0.10` |
-  | `cad/eda-freecad` | FreeCAD 1.1.3, Qt6 + OCCT 7.9 | **builds & runs, GUI verified** (rev 5; macOS 13 *and* 15) |
+  | `cad/eda-freecad` | FreeCAD 1.1.3, Qt6 + OCCT 7.9 | **builds & runs, GUI + .app verified** (rev 6; macOS 13 *and* 15) |
 
 - **Two GUI-only defects found by actually launching it** (both fixed; the CLI and
   STEP export never exercised them):
@@ -506,8 +506,28 @@ wrapper in `~/.local/bin`), NOT MacPorts ports:
        `CMAKE_FIND_FRAMEWORK` globally on a port that calls `find_package(Python*)`.**
      - Also do not add `OPENGL_INCLUDE_DIR=<framework>/Headers`: it makes CMake's
        `try_compile` fail with "Failed to generate test project build system".
-  - Benign and left alone: the `3DconnexionNavlib.framework` dlopen error at
-    startup is just the absent SpaceMouse driver being probed.
+  - The `3DconnexionNavlib.framework` dlopen error at startup was just the absent
+    SpaceMouse driver being probed — harmless, but now switched off properly at
+    build time with upstream's own option `-DFREECAD_3DCONNEXION_SUPPORT=None`
+    (accepts `None`/`NavLib`/`Legacy`/`Both`, defaults to `NavLib`).
+- **Three ways to launch it** (`port notes eda-freecad` lists these):
+  `/Applications/MacPorts/FreeCAD.app` (Finder/Dock), `freecad` (GUI from a
+  terminal), `freecadcmd` (headless/scripted). The bundle is hand-built in
+  `post-destroot` the same way the **kicad** port does it —
+  `Contents/{MacOS,Resources}`, upstream's `Info.plist` + `.icns`, and a symlink to
+  the `${prefix}/bin` wrapper — so it sits alongside `KiCad/` and `GTKWave.app`
+  and `port uninstall` removes it. Because upstream's plist declares
+  `.FCStd`/`.FCMat`/`.FCParam`/`.FCMacro`/`.FCScript` document types,
+  double-clicking a model opens it. Two deliberate choices:
+  - **Not `-DFREECAD_CREATE_MAC_APP=ON`** — that relocates `CMAKE_INSTALL_PREFIX`
+    to `<prefix>/FreeCAD.app/Contents`, moving the whole verified layout and
+    invalidating the bin wrappers and the `Ext/PySide` symlink.
+  - **The skeleton's `qt.conf` is deliberately NOT copied** — it says
+    `Plugins=lib/qtplugins`, a bundle-relative path that does not exist in this
+    layout, and it would stop Qt finding its Cocoa platform plugin. Icons only.
+  The plist is a CMake template, so `NAME_STRING_FROM_CMAKE` /
+  `VERSION_STRING_FROM_CMAKE` are substituted and the empty `CFBundleIdentifier`
+  is set to `org.freecad.FreeCAD` (an empty one upsets LaunchServices).
 - **PLATFORM SAFETY — the 10.13 / 10.15 machines are protected.** `eda-freecad`
   fails **fast at pre-fetch** on `os.major < 21` (macOS 11 and older), installing
   and changing nothing. That threshold is measured, not guessed: the `qt6_info`

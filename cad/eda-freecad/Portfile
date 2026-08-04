@@ -10,7 +10,7 @@ boost.version       1.81
 
 name                eda-freecad
 version             1.1.3
-revision            5
+revision            6
 
 categories          cad
 license             LGPL-2+
@@ -147,6 +147,7 @@ configure.args-append \
     -DBUILD_DESIGNER_PLUGIN=OFF \
     -DBUILD_TEST=OFF \
     -DENABLE_DEVELOPER_TESTS=OFF \
+    -DFREECAD_3DCONNEXION_SUPPORT=None \
     -DFREECAD_CREATE_MAC_APP=OFF \
     -DFREECAD_USE_EXTERNAL_FMT=ON \
     -Dfmt_DIR=${prefix}/lib/libfmt11/cmake/fmt \
@@ -336,6 +337,62 @@ post-destroot {
     } else {
         ui_warn "${subport}: no PySide shim at ${fc_bindir}/PySide -- upstream may have changed its install destination; check that 'import PySide' works inside freecadcmd."
     }
+
+    # ---- Finder/Dock launchable app bundle ---------------------------------
+    # Hand-build a minimal FreeCAD.app in ${applications_dir}, exactly the way the
+    # tree's kicad port does it (Contents/{MacOS,Resources} + Info.plist + .icns +
+    # a symlink to the ${prefix}/bin wrapper). This is deliberately NOT
+    # -DFREECAD_CREATE_MAC_APP=ON: that option relocates CMAKE_INSTALL_PREFIX to
+    # <prefix>/FreeCAD.app/Contents, which would move the whole verified layout and
+    # invalidate the bin wrappers and the Ext/PySide symlink above.
+    #
+    # Upstream ships the plist and icons ready to use; the plist already declares
+    # .FCStd/.FCMat/.FCParam/.FCMacro/.FCScript document types, so double-clicking a
+    # model opens it, and it is already NSHighResolutionCapable.
+    set appc ${destroot}${applications_dir}/FreeCAD.app/Contents
+    set skel ${worksrcpath}/src/MacAppBundle/FreeCAD.app/Contents
+    if {[file exists ${skel}/Info.plist]} {
+        xinstall -d ${appc}/MacOS ${appc}/Resources
+
+        # CFBundleExecutable is "FreeCAD"; point it at our bin wrapper so the real
+        # binary is exec'd from its install location and finds its resources.
+        ln -s ${prefix}/bin/freecad ${appc}/MacOS/FreeCAD
+
+        # Icons only. Do NOT copy the skeleton's qt.conf: it says
+        # "Plugins=lib/qtplugins", a BUNDLE-RELATIVE path that does not exist in
+        # this layout, and it would stop Qt finding its Cocoa platform plugin.
+        foreach icns {freecad.icns freecad-doc.icns freecad-script.icns} {
+            if {[file exists ${skel}/Resources/${icns}]} {
+                xinstall -m 0644 ${skel}/Resources/${icns} ${appc}/Resources/${icns}
+            }
+        }
+
+        # The skeleton plist is a template CMake would normally fill in: it carries
+        # NAME_STRING_FROM_CMAKE / VERSION_STRING_FROM_CMAKE and an EMPTY
+        # CFBundleIdentifier (which upsets LaunchServices), so substitute them here.
+        xinstall -m 0644 ${skel}/Info.plist ${appc}/Info.plist
+        set fh [open ${appc}/Info.plist r]
+        set plist [read ${fh}]
+        close ${fh}
+        set plist [string map [list NAME_STRING_FROM_CMAKE FreeCAD \
+                                   VERSION_STRING_FROM_CMAKE ${version}] ${plist}]
+        regsub -- {(<key>CFBundleIdentifier</key>\s*<string>)(</string>)} ${plist} \
+            {\1org.freecad.FreeCAD\2} plist
+        set fh [open ${appc}/Info.plist w]
+        puts -nonewline ${fh} ${plist}
+        close ${fh}
+    } else {
+        ui_warn "${subport}: ${skel}/Info.plist missing -- skipping the ${applications_dir}/FreeCAD.app bundle; `freecad` on PATH still works."
+    }
 }
+
+notes "
+FreeCAD is available three ways:
+  * ${applications_dir}/FreeCAD.app  -- double-click from Finder, or drag to the Dock
+  * freecad                          -- the GUI from a terminal
+  * freecadcmd                       -- headless/scripted (STEP export etc.)
+For the PCB enclosure workflow, install the KiCad StepUp workbench from
+Tools -> Addon Manager.
+"
 
 livecheck.type      none
