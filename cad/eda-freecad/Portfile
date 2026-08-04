@@ -4,10 +4,13 @@ PortSystem          1.0
 PortGroup           eda-github 1.0
 PortGroup           cmake 1.1
 PortGroup           qt6 1.0
+# Versioned boost, NOT the umbrella `boost` port -- see the BOOST note below.
+PortGroup           boost 1.0
+boost.version       1.81
 
 name                eda-freecad
 version             1.1.3
-revision            0
+revision            1
 
 categories          cad
 license             LGPL-2+
@@ -49,6 +52,11 @@ set py_framework    ${prefix}/Library/Frameworks/Python.framework/Versions/${py_
 set edaprefix       ${prefix}/libexec/eda
 # Keep in step with the eda-coin port (installs to lib/cmake/Coin-<version>).
 set coin_version    4.0.10
+# Split out for the COIN3D_*_VERSION configure args below (see the note there):
+# single source of truth, so bumping coin_version updates all of them.
+set coin_major      [lindex [split ${coin_version} .] 0]
+set coin_minor      [lindex [split ${coin_version} .] 1]
+set coin_micro      [lindex [split ${coin_version} .] 2]
 
 cmake.install_prefix ${prefix}/libexec/freecad
 
@@ -66,12 +74,13 @@ qt6.depends_lib-append \
 depends_lib-append  port:opencascade \
                     port:eda-coin \
                     port:eda-pivy \
-                    port:boost \
                     port:eigen3 \
                     port:xercesc3 \
                     port:yaml-cpp \
                     port:pybind11 \
                     port:libfmt11 \
+                    port:vtk \
+                    port:libmed \
                     port:freetype \
                     port:zlib \
                     port:python${py_branch} \
@@ -82,6 +91,10 @@ configure.args-append \
     -DFREECAD_QT_MAJOR_VERSION=6 \
     -DPython3_EXECUTABLE=${py_framework}/bin/python${py_ver} \
     -DCoin_DIR=${edaprefix}/lib/cmake/Coin-${coin_version} \
+    -DCOIN3D_VERSION=${coin_version} \
+    -DCOIN3D_MAJOR_VERSION=${coin_major} \
+    -DCOIN3D_MINOR_VERSION=${coin_minor} \
+    -DCOIN3D_MICRO_VERSION=${coin_micro} \
     -DBUILD_GUI=ON \
     -DBUILD_WEB=OFF \
     -DBUILD_FEM=ON \
@@ -94,7 +107,10 @@ configure.args-append \
     -DENABLE_DEVELOPER_TESTS=OFF \
     -DFREECAD_CREATE_MAC_APP=OFF \
     -DFREECAD_USE_EXTERNAL_FMT=ON \
-    -Dfmt_DIR=${prefix}/lib/libfmt11/cmake/fmt
+    -Dfmt_DIR=${prefix}/lib/libfmt11/cmake/fmt \
+    -DBoost_DIR=${prefix}/libexec/boost/1.81/lib/cmake/Boost-1.81.0 \
+    -DBOOST_ROOT=${prefix}/libexec/boost/1.81 \
+    -DBoost_NO_SYSTEM_PATHS=ON
 
 # WHY THESE MATTER (each one was established by reading FreeCAD's cMake/ helpers):
 #
@@ -114,12 +130,47 @@ configure.args-append \
 # Coin_DIR -- Coin 4 lives in the private EDA prefix (see eda-coin); FreeCAD's
 #   SetupCoin3D.cmake tries find_package(Coin CONFIG) first, so this points it there.
 #
+# COIN3D_*_VERSION -- works around an UPSTREAM REGEX BUG in SetupCoin3D.cmake,
+#   which made the build die with "Coin3D version 4.0.1 mismatches Pivy Coin3D
+#   4.0.10" even though both ARE the same Coin 4.0.10. The macro parses
+#   Inventor/C/basic.h with "([0-9?])" -- a SINGLE-character class -- so a
+#   two-digit COIN_MICRO_VERSION (10) captures only "1" and it computes 4.0.1.
+#   Pivy's version, by contrast, is matched with a correct "([0-9]+)" and comes
+#   out 4.0.10, so the equality test in SetupPivy fails. The parse is guarded by
+#   IF (NOT COIN3D_VERSION), so supplying the version on the command line skips
+#   the broken block entirely -- no patchfile to keep in sync. All four values
+#   derive from ${coin_version} above. (FindMEDFile.cmake has the same
+#   single-digit bug, but nothing compares MED's version, so it is harmless.)
+#
 # BUILD_ADDONMGR=ON -- this is how KiCad StepUp (the PCB->enclosure workbench
 #   that motivates this port) gets installed, so it is deliberately kept.
 #
 # BUILD_FEM_NETGEN=OFF -- Salome SMESH is bundled under src/3rdParty and is
 #   enough for FEM meshing; the external netgen 6.2 pairing is untested here.
 #   Turn on later if FEM meshing needs it.
+#
+# port:vtk -- REQUIRED, found the hard way (configure failure, 2026-08).
+#   InitializeFreeCADBuildOptions.cmake sets FREECAD_USE_SMESH=ON whenever
+#   BUILD_FEM (or BUILD_MESH_PART) is on, and SetupSalomeSMESH.cmake then does a
+#   find_package(VTK ... REQUIRED) -- "if we use smesh we definitely also need
+#   vtk, no matter of external or internal smesh". So the BUNDLED SMESH still
+#   needs an EXTERNAL VTK; BUILD_FEM_NETGEN=OFF does not avoid it. MacPorts vtk
+#   is 9.6.2, which satisfies FreeCAD's preferred find_package(VTK 9) path, and
+#   its config lands in ${prefix}/lib/cmake/vtk-9.6 -- that matches CMake's
+#   default lib/cmake/<name>* glob, so no -DVTK_DIR pin is needed (contrast
+#   libfmt11, whose lib/libfmt11/cmake/fmt layout does need one).
+#
+# port:libmed -- ALSO REQUIRED, and it IS in MacPorts (science/devel, 4.1.1),
+#   contrary to the earlier assumption that MED was unavailable and FEM MED
+#   support would simply be skipped. There is no skip: with the BUNDLED SMESH
+#   (FREECAD_USE_EXTERNAL_SMESH=OFF), SetupSalomeSMESH.cmake calls
+#   find_package(MEDFile REQUIRED) unconditionally, and FindMEDFile.cmake
+#   FATAL_ERRORs with "med.h not found". libmed supplies med.h in
+#   ${prefix}/include plus libmedC/libmed, which is exactly what it probes for.
+#   Note this is unavoidable even with BUILD_FEM=OFF, because BUILD_MESH_PART
+#   also defaults ON and equally forces FREECAD_USE_SMESH -- and MeshPart is
+#   wanted anyway (solid->mesh conversion, i.e. STL export for 3D-printed
+#   enclosures).
 #
 # BUILD_TEST / ENABLE_DEVELOPER_TESTS=OFF -- both default ON and add substantial
 #   build time to an already very large C++ build.
@@ -145,27 +196,47 @@ configure.args-append \
 #      (configure.compiler macports-clang-19 plus -nostdinc++ -isystem
 #      ${prefix}/libexec/llvm-19/include/c++/v1).
 #
-# BOOST INTERACTION: this port NEEDS port:boost present, while openroad,
-# openroad-ll and kicad all require boost to be DEACTIVATED while THEY build
-# (header shadowing -- see the README gates). That is a build-time-only
-# conflict, not a runtime one: just do not build those ports and this one in
-# the same session.
+# BOOST: uses the VERSIONED boost181 via the boost PortGroup, NOT the umbrella
+# `boost` port. Established by a build failure (2026-08), not by choice:
+#   src/App/Transactions.cpp and src/App/DynamicProperty.cpp call .contains() on
+#   a Boost.MultiIndex hashed_index. That member does NOT exist in boost 1.76,
+#   which is what the umbrella `boost` port installs -- so the compile died with
+#   "no member named 'contains' in boost::multi_index::detail::hashed_index<...>".
+#   It IS present in 1.81 (and later), verified by grepping the headers.
+#   FreeCAD's own BOOST_MIN_VERSION is a stale 1.74 (see
+#   CompilerChecksAndSetups.cmake), so find_package(Boost 1.74) HAPPILY accepts
+#   1.76 and the failure only surfaces at compile time.
+#   1.81 is chosen to match kicad/openroad/openroad-ll, which already pin it.
+#   Boost_NO_SYSTEM_PATHS + explicit Boost_DIR/BOOST_ROOT keep the umbrella
+#   1.76 headers in ${prefix}/include from shadowing 1.81 -- the same recipe the
+#   openroad port uses -- so NO `conflicts_build boost` gate is needed here and
+#   the umbrella boost may stay active while this port builds. (kicad DOES need
+#   that gate; openroad's own comments disagree with each other about it.)
 #
-# STATUS: NOT YET BUILD-VERIFIED. Every dependency, option and path above was
-# derived by reading FreeCAD ${version}'s cMake/FreeCAD_Helpers/*.cmake, but the
-# ~1M-LOC C++ build has not been run yet. Expect iteration, most likely around
-# OpenCASCADE 7.9 API drift and the install layout.
+# STATUS: BUILD-VERIFIED on macOS 15.3 (Sequoia, Darwin 24) / Xcode 16.2,
+# x86_64, 2026-08. `freecadcmd --version` reports "FreeCAD 1.1.3 Revision:
+# 20260725". Four fixes were needed relative to the first draft, each recorded
+# above: port:vtk, port:libmed, the COIN3D_*_VERSION override, and boost181
+# instead of the umbrella boost. NOTABLY: OpenCASCADE 7.9 needed NO changes --
+# the anticipated OCCT API drift did not materialise.
 
-# FreeCAD installs bin/FreeCAD (GUI) and bin/FreeCADCmd (headless, used for
-# scripted STEP export) into the private prefix. Expose both under lowercase
-# names on PATH. Wrappers rather than symlinks: like ghdl, the binary locates
-# its resources relative to its own invocation path.
+# FreeCAD installs FreeCAD (GUI) and FreeCADCmd (headless, used for scripted
+# STEP export) into the private prefix, and expose both under lowercase names on
+# PATH. Wrappers rather than symlinks: like ghdl, the binary locates its
+# resources relative to its own invocation path.
+#
+# NOTE the subdirectory is MacOS/, NOT bin/ (verified 2026-08 from the installed
+# tree): even with FREECAD_CREATE_MAC_APP=OFF, FreeCAD's macOS install keeps the
+# app-bundle-style layout -- libexec/freecad/{MacOS,Ext,Mod,lib,share,include} --
+# so the executables land in MacOS/. The binary NAMES are as expected
+# (FreeCAD / FreeCADCmd).
+set fc_bindir       ${prefix}/libexec/freecad/MacOS
 post-destroot {
     xinstall -d ${destroot}${prefix}/bin
     foreach {link target} {freecad FreeCAD freecadcmd FreeCADCmd} {
         set w ${destroot}${prefix}/bin/${link}
         system "printf '%s\\n' '#!/bin/sh' \
-            'exec ${prefix}/libexec/freecad/bin/${target} \"\$@\"' > ${w}"
+            'exec ${fc_bindir}/${target} \"\$@\"' > ${w}"
         file attributes ${w} -permissions 0755
     }
 }

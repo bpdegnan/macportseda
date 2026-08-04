@@ -186,7 +186,7 @@ Ports live under a category directory (`cad`) as MacPorts expects.
    | openEMS (python) | `sudo port install py313-openems` | Octave-free EM solver chain: pulls eda-vtk, CSXCAD, openEMS, py313-csxcad. |
    | eda-cace | `sudo port install eda-cace` | Analog characterization (`cace`, `cace-web`). App port on py312; pulls `py-ciel`. Set `PDK_ROOT` at run time. See CACE notes. |
    | py-ciel | `sudo port install py-ciel` | PDK version manager (volare successor); installs `ciel`. Also an eda-cace dep. |
-   | eda-freecad | see FreeCAD notes ⚠️ | FreeCAD 1.1.3 for enclosures (KiCad StepUp). Pulls `eda-coin`, `eda-pivy`, `py312-pyside6`. **Build PySide6 with `-addonmodules`**; needs `boost` active (unlike openroad/kicad). Not yet build-verified. |
+   | eda-freecad | `sudo port install eda-freecad` | FreeCAD 1.1.3 for enclosures (KiCad StepUp). Pulls `eda-coin`, `eda-pivy`, `py312-pyside6`, plus `vtk`/`libmed`/`boost181`. **Build PySide6 with `-addonmodules`.** No boost gate needed (uses boost181). Builds & runs; see FreeCAD notes. |
    | openroad / openroad-ll | see below ⚠️ | RTL-to-GDS P&R. **Need `boost spdlog protobuf3-cpp OpenSTA` deactivated to build.** |
    | kicad | see below ⚠️ | Full EDA suite + libraries. **Needs `boost` deactivated to build.** Simulates on eda-ngspice-lib (ngspice 46). |
    | trilinos-charon / charon | see below ⚠️ | TCAD; **need `trilinos16` deactivated to build.** |
@@ -437,7 +437,7 @@ wrapper in `~/.local/bin`), NOT MacPorts ports:
 - Rule of thumb: DFFRAM up to a few KB or on s7; OpenRAM when sky130 needs
   real SRAM density.
 
-## FreeCAD notes (mechanical enclosures — `eda-freecad`, IN PROGRESS)
+## FreeCAD notes (mechanical enclosures — `eda-freecad`, WORKING)
 
 - **Why**: the mechanical enclosure around the PCBs in this flow, via the KiCad
   **StepUp** workbench (installed from FreeCAD's Addon Manager, which is why
@@ -448,13 +448,72 @@ wrapper in `~/.local/bin`), NOT MacPorts ports:
 
   | Port | What | Status |
   |------|------|--------|
-  | `python/py-pyside6` | vendored stock snapshot + 2 real fixes | **builds** (6.7.3 here) |
+  | `python/py-pyside6` | vendored stock snapshot + 2 real fixes | **builds** (6.11.1 on macOS 15) |
   | `cad/eda-coin` | Coin3D 4.0.10, private prefix | **builds & verified** |
-  | `cad/eda-pivy` | pivy 0.6.11 vs eda-coin, py312 | written, not built |
-  | `cad/eda-freecad` | FreeCAD 1.1.3, Qt6 + OCCT 7.9 | written, **not built** |
+  | `cad/eda-pivy` | pivy 0.6.11 vs eda-coin, py312 | **builds**, reports `SIM Coin 4.0.10` |
+  | `cad/eda-freecad` | FreeCAD 1.1.3, Qt6 + OCCT 7.9 | **builds & runs** (rev 1) |
 
-- **`py-pyside6` is vendored here with two genuine fixes** (stock cannot build on
-  this box). Try stock first on a new machine; use this only if it fails:
+  Verified on **macOS 15.3 (Sequoia, Darwin 24) / Xcode 16.2 / x86_64**, 2026-08:
+  `freecadcmd --version` → `FreeCAD 1.1.3 Revision: 20260725`; a scripted
+  40×30×12 box exports a valid ISO-10303-21 STEP file through OpenCASCADE
+  (volume 14400 as expected); `rev-upgrade` reports no broken files.
+  **Still to confirm by hand** (needs a window server, so it cannot be done over
+  SSH): the Qt6 GUI launching, and installing **KiCad StepUp** from the Addon
+  Manager.
+
+- **Four fixes were needed to make eda-freecad build**, none of them predicted:
+  1. **`port:vtk` is required.** `BUILD_FEM=ON` (and `BUILD_MESH_PART`, which
+     defaults ON) forces `FREECAD_USE_SMESH=ON`, and `SetupSalomeSMESH.cmake`
+     then hard-requires VTK — *"if we use smesh we definitely also need vtk, no
+     matter of external or internal smesh"*. The **bundled** SMESH still needs an
+     **external** VTK; `BUILD_FEM_NETGEN=OFF` does not avoid it. MacPorts vtk
+     9.6.2 satisfies FreeCAD's preferred `find_package(VTK 9)` path, and its
+     config in `lib/cmake/vtk-9.6` matches CMake's default glob (no `VTK_DIR`
+     pin needed, unlike libfmt11).
+  2. **`port:libmed` is required — and MED *is* in MacPorts** (`libmed` 4.1.1,
+     science/devel), contrary to the earlier assumption that it was absent and
+     MED support would simply be skipped. There is no skipping: with the bundled
+     SMESH, `find_package(MEDFile REQUIRED)` runs unconditionally and
+     `FindMEDFile.cmake` FATAL_ERRORs with `med.h not found`.
+  3. **The "Coin3D version mismatches Pivy Coin3D" error is an UPSTREAM REGEX
+     BUG, not a real mismatch.** `SetupCoin3D.cmake` parses `Inventor/C/basic.h`
+     with `([0-9?])` — a *single*-character class — so Coin 4.0.**10**'s
+     two-digit micro version captures only `1`, giving "4.0.1", while pivy's
+     version uses a correct `([0-9]+)` and gives 4.0.10. Any Coin with a
+     two-digit patch number trips this. The parse is guarded by
+     `IF (NOT COIN3D_VERSION)`, so eda-freecad passes `COIN3D_VERSION` and the
+     three `COIN3D_*_VERSION` components on the command line to skip the broken
+     block — no patchfile to keep in sync. (`FindMEDFile.cmake` has the identical
+     single-digit bug, but nothing compares MED's version, so it is harmless.)
+  4. **boost181, NOT the umbrella `boost`.** FreeCAD calls `.contains()` on a
+     Boost.MultiIndex `hashed_index` in `src/App/Transactions.cpp` and
+     `src/App/DynamicProperty.cpp`. That member does not exist in boost 1.76 —
+     which is what the umbrella `boost` port installs — so the compile died with
+     `no member named 'contains' in boost::multi_index::detail::hashed_index<…>`.
+     It is present in 1.81+ (verified by grepping the headers). The trap:
+     FreeCAD's declared `BOOST_MIN_VERSION` is a stale **1.74**, so
+     `find_package(Boost 1.74)` happily accepts 1.76 and the failure only
+     surfaces at compile time.
+- **OpenCASCADE 7.9 needed no changes at all** — the anticipated OCCT API drift
+  did not materialise.
+- **Install layout**: binaries land in `libexec/freecad/`**`MacOS/`**, *not*
+  `bin/` — even with `FREECAD_CREATE_MAC_APP=OFF`, FreeCAD keeps its
+  bundle-style layout (`MacOS/ Ext/ Mod/ lib/ share/ include/`). The names are
+  `FreeCAD`/`FreeCADCmd` as expected. The `post-destroot` wrappers point at
+  `MacOS/` via a single `fc_bindir` variable.
+
+- **`py-pyside6` is vendored here with two genuine fixes — and we are KEEPING the
+  shadow deliberately** (decided 2026-08, after diffing against current stock at
+  6.11.1). Rationale: **stock still has a real bug** — it points *both* PySide6
+  symlinks at `libpyside6.abi3*`, so `lib/libpyside6qml.abi3.dylib` resolves to
+  the wrong library, while ours correctly targets `libpyside6qml.abi3*`. That is
+  version-independent, so it will not age out. The other two pieces
+  (`xinstall -d`, and the llvm PATH fix) are harmless no-ops when the underlying
+  problem is absent, so carrying them costs nothing and removes a latent trap:
+  the PATH fix in particular means the port keeps working if `port select clang`
+  is ever pointed at another major. Since our snapshot tracks stock's version
+  (6.11.1 here), the fork does not hold us back. Don't swap to stock to save a
+  fork — the fixes are cheap and the bug is real. Details:
   1. `post-destroot` symlinks into `PySide6/lib/` and `shiboken6/lib/`, but
      PySide6 6.7.3 never creates those dirs → destroot died with
      `symlink: .../PySide6/lib/libpyside6.abi3.dylib: no such file or directory`.
@@ -489,9 +548,11 @@ wrapper in `~/.local/bin`), NOT MacPorts ports:
 - Bundled and used as-is (all in the source drop): OndselSolver, salomesmesh,
   zipios++, PyCXX, libE57Format, GSL, json, libkdtree. Don't flip the
   `FREECAD_USE_EXTERNAL_*` switches without adding matching ports.
-- **Boost interaction**: eda-freecad *needs* `boost` active, while
-  `openroad`/`openroad-ll`/`kicad` need it **deactivated** to build. Build-time
-  only, not a runtime conflict — just don't build them in the same session.
+- **Boost interaction — no gate needed for eda-freecad.** It now uses versioned
+  boost181 with `Boost_NO_SYSTEM_PATHS` plus explicit `Boost_DIR`/`BOOST_ROOT`
+  (the same recipe openroad uses), so the umbrella `boost` may stay **active**
+  while it builds, and it can share a session with `openroad`/`kicad`. Those two
+  still need the umbrella deactivated for *their* builds.
 - **Target is macOS 14+ (Sonoma) / x86_64.** On macOS 13 expect Qt capped at
   6.7.3 ("Qt 6.8 is not supported on macOS 13") and the libc++ 15 C++20 wall; if
   hit, apply the kicad/openroad recipe (`macports-clang-19` + `-nostdinc++
