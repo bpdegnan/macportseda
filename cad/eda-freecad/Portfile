@@ -10,7 +10,7 @@ boost.version       1.81
 
 name                eda-freecad
 version             1.1.3
-revision            1
+revision            2
 
 categories          cad
 license             LGPL-2+
@@ -78,6 +78,28 @@ if {${os.major} < 21} {
         ui_error "Nothing is installed or changed by this failure."
         return -code error "unsupported platform for ${subport}"
     }
+}
+
+# ---- macOS 13 (Ventura) and older: C++20 <source_location> ------------------
+# FreeCAD's src/Base/Exception.h includes <source_location>, which libc++ only
+# gained in LLVM 16. The Ventura CLT ships libc++ 15, so the build dies with
+#     src/Base/Exception.h:32:10: fatal error: 'source_location' file not found
+# Same class of problem as the kicad port, and the same remedy: compile with
+# MacPorts clang-19 and its libc++ 19 HEADERS, while still LINKING the system
+# libc++ runtime. std::source_location is header-only (it lowers to the
+# __builtin_source_location compiler intrinsic), so no new runtime symbols are
+# needed and we avoid two libc++ runtimes in one process -- an ABI/crash trap,
+# since Qt/OCCT/VTK/PySide6 here are all built against the system libc++.
+#
+# GATED, NOT UNCONDITIONAL: this port is verified working on macOS 15.3 (Darwin
+# 24) with the stock toolchain, and forcing clang-19 there would needlessly
+# diverge from that known-good configuration. Evidence for the threshold:
+# Darwin 22 lacks the header (build failure above), Darwin 24 builds clean.
+if {${os.major} <= 22} {
+    configure.compiler        macports-clang-19
+    configure.cxxflags-append -nostdinc++ \
+                              -isystem ${prefix}/libexec/llvm-19/include/c++/v1
+    depends_build-append      port:clang-19
 }
 
 depends_build-append \
