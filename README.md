@@ -449,10 +449,65 @@ wrapper in `~/.local/bin`), NOT MacPorts ports:
   | Port | What | Status |
   |------|------|--------|
   | `python/py-pyside6` | vendored stock snapshot + 3 real fixes | **builds** (6.11.1 on macOS 15, 6.7.3 on macOS 13) |
-  | `cad/eda-coin` | Coin3D 4.0.10, private prefix | **builds & verified** |
+  | `cad/eda-coin` | Coin3D 4.0.10, private prefix | **builds & verified** (rev 2: Apple OpenGL, not mesa) |
   | `cad/eda-pivy` | pivy 0.6.11 vs eda-coin, py312 | **builds**, reports `SIM Coin 4.0.10` |
-  | `cad/eda-freecad` | FreeCAD 1.1.3, Qt6 + OCCT 7.9 | **builds & runs** (rev 1) |
+  | `cad/eda-freecad` | FreeCAD 1.1.3, Qt6 + OCCT 7.9 | **builds & runs, GUI verified** (rev 5; macOS 13 *and* 15) |
 
+- **Two GUI-only defects found by actually launching it** (both fixed; the CLI and
+  STEP export never exercised them):
+  1. **`No module named 'PySide'`** → Draft, Measure, Tux and the shaft wizard all
+     failed at startup, and this would have broken **StepUp** too. FreeCAD generates
+     a `PySide` shim (re-exporting PySide6 under the legacy name) and installs it
+     with a platform split:
+     ```cmake
+     if(APPLE AND NOT BUILD_WITH_CONDA)  -> DESTINATION MacOS
+     else()                              -> DESTINATION Ext
+     ```
+     The Apple branch assumes the **.app bundle** layout where `MacOS/` is the
+     executable dir and lands on `sys.path` for free. We build with
+     `FREECAD_CREATE_MAC_APP=OFF`, and at runtime FreeCAD adds
+     `libexec/freecad/`**`Ext`** — not `MacOS` — so the shim was installed but
+     unreachable. Fixed by a `post-destroot` symlink `Ext/PySide → ../MacOS/PySide`.
+  2. **`Mesa: error: GL User Error: glGetString called without a rendering context`**
+     → both `eda-coin` and FreeCAD had linked MacPorts **mesa**'s
+     `${prefix}/lib/libGL.dylib` instead of Apple's OpenGL — an *undeclared*
+     dependency picked up only because the `mesa` port happens to be installed.
+     Cause: the cmake PortGroup passes `-DCMAKE_FIND_FRAMEWORK=LAST`. Measured with
+     a standalone `FindOpenGL` probe:
+     ```
+     LAST  -> /opt/local/lib/libGL.dylib            (mesa)
+     FIRST -> .../MacOSX.sdk/.../OpenGL.framework   (Apple)
+     ```
+     `OPENGL_GLU_FOUND` stays YES either way — which matters because FreeCAD's
+     `SetupOpenGL.cmake` hard-errors with "GLU library not found" otherwise. Fixed
+     in **both** ports by naming the framework explicitly:
+     ```
+     -DOPENGL_gl_LIBRARY=/System/Library/Frameworks/OpenGL.framework
+     -DOPENGL_glu_LIBRARY=/System/Library/Frameworks/OpenGL.framework
+     ```
+     Mesa references across FreeCAD's modules went from ~11 to **0**.
+     - ⚠️ **Do NOT use `-DCMAKE_FIND_FRAMEWORK=FIRST` for this.** It looks like the
+       tidy fix and it *does* select Apple's OpenGL, but it broke FreeCAD outright:
+       the Command Line Tools ship their own
+       `/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9`,
+       and frameworks-first let CMake reach it, so some `FreeCADGui` translation
+       units compiled against **Python 3.9** headers while the rest used MacPorts
+       **3.12**. Python 3.9's `cpython/object.h` has
+       `typedef struct bufferinfo {...} Py_buffer;` while 3.12's struct is untagged,
+       so the bundled PyCXX mangled differently per object file and `freecad`
+       aborted at launch:
+       ```
+       dyld: symbol not found in flat namespace
+         '__ZN2Py19PythonExtensionBase10buffer_getEP10bufferinfoi'
+       ```
+       (`libFreeCADGui` wanted `bufferinfo*`, `libFreeCADBase` exported `Py_buffer*`.)
+       Keeping the PortGroup's `FIND_FRAMEWORK=LAST` leaves every other lookup —
+       python above all — untouched. **General rule for this tree: never flip
+       `CMAKE_FIND_FRAMEWORK` globally on a port that calls `find_package(Python*)`.**
+     - Also do not add `OPENGL_INCLUDE_DIR=<framework>/Headers`: it makes CMake's
+       `try_compile` fail with "Failed to generate test project build system".
+  - Benign and left alone: the `3DconnexionNavlib.framework` dlopen error at
+    startup is just the absent SpaceMouse driver being probed.
 - **PLATFORM SAFETY — the 10.13 / 10.15 machines are protected.** `eda-freecad`
   fails **fast at pre-fetch** on `os.major < 21` (macOS 11 and older), installing
   and changing nothing. That threshold is measured, not guessed: the `qt6_info`
@@ -465,7 +520,27 @@ wrapper in `~/.local/bin`), NOT MacPorts ports:
   assume, warning and leaving stock behaviour intact if the layout differs instead
   of failing a build that would otherwise have worked.
 
-- **macOS 13 (Ventura) needed one extra fix that macOS 15 did not.** On Ventura
+- **macOS 13 (Ventura) also BUILDS & RUNS** (eda-freecad rev 2, verified 2026-08 on
+  macOS 13.7.8 / Darwin 22 / x86_64): `freecadcmd --version` →
+  `FreeCAD 1.1.3 Revision: 20260725`, the same scripted 40×30×12 box exports a
+  valid ISO-10303-21 STEP through OpenCASCADE (volume 14400), `pivy 0.6.11`
+  reports `SIM Coin 4.0.10` matching eda-coin, and `rev-upgrade` is clean.
+  It needed **two Ventura-only fixes** that macOS 15 did not:
+  1. the broken Shiboken6 CMake config (FIX 3 in py-pyside6, below), and
+  2. **C++20 `<source_location>`** — FreeCAD's `src/Base/Exception.h` includes it,
+     libc++ only gained it in LLVM 16, and the Ventura CLT ships libc++ 15:
+     ```
+     src/Base/Exception.h:32:10: fatal error: 'source_location' file not found
+     ```
+     Remedied the same way as the kicad port — MacPorts clang-19 plus its libc++ 19
+     **headers**, still linking the **system** libc++ runtime (`std::source_location`
+     lowers to the `__builtin_source_location` intrinsic, so no new runtime symbols
+     are needed, and two libc++ runtimes in one process would be an ABI trap given
+     Qt/OCCT/VTK/PySide6 are all built against the system one). **Gated on
+     `${os.major} <= 22`**, deliberately not unconditional: macOS 15 is verified
+     working with the stock toolchain and should not be diverged from. Threshold is
+     evidence-based — Darwin 22 lacks the header, Darwin 24 builds clean.
+- **Why Ventura differs at all.** On Ventura
   Qt caps at 6.7.3, so `py-pyside6` builds **PySide6 6.7.3** rather than the
   6.11.1 used on macOS 15 — and at 6.7.3 the stock port emits a **broken
   Shiboken6 CMake config**, so `eda-freecad` dies at *configure* with:

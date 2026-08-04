@@ -6,7 +6,7 @@ PortGroup           cmake 1.1
 
 name                eda-coin
 version             4.0.10
-revision            0
+revision            2
 
 categories          cad graphics
 license             BSD
@@ -54,6 +54,27 @@ depends_lib-append  port:zlib \
 
 set edaprefix       ${prefix}/libexec/eda
 cmake.install_prefix ${edaprefix}
+
+# FORCE APPLE'S OpenGL FRAMEWORK, not MacPorts mesa.
+# Coin does find_package(OpenGL REQUIRED) and links the resulting OpenGL::GL.
+# The MacPorts cmake PortGroup passes -DCMAKE_FIND_FRAMEWORK=LAST, so CMake
+# searches frameworks LAST and happily picks up mesa's ${prefix}/lib/libGL.dylib
+# if the mesa port happens to be installed -- an UNDECLARED dependency, and one
+# that makes FreeCAD's 3D view spew
+#     Mesa: error: GL User Error: glGetString called without a rendering context
+# at startup instead of using native OpenGL. Point FindOpenGL at the system
+# framework explicitly so the result does not depend on whether mesa is present.
+# Name the framework EXPLICITLY, only the two *_LIBRARY vars. Do NOT add
+# OPENGL_INCLUDE_DIR=<framework>/Headers -- that makes CMake's try_compile fail
+# with "Failed to generate test project build system" (Coin runs
+# CheckSourceCompiles). And do NOT use -DCMAKE_FIND_FRAMEWORK=FIRST: it works
+# here, but it is a trap in general and the sibling eda-freecad port was broken by
+# it (the CLT ships its own Python3.framework 3.9, which frameworks-first let
+# CMake reach, mixing Python 3.9 and 3.12 headers in one build). Same narrow form
+# in both ports so the pattern is uniform.
+configure.args-append \
+    -DOPENGL_gl_LIBRARY=/System/Library/Frameworks/OpenGL.framework \
+    -DOPENGL_glu_LIBRARY=/System/Library/Frameworks/OpenGL.framework
 
 configure.args-append \
     -DCOIN_BUILD_SHARED_LIBS=ON \

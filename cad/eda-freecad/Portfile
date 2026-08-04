@@ -10,7 +10,7 @@ boost.version       1.81
 
 name                eda-freecad
 version             1.1.3
-revision            2
+revision            5
 
 categories          cad
 license             LGPL-2+
@@ -154,6 +154,37 @@ configure.args-append \
     -DBOOST_ROOT=${prefix}/libexec/boost/1.81 \
     -DBoost_NO_SYSTEM_PATHS=ON
 
+# USE APPLE'S OpenGL, NOT MacPorts mesa. FreeCAD's SetupOpenGL.cmake just calls
+# find_package(OpenGL), and the cmake PortGroup passes -DCMAKE_FIND_FRAMEWORK=LAST,
+# so if the mesa port is installed CMake picks up ${prefix}/lib/libGL.dylib and
+# libGLU.dylib -- an undeclared dependency that linked mesa into FreeCADGui.so and
+# ~10 other Gui modules, and made the 3D view report at startup:
+#     Mesa: error: GL User Error: glGetString called without a rendering context
+# Name the framework EXPLICITLY. Do NOT "fix" this with
+# -DCMAKE_FIND_FRAMEWORK=FIRST: that was tried and it BROKE THE BUILD at runtime.
+# The Command Line Tools ship their own
+#   /Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9
+# and with frameworks searched first CMake reached it, so some FreeCADGui
+# translation units compiled against **Python 3.9** headers while the rest used
+# MacPorts 3.12. Python 3.9's cpython/object.h has
+#   typedef struct bufferinfo { ... } Py_buffer;
+# whereas 3.12's struct is untagged, so the bundled PyCXX mangled differently per
+# object file and `freecad` aborted at launch with
+#   dyld: symbol not found in flat namespace
+#     '__ZN2Py19PythonExtensionBase10buffer_getEP10bufferinfoi'
+# (libFreeCADGui wanted `bufferinfo*`, libFreeCADBase exported `Py_buffer*`).
+# Keeping the PortGroup's FIND_FRAMEWORK=LAST leaves every other lookup -- python
+# above all -- exactly as it was.
+#
+# Verified with a standalone FindOpenGL probe that this narrow form gives
+# gl=glu=OpenGL.framework, OPENGL_GLU_FOUND=YES (SetupOpenGL hard-errors "GLU
+# library not found" otherwise) and try_compile=1. Only set the two *_LIBRARY
+# vars: adding OPENGL_INCLUDE_DIR=<framework>/Headers makes CMake's try_compile
+# fail with "Failed to generate test project build system".
+configure.args-append \
+    -DOPENGL_gl_LIBRARY=/System/Library/Frameworks/OpenGL.framework \
+    -DOPENGL_glu_LIBRARY=/System/Library/Frameworks/OpenGL.framework
+
 # WHY THESE MATTER (each one was established by reading FreeCAD's cMake/ helpers):
 #
 # BUILD_WEB=OFF -- defaults ON and pulls PySide6.QtWebEngineWidgets. The tree's
@@ -280,6 +311,30 @@ post-destroot {
         system "printf '%s\\n' '#!/bin/sh' \
             'exec ${fc_bindir}/${target} \"\$@\"' > ${w}"
         file attributes ${w} -permissions 0755
+    }
+
+    # Expose the generated `PySide` compatibility shim on FreeCAD's sys.path.
+    #
+    # FreeCAD's SetupShibokenAndPyside.cmake generates an Ext/PySide package that
+    # re-exports PySide6 under the legacy name `PySide`, then installs it with a
+    # PLATFORM SPLIT:
+    #     if(APPLE AND NOT BUILD_WITH_CONDA)  -> DESTINATION MacOS
+    #     else()                              -> DESTINATION Ext
+    # That Apple branch assumes the .app bundle layout, where MacOS/ is the
+    # executable directory and lands on sys.path for free. We build with
+    # FREECAD_CREATE_MAC_APP=OFF, and at runtime FreeCAD adds
+    # ${prefix}/libexec/freecad/Ext (NOT .../MacOS) to sys.path -- so the shim was
+    # installed but unreachable, and Draft, Measure, Tux and the shaft wizard all
+    # died at startup with "No module named 'PySide'" (which would also break the
+    # KiCad StepUp workbench, the whole point of this port).
+    #
+    # Symlink rather than move, so the upstream install location stays intact for
+    # anything that looks there; Python imports a symlinked package fine.
+    if {[file isdirectory ${destroot}${fc_bindir}/PySide]} {
+        xinstall -d ${destroot}${prefix}/libexec/freecad/Ext
+        ln -s ../MacOS/PySide ${destroot}${prefix}/libexec/freecad/Ext/PySide
+    } else {
+        ui_warn "${subport}: no PySide shim at ${fc_bindir}/PySide -- upstream may have changed its install destination; check that 'import PySide' works inside freecadcmd."
     }
 }
 
