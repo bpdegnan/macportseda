@@ -1,0 +1,80 @@
+# -*- coding: utf-8; mode: tcl; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- vim:fenc=utf-8:ft=tcl:et:sw=4:ts=4:sts=4
+
+PortSystem          1.0
+PortGroup           eda-github 1.0
+PortGroup           cmake 1.1
+PortGroup           github 1.0
+
+github.setup        coin3d pivy 0.6.11
+github.tarball_from archive
+name                eda-pivy
+revision            0
+
+categories          cad python
+license             ISC
+maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+platforms           macosx
+
+description         Coin3D 4 Python bindings (pivy) built against eda-coin, for FreeCAD
+long_description    Pivy is the Python binding for the Coin3D Open Inventor \
+                    toolkit. This port exists because FreeCAD hard-errors if the \
+                    Coin3D version it links against differs from the Coin3D \
+                    version pivy reports ("Coin3D version X mismatches Pivy \
+                    Coin3D Y", see FreeCAD's SetupCoin3D.cmake), so pivy MUST be \
+                    built against the same Coin as eda-freecad -- namely \
+                    eda-coin 4.x. The stock MacPorts py-pivy cannot serve: it is \
+                    pivy 0.6.2, builds only a python 3.10 subport, links the \
+                    3.1.3-era Coin-framework, and still uses the qt4 PortGroup.
+
+homepage            https://github.com/coin3d/pivy
+
+checksums           rmd160  89d56ecc6a74fffaac2be20005d1c67c559d9ad0 \
+                    sha256  78f79bd7d1ce7e8140ceba4b1220136ea1f14b4403b1e463c59fa892feed961e \
+                    size    6276974
+
+# Python target. Keep this in lockstep with eda-freecad: FreeCAD imports pivy
+# with its own interpreter, so both ports must use the SAME python. Change here
+# and in eda-freecad together.
+set py_ver          3.12
+set py_branch       312
+set py_framework    ${prefix}/Library/Frameworks/Python.framework/Versions/${py_ver}
+set py_sitearch     ${py_framework}/lib/python${py_ver}/site-packages
+
+# The cmake PortGroup drives the build (upstream's setup.py is legacy distutils);
+# CMakeLists.txt installs the pivy python package into PIVY_Python_SITEARCH.
+depends_build-append    port:swig \
+                        port:swig-python
+depends_lib-append      port:eda-coin \
+                        port:python${py_branch}
+
+set edaprefix       ${prefix}/libexec/eda
+
+# Coin 4 lives in the private EDA prefix, so find_package(Coin CONFIG REQUIRED)
+# has to be pointed at it explicitly. Keep the version in this path in step with
+# the eda-coin port (it installs to lib/cmake/Coin-<version>).
+set coin_version    4.0.10
+
+configure.args-append \
+    -DCoin_DIR=${edaprefix}/lib/cmake/Coin-${coin_version} \
+    -DPython_EXECUTABLE=${py_framework}/bin/python${py_ver} \
+    -DPIVY_Python_SITEARCH=${py_sitearch} \
+    -DCMAKE_DISABLE_FIND_PACKAGE_SoQt=ON
+
+# Why SoQt is force-disabled: pivy's CMakeLists does an OPTIONAL
+# find_package(SoQt CONFIG), and if it succeeds it also pulls Qt and builds the
+# soqt/quarter bindings. The only SoQt in MacPorts is built against the stock
+# Coin 3.1.3, so letting it be found would mix two Coin ABIs in one python
+# extension. FreeCAD only needs the pivy.coin bindings (it has its own Quarter
+# under src/Gui/Quarter), so nothing of value is lost.
+
+# Installs the pivy package into python${py_branch}'s site-packages so a plain
+# `import pivy` works -- which is what FreeCAD's SetupPivy does at configure
+# time (it runs `python -c "import pivy; print(pivy.__version__)"` and
+# `pivy.SoDB.getVersion()`).
+#
+# NOTE on collisions: stock MacPorts py-pivy only ships a py310 subport, so at
+# python ${py_ver} nothing else owns these files. A `conflicts py${py_branch}-pivy`
+# line is deliberately NOT declared because that port does not exist and lint
+# rejects conflicts on unknown ports; revisit if MacPorts ever adds one.
+
+livecheck.type      none

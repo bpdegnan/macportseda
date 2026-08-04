@@ -1,0 +1,70 @@
+# -*- coding: utf-8; mode: tcl; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- vim:fenc=utf-8:ft=tcl:et:sw=4:ts=4:sts=4
+
+PortSystem          1.0
+PortGroup           eda-github 1.0
+PortGroup           cmake 1.1
+
+name                eda-coin
+version             4.0.10
+revision            0
+
+categories          cad graphics
+license             BSD
+maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+platforms           macosx
+
+description         Coin3D 4.x Open Inventor toolkit (private EDA prefix) for FreeCAD
+long_description    Coin is an OpenGL-based retained-mode 3D graphics toolkit \
+                    implementing the Open Inventor API. Version ${version} is \
+                    built into the private prefix ${prefix}/libexec/eda because \
+                    the stock MacPorts coin / Coin-framework ports are still on \
+                    3.1.3 (2010), which predates the Coin 4 API that FreeCAD 1.x \
+                    is written against. Keeping this out of ${prefix} leaves the \
+                    3.1.3 that SoQt, quarter and py-pivy link against untouched. \
+                    Paired with eda-pivy, which MUST be built against this same \
+                    Coin: FreeCAD hard-errors if its Coin version and pivy's \
+                    reported Coin version differ.
+
+homepage            https://github.com/coin3d/coin
+
+# Upstream publishes a real source distribution as a release asset (it carries
+# generated files the bare git archive lacks), so fetch that rather than the
+# GitHub tag tarball. The extracted top-level dir is just "coin".
+master_sites        https://github.com/coin3d/coin/releases/download/v${version}
+distname            coin-${version}-src
+worksrcdir          coin
+
+# sha256 matches the upstream-published coin-4.0.10-src.tar.gz.sha256 asset.
+checksums           rmd160  1197ed42f84d1abb024eac964e8ad23e6ae2514e \
+                    sha256  13fe68831292e7e725e7db1c6909d2b4fe5802080474c229fcac14ddf6445188 \
+                    size    11855404
+
+# Coin needs only C++11, so no libc++/C++20 workaround is required here (unlike
+# the kicad/openroad ports on this Ventura box).
+
+# On macOS Coin takes the native path: find_package(OpenGL REQUIRED) resolves to
+# the system OpenGL framework, so no X11 is involved. The optional libraries
+# (freetype, fontconfig, zlib, bzip2, OpenAL, simage, expat, SpiderMonkey) all
+# default to *_RUNTIME_LINKING=ON, i.e. Coin dlopen()s them by name at run time
+# instead of linking them. The three that matter for FreeCAD's text and file
+# handling are declared so they are actually present when Coin looks for them.
+depends_lib-append  port:zlib \
+                    port:freetype \
+                    port:fontconfig
+
+set edaprefix       ${prefix}/libexec/eda
+cmake.install_prefix ${edaprefix}
+
+configure.args-append \
+    -DCOIN_BUILD_SHARED_LIBS=ON \
+    -DCOIN_BUILD_TESTS=OFF \
+    -DCOIN_BUILD_DOCUMENTATION=OFF \
+    -DCOIN_BUILD_AWESOME_DOCUMENTATION=OFF \
+    -DCOIN_BUILD_EXAMPLES=OFF \
+    -DCOIN_THREADSAFE=ON \
+    -DUSE_EXTERNAL_EXPAT=OFF
+
+# CoinConfig.cmake lands in ${edaprefix}/lib/cmake/Coin-${version}; eda-pivy and
+# eda-freecad both point find_package(Coin CONFIG) at it via -DCoin_DIR.
+
+livecheck.type      none

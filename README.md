@@ -64,6 +64,12 @@ macportseda/
     │   └── Portfile
     ├── eda-cace/       # CACE analog characterization engine (cace, cace-web)
     │   └── Portfile
+    ├── eda-coin/       # Coin3D 4.x Open Inventor toolkit (private prefix)
+    │   └── Portfile
+    ├── eda-pivy/       # pivy Coin3D python bindings (vs eda-coin)
+    │   └── Portfile
+    ├── eda-freecad/    # FreeCAD 1.1.3 parametric 3D CAD (enclosures)
+    │   └── Portfile
     └── (see science/ and x11/ for the rest)
 x11/
 ├── gtksheet/          # GtkSheet widget lib (lepton-attrib dependency)
@@ -108,6 +114,8 @@ python/
 ├── py-openems/         # python bindings for openEMS
 │   └── Portfile
 ├── py-ciel/            # PDK version manager (volare successor; eda-cace dep)
+│   └── Portfile
+├── py-pyside6/         # vendored stock snapshot + 2 fixes (eda-freecad dep)
 │   └── Portfile
 └── py-volare/
     └── Portfile
@@ -178,6 +186,7 @@ Ports live under a category directory (`cad`) as MacPorts expects.
    | openEMS (python) | `sudo port install py313-openems` | Octave-free EM solver chain: pulls eda-vtk, CSXCAD, openEMS, py313-csxcad. |
    | eda-cace | `sudo port install eda-cace` | Analog characterization (`cace`, `cace-web`). App port on py312; pulls `py-ciel`. Set `PDK_ROOT` at run time. See CACE notes. |
    | py-ciel | `sudo port install py-ciel` | PDK version manager (volare successor); installs `ciel`. Also an eda-cace dep. |
+   | eda-freecad | see FreeCAD notes ⚠️ | FreeCAD 1.1.3 for enclosures (KiCad StepUp). Pulls `eda-coin`, `eda-pivy`, `py312-pyside6`. **Build PySide6 with `-addonmodules`**; needs `boost` active (unlike openroad/kicad). Not yet build-verified. |
    | openroad / openroad-ll | see below ⚠️ | RTL-to-GDS P&R. **Need `boost spdlog protobuf3-cpp OpenSTA` deactivated to build.** |
    | kicad | see below ⚠️ | Full EDA suite + libraries. **Needs `boost` deactivated to build.** Simulates on eda-ngspice-lib (ngspice 46). |
    | trilinos-charon / charon | see below ⚠️ | TCAD; **need `trilinos16` deactivated to build.** |
@@ -312,6 +321,10 @@ every file, so the archive needs no special trust.
 | py-volare | [PyPI volare 0.20.6](https://files.pythonhosted.org/packages/source/v/volare/volare-0.20.6.tar.gz) |
 | py-ciel | [PyPI ciel 2.6.1](https://files.pythonhosted.org/packages/source/c/ciel/ciel-2.6.1.tar.gz) |
 | eda-cace | [PyPI cace 2.11.0](https://files.pythonhosted.org/packages/source/c/cace/cace-2.11.0.tar.gz) |
+| eda-coin | [coin3d/coin v4.0.10 `coin-4.0.10-src.tar.gz`](https://github.com/coin3d/coin/releases/download/v4.0.10/coin-4.0.10-src.tar.gz) (release asset, not the git archive) |
+| eda-pivy | [coin3d/pivy 0.6.11](https://github.com/coin3d/pivy/archive/0.6.11/pivy-0.6.11.tar.gz) |
+| eda-freecad | [FreeCAD 1.1.3 `freecad_source_1.1.3.tar.gz`](https://github.com/FreeCAD/FreeCAD/releases/download/1.1.3/freecad_source_1.1.3.tar.gz) (release asset, 98 MB, flat tarball) |
+| py-pyside6 | [Qt `pyside-setup-everywhere-src`](https://download.qt.io/official_releases/QtForPython/pyside6/) (same distfile as the stock port; version tracks `qt6.version`) |
 | py-cxxheaderparser | [PyPI cxxheaderparser 1.9.1](https://files.pythonhosted.org/packages/source/c/cxxheaderparser/cxxheaderparser-1.9.1.tar.gz) |
 | skim-app | [SourceForge Skim 1.7.15](https://downloads.sourceforge.net/project/skim-app/Skim/Skim-1.7.15/Skim-1.7.15.dmg) (prebuilt .dmg) |
 
@@ -423,6 +436,66 @@ wrapper in `~/.local/bin`), NOT MacPorts ports:
   the s7 proxy.
 - Rule of thumb: DFFRAM up to a few KB or on s7; OpenRAM when sky130 needs
   real SRAM density.
+
+## FreeCAD notes (mechanical enclosures — `eda-freecad`, IN PROGRESS)
+
+- **Why**: the mechanical enclosure around the PCBs in this flow, via the KiCad
+  **StepUp** workbench (installed from FreeCAD's Addon Manager, which is why
+  `BUILD_ADDONMGR=ON` is kept). Stock MacPorts `freecad` is **0.18.5 (2019)** on
+  a dead stack — qt4-mac, python310, PySide1/`py-shiboken 1.2.4`, and the old
+  `oce` fork of OpenCASCADE — so it is not a usable starting point.
+- **Four ports, bottom-up.** Build in this order:
+
+  | Port | What | Status |
+  |------|------|--------|
+  | `python/py-pyside6` | vendored stock snapshot + 2 real fixes | **builds** (6.7.3 here) |
+  | `cad/eda-coin` | Coin3D 4.0.10, private prefix | **builds & verified** |
+  | `cad/eda-pivy` | pivy 0.6.11 vs eda-coin, py312 | written, not built |
+  | `cad/eda-freecad` | FreeCAD 1.1.3, Qt6 + OCCT 7.9 | written, **not built** |
+
+- **`py-pyside6` is vendored here with two genuine fixes** (stock cannot build on
+  this box). Try stock first on a new machine; use this only if it fails:
+  1. `post-destroot` symlinks into `PySide6/lib/` and `shiboken6/lib/`, but
+     PySide6 6.7.3 never creates those dirs → destroot died with
+     `symlink: .../PySide6/lib/libpyside6.abi3.dylib: no such file or directory`.
+     Fixed by `xinstall -d` first (a harmless no-op where the dirs do exist).
+     Stock also points *both* PySide6 symlinks at `libpyside6.abi3*`; the qml one
+     now correctly targets `libpyside6qml.abi3*`.
+  2. Shiboken's ApiExtractor loads libclang from `LLVM_INSTALL_DIR` but then
+     execs bare **`clang++` from PATH**. With `port select clang` on a different
+     major that binary dyld-crashes —
+     `Symbol not found: llvm::RISCVISAInfo::printEnabledExtensions` (in libLLVM
+     19, absent in 18) — and every module then fails with
+     `'type_traits' file not found` / `Error running ApiExtractor`. Fixed by
+     prepending the matching `llvm-N/bin` to the build PATH, so the port no
+     longer depends on `port select` at all.
+- **Always build PySide6 with `-addonmodules`.** The addon set pulls
+  `qt67-qtwebengine` (a full Chromium build) plus `llvm-22`/`clang-22`: **38
+  extra ports vs 1**. FreeCAD needs only the base modules, hence
+  `-DBUILD_WEB=OFF` in eda-freecad.
+- **Coin3D 4 is mandatory and must match pivy.** FreeCAD has *no* minimum Coin
+  version gate, but it hard-errors on
+  `"Coin3D version X mismatches Pivy Coin3D Y"` — so `eda-pivy` must be built
+  against `eda-coin`, and both must use the same python as `eda-freecad`
+  (currently 3.12; the `py_ver` variable is at the top of both Portfiles).
+  Stock `coin`/`Coin-framework` is 3.1.3 (2010), which predates the Coin 4 API
+  FreeCAD 1.x uses, so Coin 4 goes in `libexec/eda` and leaves stock alone.
+  `eda-pivy` force-disables `find_package(SoQt)` — the only MacPorts SoQt is
+  built against Coin 3.1.3 and would mix two Coin ABIs in one extension.
+- **fmt would be downloaded mid-build** — `SetupLibFmt.cmake` pings github.com
+  and FetchContents fmt 11.1.4 if `find_package(fmt)` misses, and MacPorts puts
+  fmt's CMake config in a versioned subdir off the default search path. Same
+  defect OpenSTA hit; fixed with `-Dfmt_DIR=${prefix}/lib/libfmt11/cmake/fmt`.
+- Bundled and used as-is (all in the source drop): OndselSolver, salomesmesh,
+  zipios++, PyCXX, libE57Format, GSL, json, libkdtree. Don't flip the
+  `FREECAD_USE_EXTERNAL_*` switches without adding matching ports.
+- **Boost interaction**: eda-freecad *needs* `boost` active, while
+  `openroad`/`openroad-ll`/`kicad` need it **deactivated** to build. Build-time
+  only, not a runtime conflict — just don't build them in the same session.
+- **Target is macOS 14+ (Sonoma) / x86_64.** On macOS 13 expect Qt capped at
+  6.7.3 ("Qt 6.8 is not supported on macOS 13") and the libc++ 15 C++20 wall; if
+  hit, apply the kicad/openroad recipe (`macports-clang-19` + `-nostdinc++
+  -isystem ${prefix}/libexec/llvm-19/include/c++/v1`) `${os.major}`-conditionally.
 
 ## CACE notes (analog characterization — `eda-cace` port)
 
