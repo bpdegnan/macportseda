@@ -26,7 +26,17 @@ long_description    ngspice mixed-level/mixed-signal circuit simulator, \
 homepage            https://ngspice.sourceforge.io/
 
 distname            ngspice-${version}
-master_sites        https://sourceforge.net/projects/ngspice/files/ng-spice-rework/${version}
+# SourceForge MOVES a release into ng-spice-rework/old-releases/<ver>/ once a
+# newer one ships, so the plain .../ng-spice-rework/<ver>/ path 404s for anything
+# that is no longer current -- which is what a FRESH machine hits (an existing
+# box keeps working only because the tarball is already in its distfiles cache).
+# List BOTH paths so the fetch survives that move in either direction: the
+# archived location first (true for the pinned 46), the current-release location
+# second (true right after a version bump). Also use downloads.sourceforge.net,
+# the actual download host -- the sourceforge.net/projects/.../files/ form is the
+# web UI and 404s for a direct fetch.
+master_sites        https://downloads.sourceforge.net/project/ngspice/ng-spice-rework/old-releases/${version} \
+                    https://downloads.sourceforge.net/project/ngspice/ng-spice-rework/${version}
 dist_subdir         eda-ngspice
 
 checksums           rmd160  69a2a9a95d919bac6f80e0d18d85b2e6f089159c \
