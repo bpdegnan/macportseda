@@ -6,7 +6,7 @@ PortGroup       app 1.0
 
 name            gtkwave
 version         3.3.117
-revision        1
+revision            3
 
 categories      cad
 license         GPL-2+
@@ -33,13 +33,33 @@ depends_lib-append \
                 port:gtk-osx-application-gtk2 \
                 path:lib/pkgconfig/harfbuzz.pc:harfbuzz \
                 path:lib/pkgconfig/pango.pc:pango \
-                port:tk \
+                port:tk8-quartz \
                 port:xz \
                 port:zlib
 
+# TK: gtkwave is a QUARTZ application (gtk2 +quartz + gtk-mac-integration), so it
+# must use the QUARTZ Tk. Since the 2026-07 MacPorts tk8-x11/tk8-quartz split the
+# plain `tk` port is only a SELECTOR -- it points ${prefix}/lib/tkConfig.sh and
+# ${prefix}/lib/libtk8.6.dylib at whichever variant that machine happens to have
+# active. So `--with-tk=${prefix}/lib` silently picked up whatever was installed:
+# on a box where something else forced `tk +x11` (xschem used to require exactly
+# that) this Quartz app linked ${prefix}/lib/tk8-x11/libtk8.6.dylib -- X11 Tk
+# inside a Quartz GUI, and non-deterministic from machine to machine. Point it at
+# tk8-quartz explicitly so the result no longer depends on the host's tk variant.
+#
+# --with-tk alone is NOT enough: it makes configure read the right tkConfig.sh
+# (TK_LIB_SPEC becomes "-L${prefix}/lib/tk8-quartz -ltk8.6"), but MacPorts' own
+# default "-L${prefix}/lib" still comes FIRST on the link line, and
+# ${prefix}/lib/libtk8.6.dylib is the compat symlink -- so the linker resolved
+# -ltk8.6 there and the binary still recorded tk8-x11. Prepending the tk8-quartz
+# directory puts it ahead of ${prefix}/lib. Only Tk lives in that directory, so
+# nothing else is affected. Verify with:
+#   otool -L ${prefix}/bin/gtkwave | grep tk8
+configure.ldflags-prepend -L${prefix}/lib/tk8-quartz
+
 configure.args-append \
                 --with-tcl=${prefix}/lib \
-                --with-tk=${prefix}/lib \
+                --with-tk=${prefix}/lib/tk8-quartz \
                 --disable-mime-update \
                 "GTK_MAC_CFLAGS=\"\$(${prefix}/bin/pkg-config --cflags gtk-mac-integration-gtk2)\"" \
                 "GTK_MAC_LIBS=\"\$(${prefix}/bin/pkg-config --libs gtk-mac-integration-gtk2)\""\

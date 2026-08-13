@@ -5,7 +5,7 @@ PortGroup           eda-github 1.0
 
 name                irsim
 version             9.7.117
-revision            4
+revision            5
 license             GPL-2
 categories          science
 maintainers         nomaintainer
@@ -27,7 +27,7 @@ checksums           rmd160  afc4e01b493754b6ccfdceaf6464055d5e2eb812 \
 extract.suffix      .tgz
 
 depends_lib         port:tcl \
-                    port:tk \
+                    port:tk8-x11 \
                     port:xorg-libXt
 
 patchfiles          patch-remove_sw.diff \
@@ -40,6 +40,18 @@ post-patch {
 }
 
 build.env-append    LIBS=-L${prefix}/lib
+
+# TK: irsim is an X11 program (tclirsim.dylib links libX11), so it needs the X11
+# Tk. Since the 2026-07 MacPorts tk8-x11/tk8-quartz split, the plain `tk` port is
+# just a SELECTOR whose ${prefix}/bin/wish and ${prefix}/lib symlinks follow
+# whichever variant the machine happens to have active -- so irsim's launcher
+# baked in IRSIM_WISH=${prefix}/bin/wish and would launch a QUARTZ wish on a box
+# where tk is +quartz, while still linking X11. Pin the X11 Tk explicitly, the
+# same way the magic and netgen-lvs ports do.
+configure.args-append \
+                    --with-tk=${prefix}/lib/tk8-x11 \
+                    --with-tkincls=${prefix}/include/tk8-x11 \
+                    --with-tklibs=${prefix}/lib/tk8-x11
 
 # Xcode 15+ clang makes K&R-era implicit declarations hard errors; irsim's
 # 1980s C trips them, the opencircuitdesign Makefiles swallow the subdir
@@ -61,6 +73,14 @@ post-destroot {
     xinstall -d -m 755 ${destroot}${prefix}/share/doc
     file rename ${destroot}${prefix}/lib/${name}/doc ${destroot}${prefix}/share/doc/${name}
     xinstall -m 644 -W ${worksrcpath} COPYRIGHT README VERSION ${destroot}${prefix}/share/doc/${name}
+
+    # irsim's configure has no --with-wish; it derives WISH_EXE by looking for
+    # "wish" under ${TK_EXEC_PREFIX}/bin and bakes the result into the launcher
+    # as IRSIM_WISH. That lands on ${prefix}/bin/wish, which is the compat `tk`
+    # port's symlink to whichever variant is active -- machine-dependent, and
+    # wrong (Quartz) on a box where tk is +quartz. Pin the X11 wish instead.
+    reinplace "s|^IRSIM_WISH=.*|IRSIM_WISH=${prefix}/libexec/tk8-x11/wish|" \
+        ${destroot}${prefix}/bin/${name}
 }
 
 livecheck.type      regex

@@ -4,7 +4,7 @@ PortSystem          1.0
 PortGroup           eda-github 1.0
 name                eda-icall
 version             1.2
-revision            0
+revision            1
 categories          cad
 license             MIT
 supported_archs     noarch
@@ -17,11 +17,13 @@ long_description    Installs everything in this tree needed for SkyWater \
                     sky130 IC work: digital RTL-to-GDS (yosys, sby, iverilog, \
                     verilator, OpenSTA, openroad + the LibreLane-pinned \
                     openroad-ll, netlistsvg, sv2v, eqy, mcy), analog design and simulation \
-                    (xschem, eda-ngspice, xyce, openvaf, irsim), layout and physical \
-                    verification (magic, netgen-lvs, klayout, xcircuit, cvc-rv), \
-                    waveforms (gtkwave), the volare PDK manager, and the Skim \
-                    EPS/PDF viewer. Board-level (kicad) and TCAD (charon) are \
-                    separate.
+                    (xschem, eda-ngspice, xyce, openvaf, irsim), analog \
+                    characterization (eda-cace), layout and physical \
+                    verification (magic, netgen-lvs, klayout, xcircuit, cvc-rv, \
+                    py-gdstk), waveforms (gtkwave), the volare PDK manager, and \
+                    the Skim EPS/PDF viewer. Board-level (kicad), mechanical \
+                    (eda-freecad), VHDL (ghdl), EM (openEMS) and TCAD (charon) \
+                    are separate.
 
 # Metaport: nothing to fetch or build.
 distfiles
@@ -46,6 +48,8 @@ depends_lib-append \
     port:eda-ngspice \
     port:xyce \
     port:openvaf \
+    port:eda-cace \
+    port:py-gdstk \
     port:magic \
     port:netgen-lvs \
     port:klayout \
@@ -80,6 +84,17 @@ cannot do for you (see the macportseda README for details):
      'eda-ngspice', or put ${prefix}/libexec/eda/bin early in PATH to get it
      as plain 'ngspice'. (The stock MacPorts ngspice port coexists and owns
      ${prefix}/bin/ngspice if installed.)
+  6. eda-cace (the analog characterization engine, 'cace' / 'cace-web')
+     needs PDK_ROOT pointing at a sky130A build at RUN time, same as the
+     LibreLane flow above. It pulls py-ciel, the maintained successor to
+     py-volare; both are installed and can coexist.
+  7. FRESH MACHINE: the 'failed to fetch archive' messages from
+     packages.macports.org are NORMAL -- no port in this tree has a prebuilt
+     binary archive, so MacPorts just builds from source. Do NOT disable
+     binaries. A FATAL fetch error is a distfile problem instead: restore the
+     tree's distfiles archive first and the whole toolchain installs with no
+     network at all --
+       sudo rsync -a distfiles/ ${prefix}/var/macports/distfiles/
 "
 
 livecheck.type      none

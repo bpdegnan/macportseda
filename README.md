@@ -157,9 +157,9 @@ Ports live under a category directory (`cad`) as MacPorts expects.
 
    (a metaport pulling yosys, sby, eqy, mcy, iverilog, verilator, OpenSTA,
    openroad, openroad-ll, netlistsvg, sv2v, xschem, eda-ngspice, xyce,
-   openvaf, irsim, magic, netgen-lvs, cvc-rv, klayout, xcircuit, gtkwave,
-   py-volare, skim-app — kicad, ghdl, openEMS and charon/TCAD stay
-   separate). Mind the variant prerequisites in the macOS 15 notes and the
+   openvaf, eda-cace (+py-ciel), irsim, magic, netgen-lvs, cvc-rv, klayout,
+   xcircuit, py-gdstk, gtkwave, py-volare, skim-app — kicad, eda-freecad,
+   ghdl, lepton-eda, openEMS and charon/TCAD stay separate). Mind the variant prerequisites in the macOS 15 notes and the
    build-time gates below if ports build from source; `port notes eda-icall`
    summarizes them. Or install ports individually:
 

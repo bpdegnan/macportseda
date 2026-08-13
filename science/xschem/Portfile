@@ -6,7 +6,7 @@ PortGroup           active_variants 1.1
 
 name                xschem
 version             3.4.6
-revision            0
+revision            1
 
 categories          science cad
 license             GPL-2+
@@ -32,15 +32,54 @@ depends_build-append \
 depends_lib-append  path:lib/pkgconfig/cairo.pc:cairo \
                     path:include/turbojpeg.h:libjpeg-turbo \
                     port:tcl \
-                    port:tk  \
+                    port:tk8-x11 \
                     port:xorg-libxcb \
                     port:xorg-libX11 \
                     port:xpm \
                     port:xrender
 
+# TK: depend on tk8-x11 DIRECTLY, like the magic / netgen-lvs / xcircuit ports.
+#
+# MacPorts split tk into tk8-x11 / tk8-quartz in 2026-07. The plain `tk` port is
+# now a SELECTOR: it depends on tk8-quartz by default (tk8-x11 with +x11) and
+# provides the unversioned compatibility paths (${prefix}/include/tk.h,
+# ${prefix}/lib/libtk8.6.dylib -> tk8-x11/...). Depending on `tk` therefore forced
+# `require_active_variants tk x11`, i.e. a MACHINE-WIDE choice of X11 Tk, which
+# broke a plain `port install eda-icall` on a fresh box with
+#     Error: tk must be installed with +x11
+# and dragged everything else using Tk (notably py-tkinter, which eda-cace needs
+# for matplotlib's TkAgg backend) onto X11 as a side effect.
+#
+# Nothing is lost by pointing at tk8-x11 directly: tk8-x11's dylib carries the
+# VERSIONED install_name ${prefix}/lib/tk8-x11/libtk8.6.dylib, so xschem already
+# linked tk8-x11 at run time even when built through the compat symlinks -- the
+# `tk` port was only ever supplying build-time header/library aliases.
+#
+# xschem configures with scconfig, NOT autoconf, so there is no --with-tk. Three
+# properties of it forced the hand-rolled configure phase below:
+#   * it IGNORES the CFLAGS/LDFLAGS environment variables entirely;
+#   * repeated --CFLAGS=/--LDFLAGS= arguments OVERRIDE rather than accumulate, so
+#     both include (and both library) directories must arrive in ONE value;
+#   * MacPorts does not quote configure.args, so a value containing a space gets
+#     split and scconfig rejects the pieces
+#     ("Unknown argument 'I/opt/local/include'") -- the same trap as the
+#     semicolon-in-configure.args problem the charon port hit.
+# Running configure through `system` gives normal shell quoting and sidesteps all
+# three.
+#
+# Both directories are genuinely required: tk.h comes from include/tk8-x11, while
+# tcl.h and libtcl8.6 live at the usual ${prefix} paths. If they are missing,
+# scconfig does NOT fail -- it silently falls back to the ancient macOS SYSTEM
+# Tcl/Tk 8.5 (-ltcl8.5 -ltk8.5). So verify after any change here:
+#   otool -L ${prefix}/bin/xschem | grep -E 'tcl|tk'
+# must show ${prefix}/lib/tk8-x11/libtk8.6.dylib.
+configure {
+    system -W ${worksrcpath} "./configure --prefix=${prefix} \
+        --CFLAGS='-I${prefix}/include/tk8-x11 -I${prefix}/include' \
+        --LDFLAGS='-L${prefix}/lib/tk8-x11 -L${prefix}/lib'"
+}
 
 if {${os.platform} eq "darwin"} {
-    require_active_variants tk x11
     require_active_variants cairo x11
 }
 
