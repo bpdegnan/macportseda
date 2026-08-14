@@ -15,7 +15,7 @@ PortGroup           cmake 1.1
 # the upgrade).
 github.setup        parallaxsw OpenSTA 87ce5680dfa92aa98f07b587df5deb032f6593af
 version             3.1.0
-revision            4
+revision            5
 
 categories          cad
 license             GPL-3
@@ -56,6 +56,27 @@ patchfiles-append   patch-Network-string-spaceship.diff
 # (a gzipped liberty among other files), which a unified diff cannot carry and
 # this port does not run anyway.
 patchfiles-append   patch-WriteSpice-async-set-reset.diff
+
+# OpenSTA is C++20 and its headers rely on P0634 ("Down with typename!"), which
+# lets `typename` be omitted in dependent contexts -- e.g. include/sta/Iterator.hh
+# declaring VECTOR_TYPE::const_iterator without it. clang only implemented P0634
+# in clang 16, which Apple ships as AppleClang 15. On a machine whose compiler is
+# older the build dies with dozens of:
+#   include/sta/Iterator.hh:64:3: error: missing 'typename' prior to dependent
+#   type name 'VECTOR_TYPE::const_iterator'
+#
+# This is easy to misdiagnose because it does NOT track the OS version: two
+# macOS 13.7 boxes differed only in that one had Xcode.app (AppleClang 15) while
+# the other had just the Command Line Tools (AppleClang 14.0.3) -- same OS, same
+# SDK, same pinned commit, and only the CLT-only machine failed. Note also that
+# `/usr/bin/clang++ --version` in a login shell can report the CLT compiler while
+# MacPorts' build environment resolves to Xcode's, so trust the
+# "CXX compiler identification" line in the build log, not the shell.
+#
+# Blacklisting instead of hardcoding a compiler: MacPorts then keeps using the
+# system compiler wherever it is new enough, and only falls back to a MacPorts
+# clang (adding the matching build dependency itself) where it is not.
+compiler.blacklist-append {clang < 1500}
 
 # bison (>= 3.2), flex and swig (>= 3.0, with the Tcl backend) generate the
 # parsers and Tcl bindings at build time. The macOS system bison/flex are too
