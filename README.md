@@ -4,7 +4,6 @@ A local [MacPorts](https://www.macports.org/) port tree for EDA tools.  Tested o
 This work is motivated by the fact that my needs that generally don't overlap with most communities.  
 I always felt bad contributing to macports because I'm not a very good at software engineering, and the lack of experience made me a bad collaborator.  I'm still poor at GIT.
 
-
 Regarding Skywater's 130 PDK, I've never tried py-voltare; however, I use the [https://github.com/bpdegnan/spicesupport](https://github.com/bpdegnan/spicesupport) repo and the [installskywater.sh](https://raw.githubusercontent.com/bpdegnan/spicesupport/refs/heads/main/installskywater.sh) script in that repo.
 
 ## Layout
@@ -12,7 +11,7 @@ Regarding Skywater's 130 PDK, I've never tried py-voltare; however, I use the [h
 ```
 macportseda/
 └── cad/
-    ├── eda-icall/      # METAPORT: installs the whole sky130 toolchain
+    ├── eda-icall/      # METAPORT: installs the complete EDA toolchain
     │   └── Portfile
     ├── OpenSTA/
     │   └── Portfile
@@ -149,7 +148,7 @@ Ports live under a category directory (`cad`) as MacPorts expects.
    portindex
    ```
 
-3. Install. For the full sky130 toolchain in one shot:
+3. Install. For the full EDA toolchain in one shot:
 
    ```
    sudo port install eda-icall
@@ -252,28 +251,10 @@ Notes:
   lint only knows the default tree's PortGroups, not local-tree ones. It is
   cosmetic — parsing, indexing and building are unaffected.
 
-## distfiles archive (offline insurance)
+## distfiles archive 
 
 `distfiles/` holds a copy of every source tarball the tree's ports fetch,
-because upstream URLs rot. It is gitignored (2.4+ GB; GitHub rejects files
-over 100 MB) — keep it with your backups. The Portfile checksums authenticate
-every file, so the archive needs no special trust.
-
-- **Restore** onto any machine, then install normally (MacPorts uses the
-  already-present, checksum-verified files without touching the network):
-  ```
-  sudo rsync -a distfiles/ /opt/local/var/macports/distfiles/
-  ```
-- **Refresh** after adding or bumping a port:
-  ```
-  sudo port mirror <port>
-  rsync -a /opt/local/var/macports/distfiles/<port> distfiles/
-  ```
-- **Off-machine copy**: also published as per-port tars + `SHA256SUMS` on the
-  GitHub release `distfiles-2026-07` (release assets allow 2 GB/file). To
-  refresh: re-tar the changed port dirs and
-  `gh release upload distfiles-2026-07 <tars> SHA256SUMS --clobber`.
-  (`gh release create` would also create a git tag on the remote.)
+because upstream URLs rot.
 
 ### Where the tarballs come from
 
