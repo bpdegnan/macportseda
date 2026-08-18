@@ -1,0 +1,62 @@
+# -*- coding: utf-8; mode: tcl; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- vim:fenc=utf-8:ft=tcl:et:sw=4:ts=4:sts=4
+
+PortSystem              1.0
+PortGroup               eda-github 1.0
+PortGroup               stub 1.0
+PortGroup               select 1.0
+
+name                    eda-ngspice_select
+version                 1.0
+revision                2
+
+categories              cad science
+license                 MIT
+supported_archs         noarch
+platforms               any
+maintainers             {icanalytica.com:degnan @bpdegnan} openmaintainer
+homepage                https://github.com/bpdegnan/macportseda
+
+description             Common files for selecting the default eda-ngspice version
+long_description        Installs the files that let `port select` switch which \
+                        pinned ngspice this tree's analog flow uses. The \
+                        eda-ngspice46 and eda-ngspice47 ports each install into \
+                        their OWN private prefix \
+                        (${prefix}/libexec/eda/ngspice<version>) so they coexist, and \
+                        selecting a version symlinks that build into the shared \
+                        ${prefix}/libexec/eda paths, plus the `eda-ngspice` \
+                        command. Switch with: \
+                        sudo port select --set eda-ngspice eda-ngspice47
+
+# WHY THE GROUP IS NAMED eda-ngspice AND NOT ngspice:
+# ${prefix}/bin/ngspice is a REGISTRY-OWNED file belonging to the stock MacPorts
+# ngspice port (which this tree deliberately leaves alone at its own release
+# cadence). `port select` symlinks are NOT registry-owned, so pointing the group
+# at that path would collide with a file MacPorts already tracks. The selected
+# command is therefore ${prefix}/bin/eda-ngspice. Put
+# ${prefix}/libexec/eda/ngspice<version>/bin early in PATH if you want the
+# selected build to answer to a plain `ngspice`.
+#
+# The linked set is deliberately more than just the binary: the shared library,
+# its pkg-config file and sharedspice.h are linked too, so that the tree's kicad
+# port -- which dlopens ${prefix}/libexec/eda/lib/libngspice.dylib BY PATH at
+# simulation time -- follows the selection as well. See files/base for the exact
+# list; files/<version> in each eda-ngspice<version> port supplies the matching
+# sources, line for line.
+post-destroot {
+    select::install eda-ngspice ${filespath}/base
+    select::install eda-ngspice ${filespath}/none
+
+    # NOTE: `port select` creates the SYMLINKS but NOT the directories holding
+    # them, and it is NOT atomic -- a missing parent directory fails the whole
+    # selection partway through, after some links already exist. sharedspice.h
+    # was therefore dropped from files/base: its parent
+    # libexec/eda/include/ngspice used to be created by the retired
+    # eda-ngspice-lib subport, and this port cannot recreate it because MacPorts
+    # PRUNES EMPTY DIRECTORIES from a destroot. Nothing needs the header at the
+    # shared path anyway (kicad dlopens the dylib), and a version-specific header
+    # belongs with its build: libexec/eda/ngspice<version>/include/ngspice/.
+    # Every remaining target lives in libexec/eda/lib, which other eda-* ports
+    # already create.
+}
+
+livecheck.type          none

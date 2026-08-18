@@ -1,0 +1,4 @@
+libexec/eda/ngspice47/bin/ngspice
+libexec/eda/ngspice47/lib/libngspice.dylib
+libexec/eda/ngspice47/lib/libngspice.0.dylib
+libexec/eda/ngspice47/lib/pkgconfig/ngspice.pc

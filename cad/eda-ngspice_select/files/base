@@ -1,0 +1,4 @@
+bin/eda-ngspice
+libexec/eda/lib/libngspice.dylib
+libexec/eda/lib/libngspice.0.dylib
+libexec/eda/lib/pkgconfig/ngspice.pc

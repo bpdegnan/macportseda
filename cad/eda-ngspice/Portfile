@@ -2,164 +2,59 @@
 
 PortSystem          1.0
 PortGroup           eda-github 1.0
+PortGroup           stub 1.0
+
 name                eda-ngspice
+# VERSION TRACKS THE DEFAULT THIS STUB POINTS AT, deliberately. Before the split
+# this port WAS the ngspice build and carried version 46, so a stub numbered
+# (say) 1.0 would sort BELOW the installed 46 and MacPorts would refuse the
+# upgrade as a downgrade. Keeping version == the default version makes the
+# migration a normal same-version/higher-revision upgrade, and stays monotonic
+# when the default later moves to 47.
 version             46
-revision            0
+revision            1
 
 categories          cad science
 license             BSD
+supported_archs     noarch
+platforms           any
 maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
-platforms           macosx
-
-description         ngspice ${version} (private EDA prefix) for the analog flow
-long_description    ngspice mixed-level/mixed-signal circuit simulator, \
-                    version ${version}, built into the private prefix \
-                    ${prefix}/libexec/eda. COEXISTS with the stock MacPorts \
-                    ngspice port (which stays at its release cadence) - this \
-                    port is the tree's pinned flow simulator, reachable as \
-                    `eda-ngspice` or via ${prefix}/libexec/eda/bin/ngspice. \
-                    OSDI (OpenVAF compiled Verilog-A) support is enabled by \
-                    default in ngspice 45+. The eda-ngspice-lib subport \
-                    provides the matching libngspice shared library (used by \
-                    this tree's kicad port).
-
 homepage            https://ngspice.sourceforge.io/
 
-distname            ngspice-${version}
-# SourceForge MOVES a release into ng-spice-rework/old-releases/<ver>/ once a
-# newer one ships, so the plain .../ng-spice-rework/<ver>/ path 404s for anything
-# that is no longer current -- which is what a FRESH machine hits (an existing
-# box keeps working only because the tarball is already in its distfiles cache).
-# List BOTH paths so the fetch survives that move in either direction: the
-# archived location first (true for the pinned 46), the current-release location
-# second (true right after a version bump). Also use downloads.sourceforge.net,
-# the actual download host -- the sourceforge.net/projects/.../files/ form is the
-# web UI and 404s for a direct fetch.
-master_sites        https://downloads.sourceforge.net/project/ngspice/ng-spice-rework/old-releases/${version} \
-                    https://downloads.sourceforge.net/project/ngspice/ng-spice-rework/${version}
-dist_subdir         eda-ngspice
+description         Metaport: the tree's pinned ngspice (default version)
+long_description    Compatibility metaport. Up to 2026-08 this name WAS the \
+                    ngspice 46 build, and the port was then split so that several \
+                    releases can coexist, each in its own private prefix \
+                    (${prefix}/libexec/eda/ngspice<version>) with `port select` \
+                    choosing the active one. This stub now just pulls the \
+                    tree's default version, so `port install eda-ngspice`, the \
+                    eda-icall metaport and existing installs keep working. \
+                    Install eda-ngspice47 as well to have both, and switch with \
+                    'sudo port select --set eda-ngspice eda-ngspice47'.
 
-checksums           rmd160  69a2a9a95d919bac6f80e0d18d85b2e6f089159c \
-                    sha256  a0d1699af1940b06649276dcd6ff5a566c8c0cad01b2f7b5e99dedbb4d64c19b \
-                    size    10504768
+# DEFAULT = 46, deliberately: it is the version this tree has actually validated
+# (the openvaf -> OSDI -> ngspice chain and the kicad simulator both verified
+# against it). 47 is packaged and coexists, but a fresh `port install eda-icall`
+# should land on the known-good simulator, not the newest one. Move this to 47
+# once 47 has been through the same checks.
+depends_lib-append  port:eda-ngspice46
 
-compiler.c_standard   2011
-compiler.cxx_standard 2011
+notes "
+eda-ngspice is now a metaport. The real builds are versioned and coexist:
 
-# Same two patches as the stock 44.2 port (both targets verified still present
-# in 46): don't pass -static to the macOS linker (trac 70175), and guard the
-# 10.8 MACH task-info renames for old SDKs.
-patchfiles-append   patch-fix-linking.diff \
-                    patch-ngspice-older-MACH-defines.diff
+  eda-ngspice46   -> ${prefix}/libexec/eda/ngspice46   (validated)
+  eda-ngspice47   -> ${prefix}/libexec/eda/ngspice47
 
-set edaprefix       ${prefix}/libexec/eda
-configure.pre_args  --prefix=${edaprefix}
+Each is always callable by its versioned name (eda-ngspice46, eda-ngspice47).
+Pick which one answers to \`eda-ngspice\` -- and which libngspice kicad
+dlopens -- with:
 
-# freetype2 headers are not found by default (X11 plotting text)
-configure.cppflags-prepend -I${prefix}/include/freetype2
-configure.ldflags-append   -L${prefix}/lib
+  sudo port select --set eda-ngspice eda-ngspice46
+  port select --list eda-ngspice
 
-if {${name} eq ${subport}} {
-
-    depends_lib-append  port:readline \
-                        port:libtool \
-                        port:xorg-libX11 \
-                        port:xorg-libXaw \
-                        port:xorg-libXext
-
-    # Stock flag set. OSDI needs no flag (default-on since 45; --disable-osdi
-    # is the opt-out).
-    configure.args      --enable-cider \
-                        --enable-xspice \
-                        --enable-pss \
-                        --disable-openmp \
-                        --disable-silent-rules \
-                        --with-readline=${prefix} \
-                        --with-x
-
-    build.args          VERBOSE=1
-
-    post-destroot {
-        set docdir ${edaprefix}/share/doc/ngspice
-        xinstall -d ${destroot}${docdir}
-        xinstall -m 644 -W ${worksrcpath} \
-            ANALYSES AUTHORS BUGS COPYING ChangeLog DEVICES FAQ NEWS README \
-            README_OSDI.md Stuarts_Poly_Notes \
-            ${destroot}${docdir}
-        # Expose the pinned simulator on PATH under a non-conflicting name; the
-        # plain `ngspice` name stays with the stock port. Put
-        # ${edaprefix}/bin early in PATH if you want this one as plain `ngspice`.
-        ln -s ${edaprefix}/bin/ngspice ${destroot}${prefix}/bin/eda-ngspice
-    }
-
-    # Batch-mode transient sanity check on the freshly built binary: an RC
-    # divider must settle to the expected midpoint voltage.
-    test.run            yes
-    test {
-        set cir ${workpath}/rc_test.cir
-        set fp [open ${cir} w]
-        puts ${fp} "rc divider test"
-        puts ${fp} "v1 in 0 dc 2"
-        puts ${fp} "r1 in mid 1k"
-        puts ${fp} "r2 mid 0 1k"
-        puts ${fp} "c1 mid 0 1n"
-        puts ${fp} ".control"
-        puts ${fp} "tran 1u 100u"
-        puts ${fp} "print v(mid)\[length(v(mid))-1\] > ${workpath}/rc_out.txt"
-        puts ${fp} "quit"
-        puts ${fp} ".endc"
-        puts ${fp} ".end"
-        close ${fp}
-        system -W ${worksrcpath} "./src/ngspice -b ${cir} > ${workpath}/rc_run.log 2>&1"
-        set fp [open ${workpath}/rc_out.txt r]
-        set out [read ${fp}]
-        close ${fp}
-        if {![string match "*1.0*" ${out}]} {
-            error "RC divider did not settle to 1.0 V: ${out}"
-        }
-    }
-}
-
-# libngspice 46 for this tree's kicad (KiCad dlopens it at simulation time).
-# Mirrors the stock ngspice-lib recipe: --with-ngshared builds the shared
-# library instead of the binary; install the dylib + sharedspice.h + .pc into
-# the eda prefix by hand (upstream's install target is binary-oriented).
-subport eda-ngspice-lib {
-    description         ngspice ${version} shared library (private EDA prefix)
-    long_description    libngspice ${version} in ${edaprefix}, the simulation \
-                        backend this tree's kicad port dlopens. Coexists with \
-                        the stock ngspice-lib.
-
-    depends_build-append \
-                        port:bison \
-                        port:flex
-    depends_lib-append  port:readline \
-                        port:libtool
-    # The XSPICE codemodels (lib/ngspice/*.cm, loaded via --enable-relpath)
-    # are installed by the eda-ngspice binary port; share them.
-    depends_run-append  port:eda-ngspice
-
-    configure.args      --enable-cider \
-                        --enable-xspice \
-                        --enable-pss \
-                        --enable-relpath \
-                        --disable-openmp \
-                        --disable-silent-rules \
-                        --with-readline=${prefix} \
-                        --with-ngshared
-
-    destroot {
-        xinstall -d ${destroot}${edaprefix}/lib
-        xinstall -m 755 ${worksrcpath}/src/.libs/libngspice.0.dylib \
-            ${destroot}${edaprefix}/lib
-        ln -s libngspice.0.dylib ${destroot}${edaprefix}/lib/libngspice.dylib
-        xinstall -d ${destroot}${edaprefix}/lib/pkgconfig
-        xinstall -m 644 ${worksrcpath}/ngspice.pc \
-            ${destroot}${edaprefix}/lib/pkgconfig
-        xinstall -d ${destroot}${edaprefix}/include/ngspice
-        xinstall -m 644 ${worksrcpath}/src/include/ngspice/sharedspice.h \
-            ${destroot}${edaprefix}/include/ngspice
-    }
-}
+NOTE: nothing is selected automatically. Until you run the command above there
+is no ${prefix}/bin/eda-ngspice and no ${prefix}/libexec/eda/lib/libngspice.dylib,
+so kicad will not find a simulator.
+"
 
 livecheck.type      none

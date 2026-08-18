@@ -43,7 +43,10 @@ macportseda/
     │   └── Portfile
     ├── eda-vtk/        # minimal VTK IO subset (private prefix) for openEMS
     │   └── Portfile
-    ├── eda-ngspice/    # pinned ngspice 46 (private prefix) for the analog flow
+    ├── eda-ngspice/    # metaport -> the default versioned ngspice
+    │   ├── eda-ngspice46/  # ngspice 46 (own prefix, select-able)
+    │   ├── eda-ngspice47/  # ngspice 47 (own prefix, select-able)
+    │   ├── eda-ngspice_select/  # the `port select` group
     │   └── Portfile
     ├── CSXCAD/         # openEMS geometry lib (shadows stock; eda-vtk based)
     │   └── Portfile
@@ -181,7 +184,7 @@ Ports live under a category directory (`cad`) as MacPorts expects.
    | irsim | `sudo port install irsim` | Switch-level simulator (vendored + fixed; stock is silently broken on Xcode 15+). |
    | py-gdstk | `sudo port install py313-gdstk` | GDS/OASIS layout scripting for python 3.13. |
    | ghdl | `sudo port install ghdl` | VHDL simulator (87→2008, partial 2019). Per-arch official prebuilt, native on x86_64 (macOS≥13) and arm64 (macOS≥14); GHW waves open in gtkwave. |
-   | eda-ngspice | `sudo port install eda-ngspice` | Pinned ngspice 46 → `eda-ngspice` on PATH (stock ngspice keeps the plain name). |
+   | eda-ngspice | `sudo port install eda-ngspice46 eda-ngspice47` | Versioned, coexisting. Pick one with `sudo port select --set eda-ngspice eda-ngspice47`; each is also always callable as `eda-ngspice46`/`eda-ngspice47`. See the eda-ngspice notes. |
    | openEMS (python) | `sudo port install py313-openems` | Octave-free EM solver chain: pulls eda-vtk, CSXCAD, openEMS, py313-csxcad. |
    | eda-cace | `sudo port install eda-cace` | Analog characterization (`cace`, `cace-web`). App port on py312; pulls `py-ciel`. Set `PDK_ROOT` at run time. See CACE notes. |
    | py-ciel | `sudo port install py-ciel` | PDK version manager (volare successor); installs `ciel`. Also an eda-cace dep. |
@@ -253,8 +256,7 @@ Notes:
 
 ## distfiles archive 
 
-`distfiles/` holds a copy of every source tarball the tree's ports fetch,
-because upstream URLs rot.
+`distfiles/` holds a copy of every source tarball the tree's ports fetch.
 
 ### Where the tarballs come from
 
@@ -276,7 +278,7 @@ because upstream URLs rot.
 | py-gdstk | [PyPI gdstk 1.0.0](https://files.pythonhosted.org/packages/source/g/gdstk/gdstk-1.0.0.tar.gz) |
 | ghdl | [ghdl/ghdl v5.1.1 prebuilt](https://github.com/ghdl/ghdl/releases/tag/v5.1.1) — per-arch release assets: `ghdl-llvm-5.1.1-macos13-x86_64.tar.gz` + `ghdl-llvm-5.1.1-macos14-aarch64.tar.gz` (archive BOTH) |
 | eda-vtk | [Kitware/vtk v9.6.2](https://github.com/Kitware/vtk/archive/v9.6.2/vtk-9.6.2.tar.gz) (same distfile as stock vtk) |
-| eda-ngspice (+ eda-ngspice-lib) | [ngspice 46 (SourceForge)](https://sourceforge.net/projects/ngspice/files/ng-spice-rework/46/ngspice-46.tar.gz) |
+| eda-ngspice46 / eda-ngspice47 | [ngspice 46](https://downloads.sourceforge.net/project/ngspice/ng-spice-rework/old-releases/46/ngspice-46.tar.gz) and [ngspice 47](https://downloads.sourceforge.net/project/ngspice/ng-spice-rework/47/ngspice-47.tar.gz) — SourceForge moves a release into `old-releases/` once a newer one ships, so both Portfiles list both paths; shared `dist_subdir eda-ngspice` |
 | CSXCAD (+ py313-csxcad) | [thliebig/CSXCAD @ f5e4764](https://github.com/thliebig/CSXCAD/archive/f5e47643a28d6efd42cc10b61b848903e6599581/CSXCAD-f5e47643a28d6efd42cc10b61b848903e6599581.tar.gz) (stock MacPorts pin) |
 | openEMS (+ py313-openems) | [thliebig/openEMS @ 32c5c6b](https://github.com/thliebig/openEMS/archive/32c5c6b537b33a8b70f9ba4f5c9a8ecbb12777b3/openEMS-32c5c6b537b33a8b70f9ba4f5c9a8ecbb12777b3.tar.gz) (stock MacPorts pin) |
 | eda-or-tools | [google/or-tools v9.14 prebuilt macOS](https://github.com/google/or-tools/releases/download/v9.14/or-tools_x86_64_macOS-15.5_cpp_v9.14.6206.tar.gz) |
@@ -1011,29 +1013,64 @@ wrapper in `~/.local/bin`), NOT MacPorts ports:
   *synthesis* through yosys → OpenROAD; needs a libghdl matched to our
   yosys 0.66 and a plugin build — scope it like openEMS if wanted.
 
-## eda-ngspice notes (pinned ngspice for the analog flow)
+## eda-ngspice notes (versioned ngspice + `port select`)
 
-- ngspice **46** in the private prefix `libexec/eda`, COEXISTING with the
-  stock MacPorts ngspice (44.2), which stays at the release cadence. On PATH
-  as **`eda-ngspice`**; plain `ngspice` remains stock's. Put
-  `libexec/eda/bin` early in PATH to make 46 the default.
-- **eda-ngspice-lib** subport: libngspice 46 (+ sharedspice.h + ngspice.pc)
-  in `libexec/eda`, verified through the shared API (ctypes init/load/run).
-  The tree's **kicad** port now depends on it and its ngspice loader is
-  patched to `libexec/eda/lib` — KiCad 10 simulates on ngspice 46, not
-  stock's 44.2. Codemodels (`lib/ngspice/*.cm`) come from the eda-ngspice
-  binary port (runtime dep of the lib subport, `--enable-relpath`).
-- Same recipe as the stock port (the user maintains that one): cider, xspice,
-  pss, readline, X11 plotting; both 44.2 patches still apply to 46 (targets
-  verified). **OSDI is default-on since ngspice 45** — no flag needed.
-- Verified: RC-divider transient (`port test`), and the full
-  **openvaf -> OSDI -> ngspice 46** chain: a Verilog-A resistor compiled with
-  `openvaf-r`, loaded via `pre_osdi`, gives an exact 1.000 V divider op-point.
-- OSDI usage notes learned: `pre_osdi file.osdi` must be in the FIRST
-  .control block (or .spiceinit) so devices exist before parsing; ngspice
-  lowercases netlists, so keep Verilog-A parameter names lowercase; plain VA
-  parameters are MODEL parameters (`.model m res_va r=1k`), not instance
-  parameters, unless the VA declares `(*type="instance"*)`.
+- **Several ngspice releases coexist**, each in its OWN private prefix, and
+  `port select` chooses the active one:
+
+  | Port | Prefix | Always callable as |
+  |------|--------|--------------------|
+  | `eda-ngspice46` | `libexec/eda/ngspice46` | `eda-ngspice46` |
+  | `eda-ngspice47` | `libexec/eda/ngspice47` | `eda-ngspice47` |
+  | `eda-ngspice_select` | — | (the select group) |
+  | `eda-ngspice` | — | metaport → the default (46) |
+
+  ```
+  sudo port select --set eda-ngspice eda-ngspice47
+  port select --list eda-ngspice
+  ```
+  Each version keeps a versioned command regardless of what is selected — the
+  same idea as `python3.12` beside `python3` — so a netlist or script can pin a
+  simulator explicitly, which matters for reproducible analog results.
+- **The selection covers the LIBRARY too, not just the binary.** The linked set
+  is `bin/eda-ngspice` plus `libexec/eda/lib/libngspice.dylib`, `libngspice.0.dylib`
+  and `lib/pkgconfig/ngspice.pc`. `kicad` dlopens
+  `libexec/eda/lib/libngspice.dylib` **by path** at simulation time, so switching
+  the selection changes KiCad's simulator **without rebuilding KiCad** — deliberate,
+  but re-check a simulation there after switching.
+- **Nothing is auto-selected.** Until `port select --set` is run there is no
+  `bin/eda-ngspice` and no `libexec/eda/lib/libngspice.dylib`, so KiCad finds no
+  simulator. That is normal MacPorts behaviour (same as python/clang) and is in
+  `port notes eda-ngspice`.
+- **The group is `eda-ngspice`, NOT `ngspice`** — `${prefix}/bin/ngspice` is a
+  registry-owned file of the stock MacPorts ngspice port, and `port select`
+  symlinks are not registry-owned, so targeting it would collide.
+- **Binary and library are ONE port per version** (two out-of-tree builds:
+  `--with-ngshared` builds the library *instead of* the binary, so they cannot
+  share a configure run). They were a port plus a `-lib` subport before; two
+  subports cannot both install the same `etc/select` entry, and KiCad needs the
+  library link to follow the selection.
+- **Gotchas found while building this:** `port select` creates symlinks but NOT
+  the directories holding them, and is NOT atomic — a missing parent aborts the
+  selection partway, after some links exist. `sharedspice.h` was therefore dropped
+  from the select set: its parent directory cannot be owned by the select port
+  because **MacPorts prunes empty directories from a destroot**. Version-specific
+  headers live in `libexec/eda/ngspice<version>/include/ngspice/`.
+- **MIGRATION from the pre-split layout** (needed once per machine):
+  ```
+  sudo port -f uninstall eda-ngspice-lib          # orphaned: gone from the index,
+                                                  # but still owns the select path
+  sudo port upgrade eda-ngspice                   # 46_0 -> stub 46_1
+  sudo port install eda-ngspice46 eda-ngspice47
+  sudo port select --set eda-ngspice eda-ngspice46
+  ```
+  The stub's `version` deliberately tracks the default it points at: this port
+  used to BE the ngspice build at version 46, so a stub numbered 1.0 would sort
+  *below* it and MacPorts would refuse the upgrade as a downgrade.
+- Verified on macOS 13: both versions build, run and give an exact 1.000 V
+  divider; the **openvaf → OSDI → ngspice chain works on 46 AND 47**; selection
+  flips both the command and the library cleanly in both directions; and the
+  library loads via the KiCad path (`ngSpice_Init` present) under either selection.
 
 ## openEMS notes (EC-FDTD EM solver, octave-free)
 

@@ -25,7 +25,7 @@ if {${name} eq ${subport}} {
     PortGroup           legacysupport 1.1
 
     gitlab.setup        kicad/code kicad ${version}
-    revision            4
+    revision            5
     checksums           rmd160  67fbb602abfe4ef1848eb6b42fd8c8516b31ecab \
                         sha256  341c39320250182223378bb741df8b6043eb19772211c11f3f3ce1c50796334d \
                         size    229832671
@@ -40,10 +40,17 @@ if {${name} eq ${subport}} {
         0002-disable-codesigning.patch
 
     post-patch {
-        # Point the Unix ngspice loader at the tree's pinned libngspice 46
-        # (eda-ngspice-lib in the private eda prefix), not stock ngspice-lib,
-        # and the executable search path at the MacPorts prefix (formerly done
-        # by macports_prefix.patch via @PREFIX@).
+        # Point the Unix ngspice loader at the tree's pinned libngspice, not
+        # stock ngspice-lib, and the executable search path at the MacPorts
+        # prefix (formerly done by macports_prefix.patch via @PREFIX@).
+        #
+        # ${prefix}/libexec/eda/lib/libngspice.dylib is a `port select` SYMLINK
+        # (group eda-ngspice) into whichever versioned build is active --
+        # libexec/eda/ngspice46 or ngspice47. KiCad dlopens it BY PATH at
+        # simulation time, so switching the selection changes KiCad's simulator
+        # WITHOUT rebuilding KiCad. Deliberate, but re-check a simulation here
+        # after switching. If nothing is selected the path does not exist and
+        # KiCad finds no simulator -- hence the eda-ngspice_select dependency.
         reinplace "s|/usr/local/lib|${prefix}/libexec/eda/lib|g" \
             ${worksrcpath}/eeschema/sim/ngspice.cpp
         reinplace "s|/usr/local/kicad/bin/|${prefix}/bin/|g" \
@@ -97,7 +104,8 @@ if {${name} eq ${subport}} {
         port:glew \
         port:glm \
         port:curl \
-        port:eda-ngspice-lib \
+        port:eda-ngspice \
+        port:eda-ngspice_select \
         port:opencascade \
         port:py${py_ver_no_dot}-wxpython-4.0 \
         port:zlib \
