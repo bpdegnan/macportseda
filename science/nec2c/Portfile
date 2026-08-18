@@ -1,0 +1,114 @@
+# -*- coding: utf-8; mode: tcl; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- vim:fenc=utf-8:ft=tcl:et:sw=4:ts=4:sts=4
+
+PortSystem          1.0
+PortGroup           eda-github 1.0
+PortGroup           github 1.0
+
+github.setup        KJ7LNW nec2c 1.3.3 v
+github.tarball_from archive
+revision            0
+
+categories          science cad
+license             GPL-3+
+maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+platforms           macosx
+
+description         NEC-2 antenna simulation, command-line (C translation of NEC2)
+long_description    nec2c is Neoklis Kyriazis' translation of NEC2 -- the \
+                    FORTRAN Numerical Electromagnetics Code -- into C. It is a \
+                    NON-INTERACTIVE command-line program: it reads a standard \
+                    NEC2 input deck and writes an output file containing the \
+                    data requested by the "commands" in that deck, which makes \
+                    it the one to use for scripted sweeps and for anything that \
+                    parses NEC2-format output. Method-of-moments modelling of \
+                    wire antennas, complementing the FDTD solver in this tree's \
+                    openEMS. This is the KJ7LNW continuation, the same upstream \
+                    that maintains xnec2c.
+
+homepage            https://www.xnec2c.org/
+
+checksums           rmd160  9d4e21896763808dc2384b2698d69ffc3c1f5e11 \
+                    sha256  73cb820c2d00abb97e5d43819a12ebc49729df639557e911fb65df0c094d9231 \
+                    size    267134
+
+# WHY NOT JUST USE THE STOCK xnec2c PORT: xnec2c is the GTK3 *graphical* front
+# end and is NOT a superset of this program. Upstream's own README: "Printing of
+# results to an output file has been removed starting from version 1.0, since
+# xnec2c works in a way that does not allow printing compatible with the NEC2
+# format. If printing to file is needed then it is better to use the original
+# NEC2 program." So xnec2c cannot stand in for nec2c in a scripted flow, and its
+# -j<n> flag is multi-threading, not batch mode. The two are complementary:
+# `port install xnec2c` for the GUI, this port for the CLI. They share no files.
+#
+# Plain name (not eda-nec2c): MacPorts has no nec2c port, so nothing collides --
+# same reasoning as cvc-rv / sv2v / ghdl in this tree.
+
+# The GitHub tarball ships configure.ac + Makefile.am but no generated configure,
+# so the autotools have to run first. autogen.sh exists but also pokes at
+# GNOME2_DIR and gtk-doc; use_autoreconf does the same job predictably.
+# (use_autoreconf pulls in autoconf/automake itself -- declaring them again
+# makes `port lint` warn about duplicate dependencies.)
+use_autoreconf      yes
+autoreconf.args     -fvi
+
+# The only library it wants is libm (AC_CHECK_LIB([m], [sin])), which is in the
+# system libSystem -- there are no port dependencies at all.
+
+# Batch sanity check on the freshly built binary using a deck shipped in the
+# source tree: nec2c must consume a real NEC2 input and produce an output file
+# containing the standard NEC2 header banner.
+test.run            yes
+test {
+    set deck ${worksrcpath}/Input/3E_.NEC
+    set out  ${workpath}/nec2c_test.out
+    system -W ${worksrcpath} "./nec2c -i ${deck} -o ${out}"
+    if {![file exists ${out}]} {
+        error "nec2c produced no output file for ${deck}"
+    }
+    set fp [open ${out} r]
+    set data [read ${fp}]
+    close ${fp}
+    # Every NEC2 run prints this banner block; its absence means the deck was
+    # not actually executed.
+    if {![string match "*NUMERICAL ELECTROMAGNETICS CODE*" ${data}]} {
+        error "nec2c output lacks the NEC2 banner -- deck not executed"
+    }
+}
+
+notes "
+nec2c is the NON-INTERACTIVE NEC2 engine:
+
+  nec2c -i input.nec -o output.out
+
+Example decks from the source tree are installed under
+${prefix}/share/doc/${name}/examples.
+
+IMPORTANT: nec2c writes a plot side-file <input>.plt NEXT TO THE INPUT DECK, so
+run it from a WRITABLE directory. Pointing -i straight at the installed examples
+fails partway with
+
+  nec2c: .../3E_.NEC.plt: Permission denied
+
+and leaves a truncated output file (geometry only, no antenna parameters or
+radiation pattern) -- which is easy to mistake for a bad model. Copy the deck
+first:
+
+  cp ${prefix}/share/doc/${name}/examples/3E_.NEC .
+  nec2c -i 3E_.NEC -o 3E_.out
+
+For the interactive GTK3 front end install the stock MacPorts port instead:
+  sudo port install xnec2c
+Note that xnec2c deliberately does NOT write NEC2-format output files, so it
+does not replace this program for scripted work.
+"
+
+post-destroot {
+    set docdir ${destroot}${prefix}/share/doc/${name}
+    xinstall -d ${docdir}
+    xinstall -m 644 -W ${worksrcpath} AUTHORS COPYING ChangeLog NEWS README \
+        NEC2-bug.txt ${docdir}
+    # The shipped NEC2 decks are genuinely useful as starting points.
+    copy ${worksrcpath}/Input ${docdir}/examples
+}
+
+livecheck.type      none

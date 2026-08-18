@@ -79,6 +79,8 @@ x11/
 └── xcircuit/          # vendored stock snapshot
     └── Portfile
 science/
+├── nec2c/             # NEC-2 antenna simulation, command-line (MoM)
+│   └── Portfile
 ├── xschem/
 │   └── Portfile
 ├── lepton-eda/        # gEDA/gaf fork: lepton-schematic, -netlist, -attrib
@@ -187,6 +189,7 @@ Ports live under a category directory (`cad`) as MacPorts expects.
    | eda-ngspice | `sudo port install eda-ngspice46 eda-ngspice47` | Versioned, coexisting. Pick one with `sudo port select --set eda-ngspice eda-ngspice47`; each is also always callable as `eda-ngspice46`/`eda-ngspice47`. See the eda-ngspice notes. |
    | openEMS (python) | `sudo port install py313-openems` | Octave-free EM solver chain: pulls eda-vtk, CSXCAD, openEMS, py313-csxcad. |
    | eda-cace | `sudo port install eda-cace` | Analog characterization (`cace`, `cace-web`). App port on py312; pulls `py-ciel`. Set `PDK_ROOT` at run time. See CACE notes. |
+   | nec2c | `sudo port install nec2c` | NEC-2 method-of-moments antenna simulation, CLI (`nec2c -i in.nec -o out.txt`). Not replaced by the stock `xnec2c` GUI — see the nec2c notes. |
    | py-ciel | `sudo port install py-ciel` | PDK version manager (volare successor); installs `ciel`. Also an eda-cace dep. |
    | eda-freecad | `sudo port install eda-freecad` | FreeCAD 1.1.3 for enclosures (KiCad StepUp). Pulls `eda-coin`, `eda-pivy`, `py312-pyside6`, plus `vtk`/`libmed`/`boost181`. **Build PySide6 with `-addonmodules`.** No boost gate needed (uses boost181). Builds & runs; see FreeCAD notes. |
    | openroad / openroad-ll | see below ⚠️ | RTL-to-GDS P&R. **Need `boost spdlog protobuf3-cpp OpenSTA` deactivated to build.** |
@@ -303,6 +306,7 @@ Notes:
 | py-zstandard | [PyPI zstandard 0.25.0](https://files.pythonhosted.org/packages/source/z/zstandard/zstandard-0.25.0.tar.gz) |
 | py-volare | [PyPI volare 0.20.6](https://files.pythonhosted.org/packages/source/v/volare/volare-0.20.6.tar.gz) |
 | py-ciel | [PyPI ciel 2.6.1](https://files.pythonhosted.org/packages/source/c/ciel/ciel-2.6.1.tar.gz) |
+| nec2c | [KJ7LNW/nec2c v1.3.3](https://github.com/KJ7LNW/nec2c/archive/v1.3.3/nec2c-1.3.3.tar.gz) |
 | eda-cace | [PyPI cace 2.11.0](https://files.pythonhosted.org/packages/source/c/cace/cace-2.11.0.tar.gz) |
 | eda-coin | [coin3d/coin v4.0.10 `coin-4.0.10-src.tar.gz`](https://github.com/coin3d/coin/releases/download/v4.0.10/coin-4.0.10-src.tar.gz) (release asset, not the git archive) |
 | eda-pivy | [coin3d/pivy 0.6.11](https://github.com/coin3d/pivy/archive/0.6.11/pivy-0.6.11.tar.gz) |
@@ -695,6 +699,39 @@ wrapper in `~/.local/bin`), NOT MacPorts ports:
   6.7.3 ("Qt 6.8 is not supported on macOS 13") and the libc++ 15 C++20 wall; if
   hit, apply the kicad/openroad recipe (`macports-clang-19` + `-nostdinc++
   -isystem ${prefix}/libexec/llvm-19/include/c++/v1`) `${os.major}`-conditionally.
+
+## nec2c notes (NEC-2 antenna simulation, command-line)
+
+- **nec2c** is Neoklis Kyriazis' C translation of NEC2, the FORTRAN Numerical
+  Electromagnetics Code — a **non-interactive** program that reads a standard
+  NEC2 input deck and writes a NEC2-format output file. Method-of-moments for
+  wire antennas, complementing the FDTD solver in this tree's openEMS. Packaged
+  from the **KJ7LNW** continuation (v1.3.3), the same upstream that maintains
+  xnec2c.
+- **The stock MacPorts `xnec2c` port does NOT replace it.** xnec2c is the GTK3
+  GUI, and per upstream's README: *"Printing of results to an output file has
+  been removed starting from version 1.0 … If printing to file is needed then it
+  is better to use the original NEC2 program."* Its `-j<n>` flag is
+  multi-threading, not batch mode. The two are complementary and share no files —
+  `sudo port install xnec2c` for the GUI, `nec2c` for scripted work.
+  (For the record, stock `xnec2c` is current: 4.4.18 matches the newest upstream
+  tag and the repo is actively maintained.)
+- Plain port name, not `eda-nec2c`: MacPorts has no `nec2c`, so nothing collides —
+  same reasoning as `cvc-rv` / `sv2v` / `ghdl`.
+- Trivial to build: pure C, autotools, and the **only** library it wants is
+  `libm` (in libSystem), so it has no port dependencies at all. The GitHub tarball
+  has no generated `configure`, hence `use_autoreconf yes` (which supplies
+  autoconf/automake itself — declaring them again makes lint warn).
+- **GOTCHA — run it from a writable directory.** nec2c writes a plot side-file
+  `<input>.plt` **next to the input deck**. Pointing `-i` at the installed
+  examples fails partway with `nec2c: .../3E_.NEC.plt: Permission denied` and
+  leaves a **truncated** output (geometry only, no antenna parameters or
+  radiation pattern) — easy to misread as a bad model. Copy the deck first.
+  Verified: 65 lines from the read-only path vs **863 lines** with both
+  `ANTENNA INPUT PARAMETERS` and `RADIATION PATTERN` from a writable one.
+- 108 example decks from the source tree are installed to
+  `${prefix}/share/doc/nec2c/examples`. `port test` runs one end to end and
+  checks for the NEC2 banner in the output.
 
 ## CACE notes (analog characterization — `eda-cace` port)
 
