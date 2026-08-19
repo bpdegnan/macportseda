@@ -72,6 +72,8 @@ macportseda/
     │   └── Portfile
     ├── eda-freecad/    # FreeCAD 1.1.3 parametric 3D CAD (enclosures)
     │   └── Portfile
+    ├── openscad/       # script-based 3D CAD, dev snapshot (shadows stock; CGAL 6)
+    │   └── Portfile
     └── (see science/ and x11/ for the rest)
 x11/
 ├── gtksheet/          # GtkSheet widget lib (lepton-attrib dependency)
@@ -311,6 +313,7 @@ Notes:
 | eda-coin | [coin3d/coin v4.0.10 `coin-4.0.10-src.tar.gz`](https://github.com/coin3d/coin/releases/download/v4.0.10/coin-4.0.10-src.tar.gz) (release asset, not the git archive) |
 | eda-pivy | [coin3d/pivy 0.6.11](https://github.com/coin3d/pivy/archive/0.6.11/pivy-0.6.11.tar.gz) |
 | eda-freecad | [FreeCAD 1.1.3 `freecad_source_1.1.3.tar.gz`](https://github.com/FreeCAD/FreeCAD/releases/download/1.1.3/freecad_source_1.1.3.tar.gz) (release asset, 98 MB, flat tarball) |
+| openscad | [openscad/openscad @ openscad-2026.01.01-TEST2](https://github.com/openscad/openscad/archive/openscad-2026.01.01-TEST2/openscad-2026.01.01-TEST2.tar.gz) (upstream dev-snapshot tag, 24 MB) + four vendored submodule archives pinned at that tag: [manifold @ b2c6ddd](https://github.com/elalish/manifold/archive/b2c6ddd2e33510498a62c89049c83fa70342ddb3/manifold-b2c6ddd2e33510498a62c89049c83fa70342ddb3.tar.gz) (30 MB), [Clipper2 @ 6901921](https://github.com/AngusJohnson/Clipper2/archive/6901921c4be75126d1de60bfd24bd86a61319fd0/Clipper2-6901921c4be75126d1de60bfd24bd86a61319fd0.tar.gz), [sanitizers-cmake @ c3dc841](https://github.com/arsenm/sanitizers-cmake/archive/c3dc841af4dbf44669e65b82cb68a575864326bd/sanitizers-cmake-c3dc841af4dbf44669e65b82cb68a575864326bd.tar.gz), [MCAD @ 1ea4022](https://github.com/openscad/MCAD/archive/1ea402208c3127ffb443931e9bb1681c191dacca/MCAD-1ea402208c3127ffb443931e9bb1681c191dacca.tar.gz) — the GitHub source archive carries no submodules, so each is fetched separately and moved into place in `post-extract` |
 | py-pyside6 | [Qt `pyside-setup-everywhere-src`](https://download.qt.io/official_releases/QtForPython/pyside6/) (same distfile as the stock port; version tracks `qt6.version`) |
 | py-cxxheaderparser | [PyPI cxxheaderparser 1.9.1](https://files.pythonhosted.org/packages/source/c/cxxheaderparser/cxxheaderparser-1.9.1.tar.gz) |
 | skim-app | [SourceForge Skim 1.7.15](https://downloads.sourceforge.net/project/skim-app/Skim/Skim-1.7.15/Skim-1.7.15.dmg) (prebuilt .dmg) |
@@ -699,6 +702,102 @@ wrapper in `~/.local/bin`), NOT MacPorts ports:
   6.7.3 ("Qt 6.8 is not supported on macOS 13") and the libc++ 15 C++20 wall; if
   hit, apply the kicad/openroad recipe (`macports-clang-19` + `-nostdinc++
   -isystem ${prefix}/libexec/llvm-19/include/c++/v1`) `${os.major}`-conditionally.
+
+## openscad notes (script-based 3D CAD — dev snapshot, shadows stock)
+
+- **OpenSCAD** describes solids in its own language instead of drawing them
+  interactively, which makes it the natural companion to `eda-freecad` for
+  parametric PCB enclosures. FreeCAD's OpenSCAD workbench drives it as an
+  **external executable**, so the two interoperate through the binary and file
+  formats — no shared libraries, no version coupling between them.
+- **Why this port shadows the stock one: cgal4 vs cgal6.** Stock MacPorts
+  openscad is 2021.01 — genuinely upstream's newest *stable* release, their
+  cadence really is that slow — and it needs the old **cgal4**, which
+  *conflicts* with the **cgal6** that CSXCAD and openEMS pull in. On any
+  machine with this tree's EM chain installed, stock openscad simply cannot be
+  installed:
+
+  ```
+  Error: Can't install cgal4 because conflicting ports are active: cgal6
+  ```
+
+  Current OpenSCAD asks for CGAL >= 5.0 with no upper bound, so pinning
+  upstream's own dev-snapshot tag (`openscad-2026.01.01-TEST2`) builds against
+  the cgal6 that is already there. Nothing in MacPorts depends on openscad, so
+  taking the name is risk-free and `port install openscad` gets the one that
+  actually installs — same approach this tree takes for magic, verilator and
+  openEMS. `version` drops the `-TEST2` suffix (hyphens in a MacPorts version
+  are best avoided); the exact tag is pinned in the Portfile.
+- **Submodules are vendored as pinned distfiles.** The GitHub source archive
+  contains no submodules, so manifold, Clipper2, sanitizers-cmake and MCAD are
+  fetched as their own checksummed tarballs at the SHAs recorded at that tag
+  and moved into place in `post-extract` — the same pattern `openroad` uses.
+  OpenCSG and mimalloc are *not* vendored: `USE_BUILTIN_OPENCSG` defaults OFF
+  and `submodules/CMakeLists.txt` does `find_package(mimalloc QUIET)` first, so
+  both come from MacPorts ports.
+- **Versioned boost, spelled out.** boost181 lives in `libexec/boost/1.81`,
+  which `find_package(Boost ...)` cannot find on its own, so `Boost_DIR`,
+  `BOOST_ROOT` and `Boost_NO_SYSTEM_PATHS` are all set. As with `eda-freecad`
+  this also keeps the port clear of the boost-deactivation gate that
+  `openroad`/`kicad` need — the umbrella `boost` may stay active.
+- **qscintilla-qt6, not the qt5 flavour** the stock port uses; CMakeLists does
+  `find_package(Qt6QScintilla 2.8.0 REQUIRED)`. Installing the port is not
+  enough: OpenSCAD's bundled `FindQt6QScintilla.cmake` hints `find_library`
+  with `${Qt6Widgets_LIBRARIES}`, which is a CMake *target name* (`Qt6::Widgets`)
+  and not a path, so it never looks under `libexec/qt6` where MacPorts keeps
+  Qt. The library is there and correctly named — it is just never searched for
+  in the right place — so `QT6QSCINTILLA_LIBRARY` and `QT6QSCINTILLA_INCLUDE_DIR`
+  are handed over directly.
+- **The mesa trap again** (same one `eda-coin` and `eda-freecad` hit). The cmake
+  PortGroup passes `-DCMAKE_FIND_FRAMEWORK=LAST`, so with mesa installed
+  `find_package(OpenGL)` reports `/opt/local/lib/libGL.dylib` and leaves
+  `-framework OpenGL` off the link line. That only blows up at the very end,
+  after a 100% compile, because OpenSCAD's macOS offscreen context is CGL-based
+  and mesa has no CGL symbols:
+
+  ```
+  ld: Undefined symbols: _CGLChoosePixelFormat, _CGLCreateContext, ...
+    referenced from CreateOffscreenContextCGL(...) in OffscreenContextCGL.cc.o
+  ```
+
+  Fix is to name `OpenGL.framework` explicitly via `OPENGL_gl_LIBRARY` /
+  `OPENGL_glu_LIBRARY`. Set *only* those two — adding
+  `OPENGL_INCLUDE_DIR=<framework>/Headers` makes CMake's `try_compile` fail.
+- Also off by default here: `ENABLE_TESTS`/`ENABLE_GUI_TESTS`/`MANIFOLD_TEST`
+  (all default ON, and would run the very large upstream testsuite as part of
+  the build) and `ENABLE_GAMEPAD` (defaults AUTO, and its Qt5Gamepad driver
+  does not exist under Qt6 — CMake hard-errors on that combination).
+  `SNAPSHOT=ON` matches what this tag is and selects the nightly icon set, so
+  the app is visibly distinct from a stable release.
+- **The macOS install puts an `.app` inside `bin/`, and no `openscad` command.**
+  On the Apple branch upstream's CMakeLists does only
+  `install(TARGETS OpenSCADExe BUNDLE DESTINATION ${CMAKE_INSTALL_BINDIR})` —
+  man page, color-schemes, examples, fonts, MCAD, locale, shaders and templates
+  all go inside the bundle's Resources rather than `${prefix}/share`. So
+  `post-destroot` moves the bundle to `/Applications/MacPorts` and drops a
+  lowercase wrapper on PATH, the same shape `kicad` and `eda-freecad` use. It's
+  a wrapper and not a symlink because a bundle finds its Resources relative to
+  the executable's real path. FreeCAD's OpenSCAD workbench shells out to an
+  external binary, so it needs that wrapper — point it there under
+  *Edit → Preferences → OpenSCAD*. The same binary serves GUI and CLI; `-o`
+  switches it to rendering (`openscad -o part.stl part.scad`).
+- **Verified** (macOS 15 / Qt 6.7.3 build): `openscad --version` reports
+  2026.08.19, a 40×30×12 enclosure shell renders to a valid STL (16 vertices,
+  28 facets), the binary links Apple's `OpenGL.framework` rather than mesa, and
+  the `.app` registers with LaunchServices as `kMDItemKind = "Application"`.
+- **Watch out on a machine with a different Qt.** `${qt6.dir}` resolves
+  per-machine, but the qscintilla library filename in `configure.args` is
+  literal. If configure fails on `QT6QSCINTILLA_LIBRARY`, check
+  `port contents qscintilla-qt6 | grep dylib` and adjust. MacPorts is on
+  qscintilla 2.14.1 as of this writing, which still uses
+  `libqscintilla2_qt6.dylib`.
+- **Stock `OpenCSG` drags in `qt5-qtbase`.** The MacPorts `OpenCSG` 1.4.2 port
+  builds through the `qmake5` PortGroup and lib-depends on Qt 5 — the library
+  itself needs only GLEW/GL, but the tarball ships a Qt example app and there
+  is no variant to opt out. So on a machine without Qt 5, `port install
+  openscad` pulls a whole Qt 5 base onto a Qt 6 port. The alternative is
+  `USE_BUILTIN_OPENCSG=ON` plus vendoring `submodules/OpenCSG` (upstream builds
+  it with plain CMake, no qmake, no Qt) — not currently done.
 
 ## nec2c notes (NEC-2 antenna simulation, command-line)
 

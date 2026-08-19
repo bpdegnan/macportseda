@@ -4,8 +4,11 @@ PortSystem          1.0
 PortGroup           eda-github 1.0
 PortGroup           python 1.0
 PortGroup           qt6 1.0
+# For FIX 5 (self-conflict); stock leaves that block commented out and so does
+# not include this PortGroup.
+PortGroup           conflicts_build 1.0
 
-# VENDORED SNAPSHOT of the stock MacPorts py-pyside6 PLUS THREE REAL FIXES.
+# VENDORED SNAPSHOT of the stock MacPorts py-pyside6 PLUS FIVE REAL FIXES.
 # Needed here because eda-freecad requires Shiboken6 + PySide6 (FreeCAD's
 # find_package(Shiboken6)/find_package(PySide6), see its
 # cMake/FreeCAD_Helpers/SetupShibokenAndPyside.cmake) and the stock port cannot
@@ -40,18 +43,27 @@ PortGroup           qt6 1.0
 #     shiboken6_GENERATOR/include, not shiboken6/include, so stock's
 #     shiboken6.pc includedir is wrong for the same reason.
 #
-# Keep -addonmodules for the FreeCAD use case: the addon set drags in
-# qt67-qtwebengine (a full Chromium build) plus llvm-22/clang-22 -- 38 extra
-# ports -- and FreeCAD needs only the base modules.
+#  4. +addonmodules REMOVED FROM default_variants (see the note at that line).
+#     Stock defaults it ON; that drags in qt6-qtwebengine (a full Chromium
+#     build) plus ~20 more Qt6 modules, and it silently RE-ARMS on every
+#     `port upgrade` because this port's recorded requested-variants are empty
+#     (it arrives as an eda-freecad dependency). Typing `-addonmodules` once at
+#     install time is NOT enough. FreeCAD needs only the base modules.
 #
-# EXIT PATH -- this fork is meant to be temporary. All three are upstream
-# MacPorts bugs, not tree-specific ones. After any `port sync`, diff this file
+#  5. SELF-CONFLICT ENABLED (conflicts_build ${subport}): this port cannot be
+#     built while a copy of ITSELF is active -- the staging install goes partial
+#     and the *_pyi step dies on a missing libshiboken6 dylib. Stock ships the
+#     block commented out. See the note at that line.
+#
+# EXIT PATH -- this fork is meant to be temporary. All five are upstream
+# MacPorts bugs (or, for 4/5, upstream choices that are wrong for this tree),
+# not tree-specific ones. After any `port sync`, diff this file
 # against the stock Portfile (`diff <this> "$(port dir py-pyside6)/Portfile"`,
 # using a stock checkout) and DELETE this whole directory if upstream has fixed
 # them. Note the fixes may already be unnecessary at PySide6 6.11 on macOS 14+ --
 # try stock first on a newer machine before assuming this fork is needed.
 name                py-pyside6
-revision            3
+revision            4
 categories-append   devel aqua
 
 maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
@@ -107,10 +119,25 @@ distname            pyside-setup-everywhere-src-${version}
 master_sites        https://download.qt.io/official_releases/QtForPython/pyside6/PySide6-${version}-src
 
 if {${name} ne ${subport}} {
-    # 6.10 cannot be built if 6.9 is active. If this continues in the next version,
-    # consider uncommenting this block
-    #conflicts_build \
-    #    ${subport}
+    # FIX 5: SELF-CONFLICT, now ENABLED (stock ships this block commented out with
+    # "6.10 cannot be built if 6.9 is active ... consider uncommenting").
+    #
+    # It still applies at 6.11.1, and it is NOT limited to a version change:
+    # rebuilding the SAME version fails whenever a copy of this port is active.
+    # Proven on 2026-08-04: the very first install succeeded (nothing active),
+    # every rebuild afterwards died ~20 minutes in with
+    #   ImportError: dlopen(.../shiboken6/Shiboken.abi3.so):
+    #   Library not loaded: @rpath/libshiboken6.abi3.6.11.dylib
+    # during the *_pyi generation step, because the staging install ends up
+    # PARTIAL (Shiboken.abi3.so present, libshiboken6.abi3.*.dylib missing).
+    # `sudo port -f deactivate py312-pyside6` before building fixes it outright.
+    #
+    # With this enabled, MacPorts refuses the build up front with a clear
+    # "deactivate it first" message instead of wasting a long build on an
+    # inscrutable dyld error. That matters for `port upgrade outdated`, which
+    # otherwise hits this every single time this port is upgraded.
+    conflicts_build \
+        ${subport}
 
     if {${python.version} >= 313} {
         platforms   {darwin >= 23}
@@ -324,7 +351,24 @@ if {${name} ne ${subport}} {
             qt5compat
     }
 
-    default_variants    +addonmodules +extracmakepcfiles
+    # FIX 4: stock has `default_variants +addonmodules +extracmakepcfiles`.
+    # +addonmodules is DELIBERATELY DROPPED from the defaults here.
+    #
+    # Why (found the hard way on 2026-08-04): the registry recorded this port's
+    # requested variants as '' (it came in as a dependency of eda-freecad, and a
+    # `-addonmodules` on the command line is not recorded as a request). So a
+    # plain `port upgrade outdated` re-applied the DEFAULTS, silently turning
+    # +addonmodules back ON -- which installed qt6-qtwebengine (a full Chromium
+    # build) plus ~20 more Qt6 modules, and then FAILED to build:
+    #   ImportError: dlopen(.../shiboken6/Shiboken.abi3.so): Library not loaded:
+    #   @rpath/libshiboken6.abi3.6.11.dylib   (during the *_pyi generation step)
+    # i.e. the trap re-arms itself on every upgrade and cannot be avoided by
+    # remembering to type -addonmodules once.
+    #
+    # Nothing in this tree wants the addon modules: eda-freecad needs only the
+    # base PySide6 modules and sets -DBUILD_WEB=OFF. Anyone who does want them
+    # can still ask explicitly with `+addonmodules`.
+    default_variants    +extracmakepcfiles
     livecheck.type      none
 } else {
     livecheck.type      regex
