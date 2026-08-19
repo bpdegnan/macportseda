@@ -1,0 +1,200 @@
+# -*- coding: utf-8; mode: tcl; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- vim:fenc=utf-8:ft=tcl:et:sw=4:ts=4:sts=4
+
+PortSystem          1.0
+PortGroup           eda-github 1.0
+PortGroup           cmake 1.1
+PortGroup           qt6 1.0
+# Versioned boost, NOT the umbrella `boost` port -- same choice as eda-freecad,
+# and it keeps this port clear of the boost-deactivation gate that
+# openroad/openroad-ll/kicad need.
+PortGroup           boost 1.0
+boost.version       1.81
+
+name                openscad
+version             2026.01.01
+revision            0
+
+categories          cad science
+license             GPL-2+
+maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+platforms           macosx
+
+description         OpenSCAD script-based 3D CAD modeller (current snapshot, CGAL 6)
+long_description    OpenSCAD is a script-based solid 3D CAD modeller: geometry \
+                    is described in its own language rather than drawn \
+                    interactively, which makes it a good companion to FreeCAD \
+                    for parametric PCB enclosures. FreeCAD ships an OpenSCAD \
+                    workbench that drives this program as an EXTERNAL \
+                    EXECUTABLE, so the two interoperate through the binary and \
+                    file formats, not through shared libraries.
+
+homepage            https://openscad.org/
+
+# ---- WHY THIS PORT SHADOWS THE STOCK MacPorts openscad --------------------
+# The stock port is openscad 2021.01, which is upstream's newest *stable*
+# release (Feb 2021 -- their release cadence really is that slow) but it
+# requires the OLD **cgal4**, and cgal4 CONFLICTS with the **cgal6** that
+# CSXCAD and openEMS pull in. On a machine with this tree's EM chain installed,
+# stock openscad simply cannot be installed:
+#     Error: Can't install cgal4 because conflicting ports are active: cgal6
+# This port pins upstream's own dev snapshot tag instead, which builds against
+# modern CGAL and therefore coexists with openEMS. Nothing in MacPorts depends
+# on openscad, so shadowing the name is risk-free and means `port install
+# openscad` gets the one that actually installs -- same approach this tree takes
+# for magic / verilator / openEMS.
+#
+# VERSION/TAG: upstream tags dev snapshots as openscad-<date>-TESTn. The tag is
+# openscad-2026.01.01-TEST2; `version` drops the -TEST2 suffix because a hyphen
+# in a MacPorts version is best avoided, and the exact tag is pinned below.
+set osc_tag         openscad-2026.01.01-TEST2
+
+# ---- Vendored submodules --------------------------------------------------
+# The GitHub source archive does NOT contain git submodules, so each one is
+# pinned here as its own checksummed distfile (the same approach the openroad
+# port in this tree uses). Pins are the submodule SHAs recorded AT ${osc_tag}.
+#
+# NOT vendored, because MacPorts already provides them and upstream prefers the
+# system copy:
+#   * OpenCSG  -- USE_BUILTIN_OPENCSG defaults OFF, so find_package finds ours
+#   * mimalloc -- submodules/CMakeLists.txt does find_package(mimalloc QUIET)
+#                 first and only falls back to the submodule if that misses
+set manifold_sha    b2c6ddd2e33510498a62c89049c83fa70342ddb3
+set clipper2_sha    6901921c4be75126d1de60bfd24bd86a61319fd0
+set sanitizers_sha  c3dc841af4dbf44669e65b82cb68a575864326bd
+set mcad_sha        1ea402208c3127ffb443931e9bb1681c191dacca
+
+master_sites        https://github.com/openscad/openscad/archive/${osc_tag}/:osc \
+                    https://github.com/elalish/manifold/archive/${manifold_sha}/:manifold \
+                    https://github.com/AngusJohnson/Clipper2/archive/${clipper2_sha}/:clipper2 \
+                    https://github.com/arsenm/sanitizers-cmake/archive/${sanitizers_sha}/:sanitizers \
+                    https://github.com/openscad/MCAD/archive/${mcad_sha}/:mcad
+
+distname            ${osc_tag}
+worksrcdir          openscad-${osc_tag}
+dist_subdir         openscad
+
+distfiles           ${osc_tag}${extract.suffix}:osc \
+                    manifold-${manifold_sha}${extract.suffix}:manifold \
+                    Clipper2-${clipper2_sha}${extract.suffix}:clipper2 \
+                    sanitizers-cmake-${sanitizers_sha}${extract.suffix}:sanitizers \
+                    MCAD-${mcad_sha}${extract.suffix}:mcad
+
+checksums           ${osc_tag}${extract.suffix} \
+                        rmd160  ae48d6e0611af698dc883cad2d33fcbfe84598ff \
+                        sha256  927604ca7fdc5b5b850b330843cbdafc0990ba51240a85149568d2c60f38cb2a \
+                        size    24940366 \
+                    manifold-${manifold_sha}${extract.suffix} \
+                        rmd160  4fccfd7b256e62fa2f3a027c0cc16aef7c7f18a2 \
+                        sha256  0f3e9fdce6cc2f1ecb240169f3ceda4905604cf9a1895d2966c2b4c8d767bd9b \
+                        size    29964477 \
+                    Clipper2-${clipper2_sha}${extract.suffix} \
+                        rmd160  5be6577607c60a104888b235f3040daaa5af770d \
+                        sha256  d4ba8b5a927caab6e2b3d07d9becd5bf3775489494fd84251e7d288e3b43ae4b \
+                        size    621021 \
+                    sanitizers-cmake-${sanitizers_sha}${extract.suffix} \
+                        rmd160  8bf195a5523967429564a1f151aadf6216eb8e7b \
+                        sha256  19d511a3a4ddc872c89ab62c070dd8d1fcc733e6ea4655f5876a60237cd556ba \
+                        size    7433 \
+                    MCAD-${mcad_sha}${extract.suffix} \
+                        rmd160  044cf8b78e8f2e3861768177190571122b6ee4a5 \
+                        sha256  3d04077d369814638c3f018fecc39439011a47f545026f43c1a465bce1773f57 \
+                        size    56943
+
+# Drop each submodule archive into the path git would have checked it out at.
+post-extract {
+    foreach {sha dest src} [list \
+            ${manifold_sha}   submodules/manifold         manifold \
+            ${clipper2_sha}   submodules/Clipper2         Clipper2 \
+            ${sanitizers_sha} submodules/sanitizers-cmake sanitizers-cmake \
+            ${mcad_sha}       libraries/MCAD              MCAD] {
+        delete ${worksrcpath}/${dest}
+        move ${workpath}/${src}-${sha} ${worksrcpath}/${dest}
+    }
+}
+
+qt6.depends_lib-append \
+                    qtbase \
+                    qtmultimedia \
+                    qt5compat \
+                    qtsvg \
+                    qttools
+
+depends_build-append \
+                    port:pkgconfig \
+                    port:bison \
+                    port:flex
+
+depends_lib-append  port:cgal6 \
+                    port:OpenCSG \
+                    port:qscintilla-qt6 \
+                    port:mimalloc \
+                    port:eigen3 \
+                    port:gmp \
+                    port:mpfr \
+                    port:glew \
+                    port:freetype \
+                    port:fontconfig \
+                    port:harfbuzz \
+                    port:libzip \
+                    port:libxml2 \
+                    port:double-conversion \
+                    port:lib3mf \
+                    port:cairo \
+                    port:glib2
+
+configure.args-append \
+    -DUSE_QT6=ON \
+    -DENABLE_CGAL=ON \
+    -DUSE_BUILTIN_OPENCSG=OFF \
+    -DUSE_BUILTIN_MANIFOLD=ON \
+    -DUSE_BUILTIN_CLIPPER2=ON \
+    -DENABLE_TESTS=OFF \
+    -DENABLE_GUI_TESTS=OFF \
+    -DMANIFOLD_TEST=OFF \
+    -DENABLE_GAMEPAD=OFF \
+    -DSNAPSHOT=ON \
+    -DBoost_DIR=${prefix}/libexec/boost/1.81/lib/cmake/Boost-1.81.0 \
+    -DBOOST_ROOT=${prefix}/libexec/boost/1.81 \
+    -DBoost_NO_SYSTEM_PATHS=ON \
+    -DQT6QSCINTILLA_LIBRARY=${qt6.dir}/lib/libqscintilla2_qt6.dylib \
+    -DQT6QSCINTILLA_INCLUDE_DIR=${qt6.dir}/include/Qsci \
+    -DOPENGL_gl_LIBRARY=/System/Library/Frameworks/OpenGL.framework \
+    -DOPENGL_glu_LIBRARY=/System/Library/Frameworks/OpenGL.framework
+
+# qscintilla-qt6 supplies the script editor widget and is REQUIRED, not optional:
+# CMakeLists does find_package(Qt6QScintilla 2.8.0 REQUIRED). Note the stock
+# openscad port uses qscintilla-QT5 -- the Qt6 build needs the qt6 flavour.
+#
+# Installing that port is NOT enough: OpenSCAD's bundled
+# cmake/Modules/FindQt6QScintilla.cmake does
+#     find_library(QT6QSCINTILLA_LIBRARY NAMES ... qscintilla2_qt6
+#                  HINTS ${Qt6Widgets_LIBRARIES})
+# and Qt6Widgets_LIBRARIES is a CMake TARGET NAME (Qt6::Widgets), not a path, so
+# the hint contributes nothing -- while MacPorts keeps Qt6 under libexec/qt6,
+# which is off CMake's default search path. The library really is called
+# libqscintilla2_qt6.dylib (a name the module does list), it simply is never
+# looked for in the right place, so both paths are supplied explicitly below.
+# USE APPLE'S OpenGL, NOT MacPorts mesa -- the same trap eda-coin and eda-freecad
+# hit. The cmake PortGroup passes -DCMAKE_FIND_FRAMEWORK=LAST, so with the mesa
+# port installed find_package(OpenGL) reports
+#     -- Found OpenGL: /opt/local/lib/libGL.dylib
+# and the link line gets libGL.dylib but NO -framework OpenGL. That fails at the
+# very end (after a 100% compile) because OpenSCAD's macOS offscreen context is
+# CGL-based and mesa provides no CGL:
+#     ld: Undefined symbols: _CGLChoosePixelFormat, _CGLCreateContext, ...
+#       referenced from CreateOffscreenContextCGL(...) in OffscreenContextCGL.cc.o
+# Name the framework explicitly, and set ONLY the two *_LIBRARY vars -- adding
+# OPENGL_INCLUDE_DIR=<framework>/Headers makes CMake's try_compile fail.
+# ENABLE_TESTS defaults ON and would run the (very large) upstream testsuite as
+# part of the build; MANIFOLD_TEST likewise defaults ON inside the submodule.
+# ENABLE_GAMEPAD is AUTO by default and its Qt5Gamepad driver is unavailable
+# under Qt6 -- CMake hard-errors on that combination unless it is OFF.
+# Boost lives in a VERSIONED private prefix (libexec/boost/1.81), which CMake's
+# find_package(Boost 1.70 REQUIRED COMPONENTS regex program_options) cannot find
+# on its own -- hence the explicit Boost_DIR/BOOST_ROOT plus Boost_NO_SYSTEM_PATHS
+# so the umbrella `boost` port can never be picked up instead. Same recipe as
+# eda-freecad.
+# SNAPSHOT=ON matches what this tag is: an upstream dev snapshot, and it selects
+# the nightly icon set so the app is visibly distinct from a stable release.
+
+livecheck.type      none
