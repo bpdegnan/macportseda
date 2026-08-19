@@ -12,7 +12,7 @@ boost.version       1.81
 
 name                openscad
 version             2026.01.01
-revision            0
+revision            1
 
 categories          cad science
 license             GPL-2+
@@ -196,5 +196,43 @@ configure.args-append \
 # eda-freecad.
 # SNAPSHOT=ON matches what this tag is: an upstream dev snapshot, and it selects
 # the nightly icon set so the app is visibly distinct from a stable release.
+
+# Upstream's macOS install drops the whole app bundle into
+# ${prefix}/bin/OpenSCAD.app -- an .app nested inside bin/, and with NO plain
+# `openscad` command anywhere. Relocate it the way the kicad and eda-freecad
+# ports do: the bundle to ${applications_dir}, plus a lowercase wrapper on PATH.
+#
+# The wrapper matters for more than convenience: FreeCAD's OpenSCAD workbench
+# drives OpenSCAD as an EXTERNAL EXECUTABLE, so it needs a findable `openscad`.
+# The same binary serves both GUI and CLI (passing -o switches it to rendering),
+# so one wrapper covers both. It is a wrapper rather than a symlink because an
+# app bundle locates its Resources relative to the executable's real path -- the
+# same reason the ghdl and eda-freecad ports use wrappers.
+post-destroot {
+    set appname OpenSCAD.app
+    xinstall -d ${destroot}${applications_dir}
+    move ${destroot}${prefix}/bin/${appname} ${destroot}${applications_dir}/${appname}
+
+    set w ${destroot}${prefix}/bin/openscad
+    system "printf '%s\\n' '#!/bin/sh' \
+        'exec ${applications_dir}/${appname}/Contents/MacOS/OpenSCAD \"\$@\"' > ${w}"
+    file attributes ${w} -permissions 0755
+}
+
+notes "
+OpenSCAD is available two ways:
+  * ${applications_dir}/OpenSCAD.app  -- double-click from Finder
+  * openscad                          -- same binary, CLI when given -o:
+        openscad -o part.stl part.scad
+
+To drive it from FreeCAD, open the OpenSCAD workbench preferences and point it at
+  ${prefix}/bin/openscad
+FreeCAD runs OpenSCAD as an external program, so the two only need to agree on
+the binary path and file formats.
+
+This is upstream's dev snapshot ${osc_tag}, NOT the 2021.01 stable release: the
+stable one requires cgal4, which conflicts with the cgal6 that openEMS/CSXCAD
+need. See the header comments.
+"
 
 livecheck.type      none
