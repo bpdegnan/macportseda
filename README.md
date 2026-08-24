@@ -781,7 +781,9 @@ wrapper in `~/.local/bin`), NOT MacPorts ports:
   external binary, so it needs that wrapper — point it there under
   *Edit → Preferences → OpenSCAD*. The same binary serves GUI and CLI; `-o`
   switches it to rendering (`openscad -o part.stl part.scad`).
-- **Verified** (macOS 15 / Qt 6.7.3 build): `openscad --version` reports
+- **Verified on BOTH machines** — macOS 13 / Qt **6.7.3** and macOS 15 / Qt
+  **6.11**, which is what proves the `${qt6.dir}` indirection above actually
+  carries across Qt versions: `openscad --version` reports
   2026.08.19, a 40×30×12 enclosure shell renders to a valid STL (16 vertices,
   28 facets), the binary links Apple's `OpenGL.framework` rather than mesa, and
   the `.app` registers with LaunchServices as `kMDItemKind = "Application"`.
@@ -798,6 +800,31 @@ wrapper in `~/.local/bin`), NOT MacPorts ports:
   openscad` pulls a whole Qt 5 base onto a Qt 6 port. The alternative is
   `USE_BUILTIN_OPENCSG=ON` plus vendoring `submodules/OpenCSG` (upstream builds
   it with plain CMake, no qmake, no Qt) — not currently done.
+
+## the mesa / OpenGL trap (tree-wide)
+
+Three ports have now hit this, so it is worth stating once: **any CMake port that
+calls `find_package(OpenGL)` on a box where the `mesa` port is installed will
+silently link mesa instead of Apple's OpenGL.** The cmake PortGroup passes
+`-DCMAKE_FIND_FRAMEWORK=LAST`, so frameworks are searched last and
+`${prefix}/lib/libGL.dylib` wins. Symptoms differ and none of them name mesa:
+
+| Port | How it showed up |
+|------|------------------|
+| `eda-coin` / `eda-freecad` | `Mesa: error: GL User Error: glGetString called without a rendering context` at GUI startup |
+| `openscad` | link failure after a 100% compile: `ld: Undefined symbols: _CGLChoosePixelFormat …` (mesa provides no CGL) |
+
+The check is `otool -L <binary> | grep /opt/local/lib/libGL`. The fix in every
+case is to name the framework explicitly, and **only** the two `*_LIBRARY` vars:
+```
+-DOPENGL_gl_LIBRARY=/System/Library/Frameworks/OpenGL.framework
+-DOPENGL_glu_LIBRARY=/System/Library/Frameworks/OpenGL.framework
+```
+Do **not** also set `OPENGL_INCLUDE_DIR=<framework>/Headers` — that makes CMake's
+`try_compile` fail. And do **not** "fix" it with `-DCMAKE_FIND_FRAMEWORK=FIRST`:
+it selects Apple's OpenGL but also exposes the CLT's own
+`Python3.framework/Versions/3.9`, which broke eda-freecad at runtime by mixing
+Python 3.9 and 3.12 headers in one build. See the FreeCAD notes.
 
 ## nec2c notes (NEC-2 antenna simulation, command-line)
 

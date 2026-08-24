@@ -4,9 +4,6 @@ PortSystem          1.0
 PortGroup           eda-github 1.0
 PortGroup           python 1.0
 PortGroup           qt6 1.0
-# For FIX 5 (self-conflict); stock leaves that block commented out and so does
-# not include this PortGroup.
-PortGroup           conflicts_build 1.0
 
 # VENDORED SNAPSHOT of the stock MacPorts py-pyside6 PLUS FIVE REAL FIXES.
 # Needed here because eda-freecad requires Shiboken6 + PySide6 (FreeCAD's
@@ -63,7 +60,7 @@ PortGroup           conflicts_build 1.0
 # them. Note the fixes may already be unnecessary at PySide6 6.11 on macOS 14+ --
 # try stock first on a newer machine before assuming this fork is needed.
 name                py-pyside6
-revision            4
+revision            5
 categories-append   devel aqua
 
 maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
@@ -112,6 +109,20 @@ if {[vercmp ${qt6.version} 6.8] >= 0} {
 # Keep this at the single version eda-freecad/eda-pivy use (their py_ver). If
 # FreeCAD is ever moved to another python, change it here AND there together --
 # and check the reverse-dependency list above before widening.
+notes "
+This port is a VENDORED FORK of the stock MacPorts py-pyside6, narrowed to
+python 3.12, carrying five fixes it needs to build and to serve eda-freecad.
+See the comment block at the top of the Portfile for what each one is and for
+the exit path (delete this fork once upstream MacPorts has fixed them).
+
+It builds WITHOUT .pyi type stubs (--disable-pyi). That is deliberate: the stub
+generation step is the one that fails when a copy of this port is already
+active, which used to force a `conflicts_build` guard and made
+`port upgrade outdated` abort on every revision bump. Nothing reads .pyi files
+at run time -- they are editor/type-checker metadata -- and FreeCAD imports
+PySide6 rather than type-checking against it.
+"
+
 python.versions     312
 python.default_version 312
 
@@ -136,8 +147,26 @@ if {${name} ne ${subport}} {
     # "deactivate it first" message instead of wasting a long build on an
     # inscrutable dyld error. That matters for `port upgrade outdated`, which
     # otherwise hits this every single time this port is upgraded.
-    conflicts_build \
-        ${subport}
+    # SUPERSEDED by --disable-pyi (in build.args/destroot.args above).
+    # conflicts_build worked, but made this port IMPOSSIBLE TO UPGRADE IN PLACE:
+    # an upgrade always has the old copy active, so `port upgrade` stopped with
+    # "Please forcibly deactivate the existing copy", and since
+    # `port upgrade outdated` aborts on the first failure it took the whole bulk
+    # upgrade down with it on every revision bump.
+    #
+    # The root cause is narrower than "a copy is active": it is specifically the
+    # *_pyi target, which sources/pyside6/cmake/Macros/PySideModules.cmake guards
+    # with `if(NOT (PYSIDE_IS_CROSS_BUILD OR DISABLE_PYI))`. That target runs
+    # generate_pyi.py through the freshly built interpreter, which dlopens
+    # libshiboken6 out of the PARTIAL staging install -- hence the dyld error.
+    # --disable-pyi skips exactly that target, so an active copy stops mattering
+    # and normal upgrades work again.
+    #
+    # The only loss is .pyi type stubs: editor/type-checker metadata that nothing
+    # reads at runtime. This port exists solely as an eda-freecad dependency, and
+    # FreeCAD imports PySide6 at runtime rather than type-checking against it.
+    # To get the stubs back, drop --disable-pyi and restore
+    # `conflicts_build ${subport}` TOGETHER -- not one without the other.
 
     if {${python.version} >= 313} {
         platforms   {darwin >= 23}
@@ -161,6 +190,7 @@ if {${name} ne ${subport}} {
         --qtpaths=${prefix}/libexec/qt6/bin/qtpaths6 \
         --cmake=${prefix}/bin/cmake \
         --parallel=${build.jobs} \
+        --disable-pyi \
         --module-subset=${essential_modules}
 
     # FIX 2 (see header): put the clang matching LLVM_INSTALL_DIR FIRST on PATH.
@@ -189,6 +219,7 @@ if {${name} ne ${subport}} {
         --cmake=${prefix}/bin/cmake \
         --skip-cmake \
         --reuse-build \
+        --disable-pyi \
         --module-subset=${essential_modules}
 
     qt6.depends_lib-append \
