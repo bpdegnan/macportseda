@@ -15,7 +15,7 @@ PortGroup           cmake 1.1
 # the upgrade).
 github.setup        parallaxsw OpenSTA 87ce5680dfa92aa98f07b587df5deb032f6593af
 version             3.1.0
-revision            5
+revision            6
 
 categories          cad
 license             GPL-3
@@ -56,6 +56,25 @@ patchfiles-append   patch-Network-string-spaceship.diff
 # (a gzipped liberty among other files), which a unified diff cannot carry and
 # this port does not run anyway.
 patchfiles-append   patch-WriteSpice-async-set-reset.diff
+
+# report_power aborted on any library whose power_lut_template names its slew
+# axis input_net_transition rather than input_transition_time -- both are used
+# in the wild, and charpy (icanalytica/simon) emits the former:
+#
+#   Critical 226: liberty/InternalPower.cc line 171, unsupported table axes
+#
+# InternalPowerModel::axisValue() accepted only input_transition_time, while
+# the sibling GateTableModel::axisValue() has always accepted the pair, which
+# is why timing reads the same library without complaint and only power dies.
+# Nothing rejects the table at read time either: InternalPowerModel::checkAxes()
+# is never called from LibertyReader (unlike the gate/check/receiver models),
+# and its axis list was the timing-check set, disjoint from what axisValue()
+# evaluates -- so the two could never agree. This accepts the alias and
+# realigns checkAxis() with what axisValue() actually supports.
+#
+# NOT submitted upstream. Drop this patch if a future pinned commit fixes it
+# (it will then fail to apply).
+patchfiles-append   patch-InternalPower-power-lut-axes.diff
 
 # OpenSTA is C++20 and its headers rely on P0634 ("Down with typename!"), which
 # lets `typename` be omitted in dependent contexts -- e.g. include/sta/Iterator.hh

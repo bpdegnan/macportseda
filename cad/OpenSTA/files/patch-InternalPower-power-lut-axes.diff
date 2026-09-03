@@ -1,0 +1,32 @@
+--- liberty/InternalPower.cc.orig
++++ liberty/InternalPower.cc
+@@ -163,7 +163,11 @@
+                               float load_cap) const
+ {
+   TableAxisVariable var = axis->variable();
+-  if (var == TableAxisVariable::input_transition_time)
++  // Liberty power_lut_templates name the slew axis input_transition_time or
++  // input_net_transition interchangeably, and libraries in the wild use both.
++  // GateTableModel::axisValue accepts the pair; this has to as well.
++  if (var == TableAxisVariable::input_transition_time
++      || var == TableAxisVariable::input_net_transition)
+     return in_slew;
+   else if (var == TableAxisVariable::total_output_net_capacitance)
+     return load_cap;
+@@ -192,9 +196,13 @@
+ InternalPowerModel::checkAxis(const TableAxis *axis)
+ {
+   TableAxisVariable var = axis->variable();
+-  return var == TableAxisVariable::constrained_pin_transition
+-    || var == TableAxisVariable::related_pin_transition
+-    || var == TableAxisVariable::related_out_total_output_net_capacitance;
++  // These are the axes axisValue() above can actually evaluate.  The list
++  // previously here was the timing-check set (constrained_pin_transition,
++  // related_pin_transition, related_out_total_output_net_capacitance), none of
++  // which axisValue() handles, so the two disagreed for every table.
++  return var == TableAxisVariable::input_transition_time
++    || var == TableAxisVariable::input_net_transition
++    || var == TableAxisVariable::total_output_net_capacitance;
+ }
+ 
+ } // namespace sta
