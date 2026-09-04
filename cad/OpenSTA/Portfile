@@ -15,7 +15,7 @@ PortGroup           cmake 1.1
 # the upgrade).
 github.setup        parallaxsw OpenSTA 87ce5680dfa92aa98f07b587df5deb032f6593af
 version             3.1.0
-revision            6
+revision            7
 
 categories          cad
 license             GPL-3
@@ -56,6 +56,31 @@ patchfiles-append   patch-Network-string-spaceship.diff
 # (a gzipped liberty among other files), which a unified diff cannot carry and
 # this port does not run anyway.
 patchfiles-append   patch-WriteSpice-async-set-reset.diff
+
+# Sibling defect to the one above, on the DATA side rather than the async
+# set/reset side. write_path_spice chose a value for only ONE port of a
+# sequential cell's next state expression: seqPortValues() called onePort(),
+# which returns the first port it finds. For an enabled flop, next state is
+# "(D & DE) | (IQ & !DE)" -- onePort() picks D, DE is never set, and DE falls
+# through to the tie low default, so the enable is INACTIVE. The flop holds,
+# the output never makes the transition the reported path took, and the deck's
+# arrival measurements come up empty (7 of 15 paths on a sky130 picorv32,
+# every one of them launching from an edfxtp).
+#
+# Now every settable input port of the next state gets the value that drives
+# the output to the level the path needs. Cubes are taken under UNIVERSAL
+# abstraction of the cell's internal state nodes (IQ/IQN): those cannot be
+# driven in a deck, so a usable assignment has to hold for either value of
+# them. That is what rejects the {DE=0} cubes -- they only reach the wanted
+# level when the flop already happens to hold it -- and selects {D=1, DE=1}
+# for a rise and {D=0, DE=1} for a fall.
+#
+# Not upstream: submitted, no response on the previous write_path_spice PR.
+# Regression test, in the riscvpr repo (hd_ms has no enable flop, so only
+# sky130 exercises this):
+#   DIVERSE=1 PARA=route SKIP=1 zsh scripts/run_sky130_pico.sh
+# then the in-flow deck audit must report seqbad 0.
+patchfiles-append   patch-WriteSpice-seq-enable.diff
 
 # report_power aborted on any library whose power_lut_template names its slew
 # axis input_net_transition rather than input_transition_time -- both are used
