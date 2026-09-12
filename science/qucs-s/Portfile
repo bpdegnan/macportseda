@@ -1,0 +1,286 @@
+# -*- coding: utf-8; mode: tcl; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- vim:fenc=utf-8:ft=tcl:et:sw=4:ts=4:sts=4
+
+PortSystem          1.0
+PortGroup           eda-github 1.0
+PortGroup           github 1.0
+PortGroup           cmake 1.1
+PortGroup           qt6 1.0
+
+# github.setup MUST come before `name`: it sets name from the repo (qucs_s, with
+# an underscore) and version from the tag, so the override has to follow it --
+# the same ordering the openvaf port in this tree needs.
+github.setup        ra3xdh qucs_s 26.1.1
+github.tarball_from archive
+
+name                qucs-s
+revision            0
+
+categories          science cad
+license             GPL-2+
+maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+platforms           macosx
+
+description         Qucs-S schematic capture front end for SPICE simulators
+long_description    Qucs-S is the SPICE fork of Qucs: a graphical schematic \
+                    capture program whose purpose is to DRIVE EXTERNAL \
+                    SIMULATORS rather than ship its own. It generates netlists \
+                    for ngspice, Xyce and SPICE OPUS, runs them, and plots the \
+                    results, and it understands Verilog-A device models built \
+                    to OSDI by OpenVAF. That makes it a graphical entry path \
+                    onto the simulators this tree already builds. It also \
+                    bundles the Qucsator RF engine plus a set of RF design \
+                    calculators (filter, attenuator, transmission line, power \
+                    combining, active filter) and an S-parameter viewer.
+
+homepage            https://ra3xdh.github.io/
+
+# ---- WHY THE PLAIN NAME, AND WHY NOT THE STOCK `qucs` PORT ------------------
+# MacPorts ships `qucs` 0.0.20-rc2, which is the ORIGINAL Qucs -- a different
+# program with its own built-in simulator (qucsator) and no SPICE back end.
+# Qucs-S is a separate upstream (ra3xdh) whose whole reason to exist is driving
+# ngspice/Xyce/SPICE OPUS, and it installs under its own name, so the two
+# coexist and nothing collides. MacPorts has no `qucs-s` port, so the plain name
+# is free -- same reasoning as nec2c / sv2v / ghdl / cvc-rv in this tree.
+
+dist_subdir         qucs-s
+
+# ---- Vendored submodules ---------------------------------------------------
+# The GitHub source archive does NOT contain git submodules, so each one is
+# pinned here as its own checksummed distfile (same approach as the openroad and
+# openscad ports in this tree). Pins are the submodule SHAs recorded AT the
+# ${version} tag.
+#
+# All three are OPTIONAL to the build in the mechanical sense: the top-level
+# CMakeLists gates each on `if(EXISTS ${CMAKE_SOURCE_DIR}/<dir>/CMakeLists.txt)`
+# and merely prints "submodule not found. Please update submodules" when absent.
+# They are vendored anyway so the port is the complete program upstream ships.
+#
+# SIZE WARNING -- qucs-s-spar-viewer is a 116 MB distfile for ~4 MB of source.
+# The bulk is `docs/help/source/sphinx-venv/`, a Python virtualenv (including
+# Linux .so files) accidentally committed upstream. None of it is used to build
+# or to run. If that is not worth the archive space, delete the spar-viewer
+# entries from distfiles/checksums/post-extract below and the build will simply
+# skip that one tool; nothing else changes.
+set qucsator_sha    3971737dc6e446f8e3262d20e3087fa392299a7a
+set rxcalc_sha      8ece6c4876e83771ad65f1b7bdbd938069f95430
+set sparview_sha    f231999a5c83125c3fabe36684c84b0207f476ae
+
+master_sites-append \
+    https://github.com/ra3xdh/qucsator_rf/archive/${qucsator_sha}/:qucsator \
+    https://github.com/arhiv6/rxcalc/archive/${rxcalc_sha}/:rxcalc \
+    https://github.com/andresmmera/qucs-s-spar-viewer/archive/${sparview_sha}/:sparview
+
+distfiles-append \
+    qucsator_rf-${qucsator_sha}${extract.suffix}:qucsator \
+    rxcalc-${rxcalc_sha}${extract.suffix}:rxcalc \
+    qucs-s-spar-viewer-${sparview_sha}${extract.suffix}:sparview
+
+checksums           ${distname}${extract.suffix} \
+                        rmd160  bb27bbf864df9309be1c66a33b7c16454e0baa4e \
+                        sha256  bf4ccff9e975680129ba850c5045145ad121f4e0f7eef86799398abe2f68eb24 \
+                        size    4210960 \
+                    qucsator_rf-${qucsator_sha}${extract.suffix} \
+                        rmd160  4ce0ddb07b449915ee53a9ec85f06b42d34b665c \
+                        sha256  6cde86f95a428af8b2cabfe6bb38f4a6612e4b994538c6c99c33e0a966735a9f \
+                        size    603755 \
+                    rxcalc-${rxcalc_sha}${extract.suffix} \
+                        rmd160  d9051c4d7fd50f983bfb9517915c030bdb6b3965 \
+                        sha256  5e4c1bdda397e824d16f65c94e5af875e367ca60ec7ca24b7b323946d2859807 \
+                        size    670862 \
+                    qucs-s-spar-viewer-${sparview_sha}${extract.suffix} \
+                        rmd160  5ca813f0154b998c2a09ee1a15a3d9217e200715 \
+                        sha256  156c679b896fbc6540463d58074ee97b6c66d482c4a3ae66265cd96e0b92bdde \
+                        size    121809387
+
+# Drop each submodule archive into the path git would have checked it out at.
+post-extract {
+    foreach {sha dest src} [list \
+            ${qucsator_sha} qucsator_rf        qucsator_rf \
+            ${rxcalc_sha}   rxcalc             rxcalc \
+            ${sparview_sha} qucs-s-spar-viewer qucs-s-spar-viewer] {
+        delete ${worksrcpath}/${dest}
+        move ${workpath}/${src}-${sha} ${worksrcpath}/${dest}
+    }
+}
+
+# Qt6 components actually requested across the whole tree INCLUDING the vendored
+# submodules: Core Gui Widgets PrintSupport Svg Xml LinguistTools. Core/Gui/
+# Widgets/PrintSupport/Xml all live in qtbase under Qt6; Svg needs qtsvg;
+# LinguistTools (lrelease, for translations/) needs qttools.
+qt6.depends_lib-append \
+                    qtbase \
+                    qtsvg
+
+qt6.depends_build-append \
+                    qttools
+
+# Qucsator RF generates its netlist parsers with flex/bison; the macOS system
+# copies are too old, same as the OpenSTA port.
+#
+# TWO MORE TOOLS THAT NO find_package() REVEALS, both inside qucsator_rf and
+# both invisible to a dependency scan. qucsator_rf builds a perfect hash of its
+# built-in equation/application names in two steps
+# (qucsator_rf/src/CMakeLists.txt):
+#
+#   1. gperfapphash.gph  <- `COMMAND gperfappgen > ...gph && dos2unix ...gph`
+#   2. gperfapphash.cpp  <- `COMMAND ${GPERF_TOOL} -I -m 8 ...gph > temp.gperf`
+#
+# **dos2unix** is the one that actually bites, and macOS does not ship it. The
+# build runs to ~87% and then dies with
+#     make[2]: *** [qucsator_rf/src/gperfapphash.gph] Error 127
+# 127 is "command not found", NOT a compile error -- and the target name points
+# at gperf, which is misleading: step 1 never invokes gperf at all. The rule
+# pipes through dos2unix unconditionally, with no WIN32 guard, even though the
+# generator's output on a Unix host has no CRLFs to strip.
+#
+# **gperf** (step 2) is a genuine dependency too, via
+# `find_program(GPERF_TOOL NAMES gperf ...)`. It happened to be installed here so
+# it never failed, but on a machine without it the build would die one step later
+# -- and MacPorts hides undeclared dependencies from the build, so having it
+# installed is not enough. Declare both and hand CMake the path, as for
+# bison/flex.
+depends_build-append \
+                    port:bison \
+                    port:flex \
+                    port:gperf \
+                    port:dos2unix
+
+configure.args-append \
+                    -DBISON_EXECUTABLE=${prefix}/bin/bison \
+                    -DFLEX_EXECUTABLE=${prefix}/bin/flex \
+                    -DGPERF_TOOL=${prefix}/bin/gperf
+
+# ---- Upstream's two APPLE-only INSTALL(CODE) blocks have to go --------------
+# qucs/CMakeLists.txt ends with two `IF(APPLE) INSTALL(CODE "...")` blocks that
+# are written for building a REDISTRIBUTABLE self-contained .app, not for
+# installing into a package manager's prefix. Both interpolate
+# ${CMAKE_INSTALL_PREFIX} directly, and INSTALL(CODE) does NOT get DESTDIR
+# prepended, so both address the LIVE /opt/local instead of the destroot:
+#
+#  1. `file(WRITE "${CMAKE_INSTALL_PREFIX}/bin/<bundle>/Contents/Resources/
+#     qt.conf" "")` -- this is what actually killed destroot:
+#         CMake Error at qucs/cmake_install.cmake:46 (file):
+#           file failed to open for writing (No such file or directory):
+#             /opt/local/bin/qucs-s.app/Contents/Resources/qt.conf
+#     Removing it rather than DESTDIR-correcting it is deliberate. The file it
+#     writes is EMPTY, and an empty qt.conf tells Qt to resolve its prefix
+#     RELATIVE TO THE BUNDLE -- so Qt would hunt for plugins inside
+#     qucs-s.app instead of ${prefix}/libexec/qt6/plugins and fail to find the
+#     Cocoa platform plugin. That is exactly the trap noted in the eda-freecad
+#     port ("do NOT copy the skeleton's qt.conf"). We are NOT shipping a
+#     self-contained bundle, so no qt.conf is the correct answer.
+#
+#  2. `include(BundleUtilities)` + `fixup_bundle(...)` -- never reached, because
+#     destroot died on (1) first, but it would have been worse: fixup_bundle
+#     copies every non-system dependency INTO the bundle and rewrites install
+#     names. In a MacPorts destroot that means duplicating the Qt frameworks and
+#     assorted ${prefix} dylibs inside qucs-s.app, defeating MacPorts' dependency
+#     tracking and rev-upgrade.
+#
+# The `INSTALL(DIRECTORY ${QT_PLUGINS_DIR}/imageformats ...)` line just above
+# them is left alone: it honours DESTDIR, and without a qt.conf Qt never looks
+# inside the bundle, so the copied plugins are inert.
+# NOTE: this boilerplate is COPY-PASTED into several of the GUI tools, not just
+# qucs/ -- at 26.1.1 it is in qucs, qucs-attenuator, qucs-transcalc and the
+# vendored qucs-s-spar-viewer. Patching only qucs/ gets you the identical
+# destroot failure one tool later (".../qucs-sattenuator.app/.../qt.conf"), so
+# this walks every CMakeLists.txt and fixes each copy it finds.
+post-patch {
+    set pats [list "file(WRITE" "fixup_bundle(" "include(BundleUtilities)"]
+    set patched {}
+    foreach f [glob -nocomplain -directory ${worksrcpath} \
+                   CMakeLists.txt */CMakeLists.txt */*/CMakeLists.txt] {
+        set fp [open ${f} r]; set d [read ${fp}]; close ${fp}
+        set hit 0
+        foreach p ${pats} { if {[string first ${p} ${d}] != -1} { set hit 1 } }
+        if {!${hit}} { continue }
+        # Only reinplace the patterns this file actually has, so MacPorts does
+        # not emit "didn't change anything" warnings for the others.
+        if {[string first "file(WRITE" ${d}] != -1} {
+            reinplace {s|file(WRITE .*qt\.conf.*|# qt.conf write removed by the macportseda port -- see Portfile|} ${f}
+        }
+        if {[string first "include(BundleUtilities)" ${d}] != -1} {
+            reinplace {s|include(BundleUtilities)|# BundleUtilities removed by the macportseda port|} ${f}
+        }
+        if {[string first "fixup_bundle(" ${d}] != -1} {
+            reinplace {s|fixup_bundle(.*|# fixup_bundle removed by the macportseda port|} ${f}
+        }
+        lappend patched [string range ${f} [expr {[string length ${worksrcpath}] + 1}] end]
+    }
+    ui_msg "--->  Neutralised bundle-relative qt.conf / fixup_bundle in: [join ${patched} {, }]"
+
+    # Fail LOUDLY if a future version renames or reshapes these, rather than
+    # silently shipping a bundle-relative qt.conf or a fixup_bundle again.
+    #
+    # Test the CALL syntax, not the bare words: both upstream's own comments
+    # ("# install a qt.conf file", "# Use BundleUtilities to ...") and the
+    # replacement comments written just above legitimately contain the words
+    # qt.conf / fixup_bundle / BundleUtilities, so matching those would fire on
+    # a correctly patched file. Asking for "file(WRITE", "fixup_bundle(" and
+    # "include(BundleUtilities)" matches only real code.
+    foreach f [glob -nocomplain -directory ${worksrcpath} \
+                   CMakeLists.txt */CMakeLists.txt */*/CMakeLists.txt] {
+        set fp [open ${f} r]; set data [read ${fp}]; close ${fp}
+        foreach pat ${pats} {
+            if {[string first ${pat} ${data}] != -1} {
+                return -code error "${f} still contains '${pat}' after post-patch -- upstream reshaped these blocks; re-check the Portfile comments above"
+            }
+        }
+    }
+}
+
+# Upstream's macOS build makes every GUI tool a MACOSX_BUNDLE and installs the
+# bundles INTO bin/ (`INSTALL(TARGETS ... BUNDLE DESTINATION bin)`), so you end
+# up with .app directories nested inside ${prefix}/bin and no plain commands.
+# Relocate them the way the openscad, kicad and eda-freecad ports do: bundle to
+# ${applications_dir}, lowercase wrapper on PATH.
+#
+# Done by GLOB rather than a hardcoded list because the set of bundles depends on
+# which submodules are present -- qucs-s, qucs-sfilter, rxcalc and the S-param
+# viewer all install this way. Wrappers, not symlinks: an app bundle finds its
+# Resources relative to the executable's REAL path, which a symlink breaks (the
+# same reason the ghdl and eda-freecad ports use wrappers).
+post-destroot {
+    xinstall -d ${destroot}${applications_dir}
+    foreach app [glob -nocomplain -directory ${destroot}${prefix}/bin *.app] {
+        set appname [file tail ${app}]
+        set base    [file rootname ${appname}]
+        set exes    [glob -nocomplain -directory ${app}/Contents/MacOS *]
+        if {[llength ${exes}] == 0} {
+            ui_warn "${appname} has no executable in Contents/MacOS; left in bin/"
+            continue
+        }
+        set exe [file tail [lindex ${exes} 0]]
+        move ${app} ${destroot}${applications_dir}/${appname}
+
+        set w ${destroot}${prefix}/bin/${base}
+        system "printf '%s\\n' '#!/bin/sh' \
+            'exec ${applications_dir}/${appname}/Contents/MacOS/${exe} \"\$@\"' > ${w}"
+        file attributes ${w} -permissions 0755
+    }
+}
+
+notes "
+Qucs-S is a SCHEMATIC FRONT END, not a simulator: it writes a netlist, runs an
+EXTERNAL engine and plots the result. Point it at the engines this tree builds
+via Simulation -> Simulator settings:
+
+  ngspice   ${prefix}/bin/ngspice        (from eda-ngspice; `port select
+                                          eda-ngspice` chooses 46 vs 47)
+  Xyce      ${prefix}/bin/Xyce           (from the xyce port)
+  Qucsator  ${prefix}/bin/qucsator_rf    (the bundled RF engine, installed here)
+
+Verilog-A compact models compile to OSDI with this tree's openvaf:
+  openvaf-r model.va   ->   model.osdi
+and ngspice loads that with `pre_osdi model.osdi`, so Qucs-S drives the same
+openvaf -> OSDI -> ngspice chain the tree already verifies.
+
+The GUI tools are installed BOTH ways -- as app bundles in ${applications_dir}
+for double-clicking, and as lowercase commands on PATH (qucs-s, and the RF
+calculators). The stock MacPorts `qucs` port is the unrelated ORIGINAL Qucs and
+can be installed alongside this one.
+"
+
+livecheck.type      regex
+livecheck.url       https://github.com/ra3xdh/qucs_s/releases/latest
+livecheck.regex     {archive/refs/tags/([0-9.]+)\.tar\.gz}
