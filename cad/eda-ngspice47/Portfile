@@ -61,7 +61,35 @@ depends_lib-append  port:readline \
                     port:libtool \
                     port:xorg-libX11 \
                     port:xorg-libXaw \
-                    port:xorg-libXext
+                    port:xorg-libXext \
+                    port:fftw-3 \
+                    port:libsndfile \
+                    port:libsamplerate
+# fftw-3 / libsndfile / libsamplerate are DECLARED rather than picked up
+# opportunistically. ngspice's configure probes for all three unconditionally and
+# links whatever it finds, so leaving them undeclared makes the resulting binary
+# depend on what else happens to be installed -- and, worse, on what is installed
+# OUTSIDE ${prefix}. See the sndprint note below.
+#
+# THE /usr/local TRAP (why 47 would not build). ngspice 47 adds src/frontend/
+# sndprint.c (.wav output); ngspice 46 has no such file, which is why only 47 hit
+# this. Its body is gated on
+#     #if defined(HAVE_LIBSNDFILE) && defined(HAVE_LIBSAMPLERATE)
+# and configure.ac decides both of those with AC_CHECK_LIB ALONE -- the companion
+# AC_CHECK_HEADERS result is computed and then thrown away:
+#     AC_CHECK_HEADERS([samplerate.h])
+#     AC_CHECK_LIB([samplerate], [src_process],
+#             [AC_DEFINE([HAVE_LIBSAMPLERATE], ...) LIBS="$LIBS -lsamplerate"])
+# On a box with Homebrew in /usr/local, ld finds /usr/local/lib/libsamplerate.dylib
+# on its DEFAULT search path, so the link probe passes; the compiler never searches
+# /usr/local/include (the build runs -isysroot <SDK> -I${prefix}/include), so the
+# header probe fails. configure then defines HAVE_LIBSAMPLERATE anyway and the
+# build dies at 100%-unrelated-looking:
+#     src/frontend/sndprint.c:137:10: fatal error: 'samplerate.h' file not found
+# Had the header been there, this port would have LINKED A HOMEBREW DYLIB. Naming
+# the MacPorts ports here keeps every library under ${prefix}, which is the rule
+# for this tree. `sudo port -t install ...` (trace mode) hides /usr/local
+# altogether and is the blanket guard if another port ever probes the same way.
 # The select symlinks (bin/eda-ngspice and the libexec/eda/lib/... paths) are
 # owned by this group's base files, not by this port.
 depends_lib-append  port:eda-ngspice_select
