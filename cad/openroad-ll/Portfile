@@ -17,7 +17,7 @@ set or_commit       dcf36133a369abc8f3c5e5738cd4d82e4903c0e0
 set sta_sha         857316ff001b2a8dbbdc5996944d08a6d38c87ab
 set abc_sha         4c756ffb8dff7c583e80c7970d117abd3dfddb5c
 version             20260217
-revision            0
+revision            1
 
 categories          cad
 license             BSD
@@ -121,7 +121,19 @@ depends_lib-append \
     port:readline \
     port:zlib \
     port:libomp \
-    port:python313
+    port:python313 \
+    port:boost181
+# boost181 is DECLARED even though every Boost path is already pinned by hand
+# below (Boost_DIR / BOOST_ROOT / Boost_NO_SYSTEM_PATHS / the -isystem in
+# configure.cxxflags). The pinning keeps the build inside ${prefix}; the
+# declaration is what records the dependency, so a boost181 upgrade triggers a
+# rebuild and a fresh machine installs it before configure runs instead of
+# failing there. The binary links libboost_iostreams-mt, libboost_serialization-mt
+# and libboost_thread-mt out of libexec/boost/1.81.
+#
+# This does NOT interfere with the deactivation gate above: that gate deactivates
+# the UMBRELLA `boost` port, which is a different port from the versioned
+# boost181 used here.
 
 # Same C++20 toolchain recipe as the main openroad port: MacPorts clang-19
 # with its libc++ 19 headers, system libc++ runtime.

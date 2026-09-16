@@ -6,7 +6,7 @@ PortGroup           select 1.0
 
 name                eda-ngspice46
 version             46
-revision            1
+revision            2
 
 categories          cad science
 license             BSD
@@ -61,7 +61,20 @@ depends_lib-append  port:readline \
                     port:libtool \
                     port:xorg-libX11 \
                     port:xorg-libXaw \
-                    port:xorg-libXext
+                    port:xorg-libXext \
+                    port:fftw-3 \
+                    port:Xft2 \
+                    port:xrender \
+                    port:freetype \
+                    port:fontconfig
+# fftw-3 / Xft2 / xrender / freetype / fontconfig are all LINKED by the built
+# binary but were not declared -- xorg-libXaw pulls Xt/Xmu/Xext/SM/xpm and stops
+# there, so none of them arrive transitively. Declare every library the build
+# links: an undeclared one makes the result depend on whatever else happens to be
+# installed, and on a machine with Homebrew in /usr/local it can be satisfied from
+# OUTSIDE ${prefix} entirely -- ld searches /usr/local/lib by default, so an
+# autoconf AC_CHECK_LIB probe will happily find a Homebrew dylib. See the same
+# note in eda-ngspice47, where that is exactly what broke the build.
 # The select symlinks (bin/eda-ngspice and the libexec/eda/lib/... paths) are
 # owned by this group's base files, not by this port.
 depends_lib-append  port:eda-ngspice_select

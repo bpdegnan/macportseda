@@ -6,7 +6,7 @@ PortGroup           select 1.0
 
 name                eda-ngspice47
 version             47
-revision            1
+revision            2
 
 categories          cad science
 license             BSD
@@ -64,9 +64,15 @@ depends_lib-append  port:readline \
                     port:xorg-libXext \
                     port:fftw-3 \
                     port:libsndfile \
-                    port:libsamplerate
-# fftw-3 / libsndfile / libsamplerate are DECLARED rather than picked up
-# opportunistically. ngspice's configure probes for all three unconditionally and
+                    port:libsamplerate \
+                    port:Xft2 \
+                    port:xrender \
+                    port:freetype \
+                    port:fontconfig
+# fftw-3 / libsndfile / libsamplerate / Xft2 / xrender / freetype / fontconfig
+# are DECLARED rather than picked up opportunistically. The X and font libraries
+# are linked for X11 plot text and do NOT arrive transitively -- xorg-libXaw pulls
+# Xt/Xmu/Xext/SM/xpm and stops there. ngspice's configure probes for all three unconditionally and
 # links whatever it finds, so leaving them undeclared makes the resulting binary
 # depend on what else happens to be installed -- and, worse, on what is installed
 # OUTSIDE ${prefix}. See the sndprint note below.
