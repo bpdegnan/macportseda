@@ -42,7 +42,7 @@ do not activate the venv manually.
   `eda_src_root`, `eda_make_jobs`, `eda_mirror_base`, `eda_manage_repos`.
 - **Role template** (mirrors `~/code/ansible/roles/ngspice`, the org pattern):
   - `defaults/main.yml` — `<t>_version`, `<t>_checksum` (sha256), `<t>_source_url`
-    (upstream default; `file://` and `eda_mirror_base` overrides), prefix/flags/
+    (`eda_mirror_base` default; upstream and `file://` overrides), prefix/flags/
     jobs/`<t>_force_rebuild`.
   - `vars/redhat.yml` + `vars/darwin.yml` — build/runtime package lists (dnf vs
     Homebrew). Heavy roles are RedHat-only and assert so.

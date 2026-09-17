@@ -24,7 +24,7 @@ What it does:
 | `eda_vendor_prefix` | `{{ eda_prefix }}/vendor` | Private prefix for pinned vendor libs |
 | `eda_src_root` | `{{ eda_prefix }}/src` | Build trees + install stamps |
 | `eda_make_jobs` | vCPU count | Parallel build jobs |
-| `eda_mirror_base` | `""` | Optional flat mirror URL for pinned source tarballs |
+| `eda_mirror_base` | `sources` release URL | Flat mirror for pinned source tarballs; `""` fetches upstream |
 | `eda_manage_repos` | `true` | Enable CRB/EPEL on RedHat |
 
 The dedicated `/opt/eda` prefix is deliberate: it avoids the shared-prefix
