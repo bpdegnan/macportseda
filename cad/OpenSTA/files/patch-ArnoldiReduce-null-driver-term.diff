@@ -1,0 +1,38 @@
+--- dcalc/ArnoldiReduce.cc.orig
++++ dcalc/ArnoldiReduce.cc
+@@ -200,6 +200,11 @@ ArnoldiReduce::loadWork()
+     p->node_ = nullptr;
+     p->eN = 0;
+     p->is_term = false;
++    // tindex is only assigned below for points that become pin
++    // terminals, but setTerms() uses it as an offset into pterm0 for
++    // whatever point it is handed.  Leaving it uninitialised turns a
++    // missing driver terminal into a wild read; -1 makes it detectable.
++    p->tindex = -1;
+   }
+   pend = pterm0;
+   e = e0;
+@@ -324,7 +329,23 @@ ArnoldiReduce::makeRcmodelDrv()
+ {
+   ParasiticNode *drv_node =
+       parasitics_->findParasiticNode(parasitic_network_, drvr_pin_);
++  // The driver pin must have a TERMINAL point in this net's parasitic
++  // network.  If it has none, pdrv->tindex is meaningless and
++  // setTerms() uses it directly as an offset into pterm0:
++  //     termV[0] = pdrv->tindex;  p = pterm0 + termV[k];  p->ts;
++  // which reads a wild address and segfaults.  Note findPt() cannot
++  // report failure -- pt_map_[node] default-inserts 0 for an absent
++  // key, so a null drv_node silently yields ts_pointV[0], normally an
++  // internal (non-terminal) node.  Returning nullptr is already the
++  // "no reduced model" path used below for a degenerate ctot_, and the
++  // caller falls back accordingly.
++  // Found 2026-10-02: SIGSEGV in setTerms on a 976k-cell design
++  // (openC910 ct_core, 505 MB SPEF); read_spef itself is fine.
++  if (drv_node == nullptr)
++    return nullptr;
+   ts_point *pdrv = findPt(drv_node);
++  if (!pdrv->is_term || pdrv->tindex < 0)
++    return nullptr;
+   makeRcmodelDfs(pdrv);
+   getRC();
+   if (ctot_ < 1e-22)  // 1e-10ps

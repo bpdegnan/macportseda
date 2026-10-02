@@ -15,7 +15,7 @@ PortGroup           cmake 1.1
 # the upgrade).
 github.setup        parallaxsw OpenSTA 87ce5680dfa92aa98f07b587df5deb032f6593af
 version             3.1.0
-revision            7
+revision            8
 
 categories          cad
 license             GPL-3
@@ -100,6 +100,48 @@ patchfiles-append   patch-WriteSpice-seq-enable.diff
 # NOT submitted upstream. Drop this patch if a future pinned commit fixes it
 # (it will then fail to apply).
 patchfiles-append   patch-InternalPower-power-lut-axes.diff
+
+# report_checks SIGSEGVs in the arnoldi delay calculator on a large design --
+# ~976k cells with a 505 MB detailed (un-reduced) SPEF. read_liberty,
+# read_verilog, link_design, read_sdc and read_spef all succeed; the crash is
+# in the reducer, and the SAME design with the DEFAULT delay calculator reports
+# fine, so it is arnoldi-specific rather than a size or memory limit (peak RSS
+# 2.8 GB, deterministic across runs):
+#
+#   sta::ArnoldiReduce::setTerms(sta::ts_point *)
+#   sta::ArnoldiReduce::makeRcmodelDrv()
+#   sta::ArnoldiDelayCalc::findParasitic(...)
+#   ... sta::Sta::findPathEnds(...)
+#
+# Three things in dcalc/ArnoldiReduce.cc combine. (1) The reset loop in
+# loadWork() clears node_/eN/is_term but NOT tindex, and ts_pointV is a reused
+# malloc'd pool, so internal nodes carry stale indices rather than zero.
+# (2) findPt() cannot report failure: pt_map_ is read with operator[], which
+# default-inserts 0 for an absent key, so a missing node silently yields
+# &ts_pointV[0] -- normally an internal node, i.e. exactly the uninitialised
+# case. (3) makeRcmodelDrv() checks neither the node nor the point before
+# setTerms() uses tindex raw as an offset: `termV[0] = pdrv->tindex` then
+# `p = pterm0 + termV[k]; outV[k] = p->ts` -- a wild read. It fires when a net's
+# driver pin has no terminal point in that net's parasitic network, which is
+# rare enough to need a very large design to hit with certainty.
+#
+# The patch initialises tindex to -1 so the condition is deterministic instead
+# of depending on pool contents, and declines to reduce (returns nullptr, the
+# function's existing "no reduced model" path, used three lines below for a
+# degenerate ctot_) when the driver node is absent or is not a terminal.
+#
+# NOT submitted upstream, and NOT fixed there: ArnoldiReduce.cc is untouched
+# since 2026-04-22, which predates the pinned commit, and no upstream issue or
+# PR mentions arnoldi. Upstream did take the same shape of fix for the sibling
+# calculator in ef0b6909 ("PrimaDelayCalc: handle degenerate parasitic
+# networks", #476). Drop this patch if a future pinned commit fixes it.
+#
+# UNPROVEN: applies cleanly and the guard is inert wherever tindex was valid,
+# but the regression that matters -- that designs which already reduce produce
+# byte-identical report_checks output -- has not been measured. If the guard
+# starts declining reduction on nets that previously reduced, delays shift
+# SILENTLY, which is worse than the crash.
+patchfiles-append   patch-ArnoldiReduce-null-driver-term.diff
 
 # OpenSTA is C++20 and its headers rely on P0634 ("Down with typename!"), which
 # lets `typename` be omitted in dependent contexts -- e.g. include/sta/Iterator.hh
