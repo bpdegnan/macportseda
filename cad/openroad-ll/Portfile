@@ -16,6 +16,39 @@ name                openroad-ll
 set or_commit       dcf36133a369abc8f3c5e5738cd4d82e4903c0e0
 set sta_sha         857316ff001b2a8dbbdc5996944d08a6d38c87ab
 set abc_sha         4c756ffb8dff7c583e80c7970d117abd3dfddb5c
+
+# NOTE: this port deliberately does NOT carry
+# patch-InternalPower-power-lut-axes.diff, which cad/OpenSTA and cad/openroad
+# both apply. Consequence: report_power through the LibreLane flow still aborts
+# on a liberty whose power_lut_template names its slew axis
+# input_net_transition rather than input_transition_time --
+#   [CRITICAL STA-0226] .../liberty/InternalPower.cc, unsupported table axes
+# The defect is present in ${sta_sha} (InternalPowerModel::axisValue, line 213).
+# Timing is unaffected; only report_power dies.
+#
+# Two things were considered and rejected, so this does not get re-opened:
+#
+#  * Reuse cad/OpenSTA's patch. It does not apply -- that patch is cut against
+#    parallaxsw 87ce5680, where the same function sits at line 161 and is
+#    space-indented; this fork is tab-indented with the function ~50 lines
+#    lower. It would need its own hunks, cut against ${sta_sha}.
+#
+#  * Build against the MacPorts OpenSTA port instead of the vendored fork.
+#    OpenROAD does offer the hook (src/CMakeLists.txt: USE_SYSTEM_OPENSTA with
+#    OPENSTA_HOME / OPENSTA_LIBRARY / OPENSTA_INCLUDE_DIR), and the port does
+#    install ${prefix}/lib/libOpenSTA.a plus ${prefix}/include/sta, so it would
+#    CONFIGURE. It would not compile: cad/OpenSTA is parallaxsw 87ce5680
+#    (2026-07-27) while this fork is 857316ff (2026-02-14) -- five months and a
+#    different fork lineage apart, with include/sta/Sta.hh at 1657 vs 1488
+#    lines. LibreLane's February-pinned dbSta/rsz/gui are written against the
+#    older API; swapping in the newer one is a port of OpenROAD to a newer STA,
+#    not a configuration change. See also SHADOWING GATE #4 in cad/openroad,
+#    which exists because ${prefix}/include/sta shadows the vendored fork and
+#    breaks that build -- the same incompatibility, found the hard way.
+#
+# The whole point of this port is to be the EXACT revision LibreLane validated,
+# so changing its STA defeats it. If report_power is needed here, add a second
+# patch file cut against ${sta_sha} rather than touching the STA source pin.
 version             20260217
 revision            1
 

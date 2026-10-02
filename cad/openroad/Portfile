@@ -25,7 +25,7 @@ github.setup        The-OpenROAD-Project OpenROAD 26Q3
 github.tarball_from archive
 name                openroad
 version             26Q3
-revision            3
+revision            4
 distname            OpenROAD-26Q3
 worksrcdir          OpenROAD-26Q3
 
@@ -110,6 +110,41 @@ post-extract {
     file delete -force ${worksrcpath}/third-party/slang-elab/third_party/fmt
     move ${workpath}/fmt-${fmt_sha} ${worksrcpath}/third-party/slang-elab/third_party/fmt
 }
+
+# report_power aborts the whole OpenROAD session on a liberty whose
+# power_lut_template names its slew axis input_net_transition rather than
+# input_transition_time:
+#
+#   [CRITICAL STA-0226] .../src/sta/liberty/InternalPower.cc line 171,
+#                       unsupported table axes
+#
+# This is the SAME defect the cad/OpenSTA port patches, but OpenROAD builds its
+# OWN vendored OpenSTA fork (moved into src/sta by post-extract above), so that
+# port's patch never reaches this binary -- one source, two builds, and only one
+# of them was fixed. The fork at ${sta_sha} is identical to upstream here: same
+# code, same line numbers.
+#
+# InternalPowerModel::axisValue() accepts only input_transition_time and
+# total_output_net_capacitance and calls criticalError() on anything else, which
+# is fatal rather than a warning. Hunk 1 adds the input_net_transition spelling
+# and is the part that actually fixes the crash. Hunk 2 realigns checkAxis(),
+# whose axis list (the timing-check set) is disjoint from what axisValue() can
+# evaluate -- inert today, because nothing calls InternalPowerModel::checkAxes
+# (LibertyReader calls the gate/check/receiver ones only), but applied for
+# consistency with the OpenSTA port and because the function is wrong as written.
+#
+# That dead checkAxes is also why the failure shape is so bad: power table axes
+# get NO read-time validation, so read_liberty succeeds and the only guard is the
+# runtime criticalError at evaluation time. A bad power table therefore kills a
+# session that would otherwise do timing perfectly well.
+#
+# Same file, re-rooted to the vendored path: the OpenSTA port's copy is relative
+# to the OpenSTA source root, this one is relative to ${worksrcpath}. Keep the two
+# in sync if either is updated.
+#
+# NOT submitted upstream. Drop this patch if a future pinned OpenSTA fork fixes it
+# (it will then fail to apply).
+patchfiles-append   patch-InternalPower-power-lut-axes.diff
 
 set edaprefix       ${prefix}/libexec/eda
 
