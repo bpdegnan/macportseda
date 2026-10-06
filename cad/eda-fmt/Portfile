@@ -12,7 +12,7 @@ revision            0
 
 categories          cad devel
 license             MIT
-maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+maintainers         {@bpdegnan} openmaintainer
 platforms           macosx
 
 description         {fmt} formatting library 12.x (private EDA prefix) for OpenROAD

@@ -25,13 +25,13 @@ github.setup        The-OpenROAD-Project OpenROAD 26Q3
 github.tarball_from archive
 name                openroad
 version             26Q3
-revision            7
+revision            8
 distname            OpenROAD-26Q3
 worksrcdir          OpenROAD-26Q3
 
 categories          cad
 license             BSD
-maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+maintainers         {@bpdegnan} openmaintainer
 
 description         OpenROAD RTL-to-GDS digital place-and-route
 long_description    OpenROAD is an integrated chip physical-design tool \
@@ -174,6 +174,28 @@ patchfiles-append   patch-POCV-slack-pessimistic-tail.diff
 # LibertyReader.cc, where the code is identical; it stacks after the
 # constraint-spelling patch above (different hunk, same file).
 patchfiles-append   patch-LibertyReader-ccs-slew-axis-spelling.diff
+
+# ArnoldiReduce null-driver-terminal fix -- previously carried ONLY by
+# cad/OpenSTA, so openroad's vendored copy was still exposed: the same wild
+# tindex read in setTerms() that SIGSEGVs report_checks on a 976k-cell design
+# under set_delay_calculator arnoldi. The fork's dcalc/ArnoldiReduce.cc at
+# ${sta_sha} is byte-identical to parallaxsw 87ce5680, so this is cad/OpenSTA's
+# patch re-rooted to src/sta. Verified on a standalone build of the fork: with
+# the driver absent from its net's SPEF, arnoldi gave 0.047112 unpatched (a
+# model reduced from stale memory) and 0.033340 patched, which matches the same
+# design with no parasitics for that net at all. See cad/OpenSTA for the full
+# note.
+patchfiles-append   patch-ArnoldiReduce-null-driver-term.diff
+
+# prima: driver/load pin missing from the parasitic network -- same fix as
+# cad/OpenSTA, generated against the fork's own PrimaDelayCalc.cc. The fork
+# predates upstream ef0b6909, so its findNodeCount() places EVERY non-external
+# node rather than walking resistors: here a missing driver is silently aliased
+# onto node 0 (measured: -0.020 delay unpatched, 0.046677 patched) rather than
+# crashing, and an unreachable load is still simulated as a floating node --
+# that part is ef0b6909's territory, which this patch does not backport.
+# Fork built standalone and checked: all other calculators byte-identical.
+patchfiles-append   patch-PrimaDelayCalc-pin-not-in-network.diff
 
 set edaprefix       ${prefix}/libexec/eda
 

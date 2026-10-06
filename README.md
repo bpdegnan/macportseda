@@ -267,7 +267,7 @@ Notes:
 
 | Port | Upstream source |
 |------|-----------------|
-| OpenSTA | [parallaxsw/OpenSTA @ bfdd2be](https://github.com/parallaxsw/OpenSTA/archive/bfdd2be0ee6214115b20cacdc0a071ca3c737fbb/OpenSTA-bfdd2be0ee6214115b20cacdc0a071ca3c737fbb.tar.gz) (no upstream tags) |
+| OpenSTA | [parallaxsw/OpenSTA @ 87ce568](https://github.com/parallaxsw/OpenSTA/archive/87ce5680dfa92aa98f07b587df5deb032f6593af/OpenSTA-87ce5680dfa92aa98f07b587df5deb032f6593af.tar.gz) (no upstream tags) |
 | cudd | [cuddorg/cudd 3.0.0](https://github.com/cuddorg/cudd/archive/refs/tags/3.0.0.tar.gz) |
 | netgen-lvs | [RTimothyEdwards/netgen 1.5.321](https://github.com/RTimothyEdwards/netgen/archive/refs/tags/1.5.321.tar.gz) |
 | klayout | [KLayout/klayout v0.30.9](https://github.com/KLayout/klayout/archive/refs/tags/v0.30.9.tar.gz) |
@@ -917,6 +917,33 @@ Python 3.9 and 3.12 headers in one build. See the FreeCAD notes.
   and off by default. Enable with `+readline`. It is forced off otherwise so the
   build does not silently link an already-installed tclreadline without
   declaring the dependency.
+- **Pinned at `87ce5680`** (2026-07-27, the merge of upstream #475), carrying
+  **nine local patches**. Each one is explained in full in a comment directly
+  above its `patchfiles-append` in the Portfile; none is fixed at upstream
+  `master` as of 2026-10-06. When bumping the pin, drop any patch that no longer
+  applies -- that is the signal upstream has fixed it.
+
+  | Patch | What it fixes |
+  |---|---|
+  | `patch-Network-string-spaceship.diff` | **Build.** `operator<=>` on `std::string` is missing from older macOS SDK libc++ (Ventura CLT); uses `compare()` instead. |
+  | `patch-WriteSpice-async-set-reset.diff` | `write_path_spice` left a flop's active-low async set/reset at the tie-low default, i.e. **asserted** -- the flop never toggles and the deck is unusable. Submitted upstream, still open. |
+  | `patch-WriteSpice-seq-enable.diff` | `write_path_spice` set only one port of a flop's next-state function, so a data **enable** was left inactive -- same unusable-deck symptom, for enabled flops. Submitted upstream, no response. |
+  | `patch-InternalPower-power-lut-axes.diff` | `report_power` aborts the session (`STA-0226`) when a `power_lut_template` names its slew axis `input_net_transition`. Accepts both spellings, as the delay tables (`GateTableModel`) always have. |
+  | `patch-ArnoldiReduce-null-driver-term.diff` | `set_delay_calculator arnoldi`: a driver pin with no terminal in its net's parasitic network is used as a wild array offset -- **SIGSEGV** in `report_checks` on large designs, a silently wrong delay on small ones. Declines to reduce instead. |
+  | `patch-LibertyReader-lvf-constraint-spelling.diff` | LVF sigma on **setup/hold** arcs was silently ignored: the reader looked for `ocv_*_constraiint` (double i). |
+  | `patch-POCV-slack-pessimistic-tail.diff` | Under POCV, `report_wns` / `report_tns` / `report_worst_slack` applied sigma with the **wrong sign** and `get_property ... slack` ignored it, so a violating design could report clean. Only `report_checks` was right. |
+  | `patch-LibertyReader-ccs-slew-axis-spelling.diff` | CCS output-current waveforms were read with slew and load cap **transposed** when an `output_current_template` names its slew axis `input_transition_time`, giving wrong `ccs_ceff` / `prima` delays with no warning. |
+  | `patch-PrimaDelayCalc-pin-not-in-network.diff` | `set_delay_calculator prima`: **SIGSEGV** when a driver pin is absent from its net's parasitics, and an unreachable load silently timed at the driver node. Declines such a net to the table calculator instead. |
+
+- **POCV is a run-time mode in OpenSTA 3.x**, not a build option: the
+  statistical delay code is always compiled in, and it is switched on with
+  `set sta_pocv_mode normal` (or `skew_normal`) plus `sta_pocv_quantile`. The
+  2.x command `set_pocv_sigma_factor` no longer exists, and the commands live in
+  the `sta::` namespace, so a global `info commands *pocv*` finds nothing even
+  on a fully capable build.
+- **Check which build is active with `port installed OpenSTA | grep active`,
+  not `sta -v`.** The version string is `3.1.0` whatever the port revision, so
+  an installed-but-not-activated rebuild is invisible to it.
 
 ## cudd notes
 
@@ -1043,11 +1070,17 @@ Python 3.9 and 3.12 headers in one build. See the FreeCAD notes.
   shadow the private/fork copies** (a plain `-I/opt/local/include` from tcl etc.
   beats the `-isystem` eda paths). Deactivate, build, reactivate:
   ```
-  sudo port -f deactivate boost spdlog protobuf3-cpp OpenSTA
+  sudo port clean openroad
+  sudo port -f deactivate spdlog protobuf3-cpp OpenSTA   # those the gate names
   sudo port install openroad        # ~40 min C++20 compile
-  sudo port activate boost spdlog protobuf3-cpp
-  sudo port activate OpenSTA @3.1.0_1+cudd
+  sudo port activate spdlog protobuf3-cpp OpenSTA
   ```
+  The `pre-build` gate prints the exact command for whichever of the four are
+  active on your machine; use that. If several OpenSTA revisions are installed,
+  `port` may ask you to name one -- activate the newest
+  (`port installed OpenSTA` lists them). The commands are `&&`-chained, so if
+  the build fails the reactivation never runs: reactivate by hand before doing
+  anything else, or the standalone OpenSTA is left inactive.
   (openroad no longer installs its own `sta`/headers/libOpenSTA.a, so it coexists
   with the standalone OpenSTA port once reactivated.)
   Both openroad and openroad-ll **fail fast** via a `pre-build` check if any
@@ -1055,6 +1088,29 @@ Python 3.9 and 3.12 headers in one build. See the FreeCAD notes.
   failed with a gate missed, `sudo port clean` the port before retrying
   (stale CMake cache). Their swig needs (`swig-tcl`/`swig-python`) are
   declared deps since 2026-07-08, so those install automatically.
+- **OpenROAD's vendored OpenSTA fork needs its own copies of the OpenSTA
+  fixes.** OpenROAD statically links the fork in `src/sta`, so a patch to the
+  standalone `OpenSTA` port never reaches `openroad` -- same source, two builds.
+  `cad/openroad` therefore carries **six** of the nine OpenSTA patches, each
+  re-rooted to `src/sta` or regenerated against the fork's own files:
+  InternalPower power-LUT axes, the LVF `constraiint` spelling, POCV slack sign,
+  CCS slew-axis transpose, ArnoldiReduce null driver terminal, and PrimaDelayCalc
+  pin-not-in-network. (The spaceship build fix is not needed with clang-19's
+  libc++, and the two `write_path_spice` fixes were not ported.) Keep each pair
+  in sync. The fork predates upstream `ef0b6909` (PrimaDelayCalc degenerate
+  networks), and that fix is **not** backported here.
+- **Why not build openroad against the patched OpenSTA port instead?** OpenROAD
+  offers `USE_SYSTEM_OPENSTA`, but it was considered and rejected. The fork and
+  the port's pin have diverged since 2026-06-16, in exactly the incremental
+  timing code `repair_timing` drives. `OPENSTA_HOME` must be a full patched
+  OpenSTA *source* tree (SWIG `.i` and Tcl files), which the port does not
+  install. And upstream runs that option in no CI. Duplicating the patches is the
+  cheaper and safer cost.
+- **`openroad-ll` carries none of these patches, deliberately**: it exists to be
+  the exact revision LibreLane validated. Consequence: `report_power` through the
+  LibreLane flow still aborts on a `power_lut_template` whose slew axis is
+  `input_net_transition`. The reasoning (including why `USE_SYSTEM_OPENSTA`
+  does not apply there either) is in a comment at the top of its Portfile.
 - Full blow-by-blow, incl. the libomp link fix and every gate, in memory
   ([[openroad-port-facts]]).
 

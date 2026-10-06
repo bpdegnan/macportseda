@@ -16,7 +16,7 @@ revision            1
 
 categories          cad science
 license             GPL-2+
-maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+maintainers         {@bpdegnan} openmaintainer
 platforms           macosx
 
 description         OpenSCAD script-based 3D CAD modeller (current snapshot, CGAL 6)

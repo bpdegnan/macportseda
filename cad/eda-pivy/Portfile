@@ -12,7 +12,7 @@ revision            0
 
 categories          cad python
 license             ISC
-maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+maintainers         {@bpdegnan} openmaintainer
 platforms           macosx
 
 description         Coin3D 4 Python bindings (pivy) built against eda-coin, for FreeCAD

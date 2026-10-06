@@ -18,7 +18,7 @@ worksrcdir          ${github.project}-${version}
 
 categories          cad
 license             GPL-3
-maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+maintainers         {@bpdegnan} openmaintainer
 
 description         GDS/OASIS layout viewer and editor with DRC/LVS scripting
 long_description    KLayout is a high-performance VLSI layout viewer and editor \

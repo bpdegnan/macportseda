@@ -1,0 +1,142 @@
+--- src/sta/dcalc/PrimaDelayCalc.hh.orig
++++ src/sta/dcalc/PrimaDelayCalc.hh
+@@ -118,7 +118,8 @@
+                      ArcDelay &gate_delay,
+                      Slew &drvr_slew);
+   ArcDcalcResultSeq tableDcalcResults();
+-  void simulate();
++  bool simulate();
++  bool netPinsInNetwork();
+   void simulate1(const MatrixSd &G,
+                  const MatrixSd &C,
+                  const Eigen::MatrixXd &B,
+--- src/sta/dcalc/PrimaDelayCalc.cc.orig
++++ src/sta/dcalc/PrimaDelayCalc.cc
+@@ -200,12 +200,10 @@
+   node_index_map_ = NodeIndexMap(ParasiticNodeLess(parasitics_, network_));
+ 
+   bool arg_fail = checkArgs(dcalc_args, scene, min_max);
+-  if (arg_fail)
++  if (arg_fail || !simulate())
+     return tableDcalcResults();
+-  else {
+-    simulate();
++  else
+     return dcalcResults();
+-  }
+ }
+ 
+ // Return true on failure.
+@@ -319,10 +317,13 @@
+                                   min_max_);
+ }
+ 
+-void
++// Return false (and set failure_reason_) if the net cannot be simulated.
++bool
+ PrimaDelayCalc::simulate()
+ {
+   initSim();
++  if (!netPinsInNetwork())
++    return false;
+   stampEqns();
+   setXinit();
+ 
+@@ -334,8 +335,45 @@
+     Eigen::MatrixXd x_to_v = Eigen::MatrixXd::Identity(order_, order_);
+     simulate1(G_, C_, B_, x_init_, x_to_v, order_);
+   }
++  return true;
+ }
+ 
++// Every driver and load pin must have a node in the conductance system that
++// findNodeCount() just built, because stampEqns(), updateCeffIdrvr() and
++// dcalcResults() index arrays with pin_node_map_ lookups. Neither is
++// guaranteed: findNodeCount() places only the nodes present in the parasitic
++// network, so a driver or load pin missing from the SPEF net (or external) is
++// never placed. Those lookups used operator[],
++// which default-inserts index 0 -- so with no node placed at all (node_count_
++// == 0) the G/B stamps and threshold_times_[0] go out of bounds and the run
++// SIGSEGVs, and otherwise the pin is silently aliased onto node 0. Same
++// failure class as ArnoldiReduce::findPt. Decline instead, exactly as a
++// checkArgs() failure does, and let the table delay calculator take the net.
++bool
++PrimaDelayCalc::netPinsInNetwork()
++{
++  for (size_t drvr_idx = 0; drvr_idx < drvr_count_; drvr_idx++) {
++    ArcDcalcArg &dcalc_arg = (*dcalc_args_)[drvr_idx];
++    if (!pin_node_map_.contains(dcalc_arg.drvrPin())) {
++      failure_reason_ = "driver pin not in parasitic network";
++      failure_arg_ = &dcalc_arg;
++      debugPrint(debug_, "prima", 1, "arg check failed {}.",
++                 failureReason().c_str());
++      return false;
++    }
++  }
++  for (const auto &load_pin_index : *load_pin_index_map_) {
++    if (!pin_node_map_.contains(load_pin_index.first)) {
++      failure_reason_ = "load pin not in parasitic network";
++      failure_arg_ = &(*dcalc_args_)[0];
++      debugPrint(debug_, "prima", 1, "arg check failed {}.",
++                 failureReason().c_str());
++      return false;
++    }
++  }
++  return true;
++}
++
+ void
+ PrimaDelayCalc::simulate1(const MatrixSd &G,
+                           const MatrixSd &C,
+@@ -583,7 +621,8 @@
+ 
+   for (size_t drvr_idx = 0; drvr_idx < drvr_count_; drvr_idx++) {
+     const ArcDcalcArg &dcalc_arg = (*dcalc_args_)[drvr_idx];
+-    size_t drvr_node = pin_node_map_[dcalc_arg.drvrPin()];
++    // Present: netPinsInNetwork() checked every driver and load pin.
++    size_t drvr_node = pin_node_map_.at(dcalc_arg.drvrPin());
+     G_.coeffRef(node_count_ + drvr_idx, drvr_node) = 1.0;
+     G_.coeffRef(node_count_ + drvr_idx, node_count_ + drvr_idx) = -1.0;
+     // special sauce
+@@ -653,7 +692,7 @@
+   for (size_t drvr_idx = 0; drvr_idx < drvr_count_; drvr_idx++) {
+     const ArcDcalcArg &dcalc_arg = (*dcalc_args_)[drvr_idx];
+     const Pin *drvr_pin = dcalc_arg.drvrPin();
+-    size_t node_idx = pin_node_map_[drvr_pin];
++    size_t node_idx = pin_node_map_.at(drvr_pin);  // see netPinsInNetwork()
+     double drvr_current = drvr_current_[drvr_idx];
+     double v1 = voltage(node_idx);
+     double v2 = voltagePrev(node_idx);
+@@ -735,8 +774,12 @@
+ double
+ PrimaDelayCalc::voltage(const Pin *pin)
+ {
+-  size_t node_idx = pin_node_map_[pin];
+-  return v_[node_idx];
++  // Callers are debug output and watch/waveform pins, which need not be on
++  // this net. Never default-insert: operator[] would both return node 0's
++  // voltage for an off-net pin and leave a bogus pin_node_map_ entry behind
++  // for loadWaveformsFinished()/measureThresholds() to iterate.
++  auto itr = pin_node_map_.find(pin);
++  return (itr == pin_node_map_.end()) ? 0.0 : v_[itr->second];
+ }
+ 
+ double
+@@ -760,7 +803,7 @@
+     ArcDcalcResult &dcalc_result = dcalc_results[drvr_idx];
+     const Pin *drvr_pin = dcalc_arg.drvrPin();
+     const LibertyLibrary *drvr_library = dcalc_arg.drvrLibrary();
+-    size_t drvr_node = pin_node_map_[drvr_pin];
++    size_t drvr_node = pin_node_map_.at(drvr_pin);  // see netPinsInNetwork()
+     ThresholdTimes &drvr_times = threshold_times_[drvr_node];
+     float ref_time = output_waveforms_[drvr_idx]->referenceTime(dcalc_arg.inSlewFlt());
+     double gate_delay = drvr_times[threshold_vth] - ref_time;
+@@ -780,7 +823,7 @@
+     for (auto load_pin_index : *load_pin_index_map_) {
+       const Pin *load_pin = load_pin_index.first;
+       size_t load_idx = load_pin_index.second;
+-      size_t load_node = pin_node_map_[load_pin];
++      size_t load_node = pin_node_map_.at(load_pin);  // see netPinsInNetwork()
+       ThresholdTimes &wire_times = threshold_times_[load_node];
+       ThresholdTimes &drvr_times = threshold_times_[drvr_node];
+       double wire_delay = wire_times[threshold_vth] - drvr_times[threshold_vth];

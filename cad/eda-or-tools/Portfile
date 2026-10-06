@@ -7,7 +7,7 @@ version             9.14.6206
 revision            3
 categories          cad math
 license             Apache-2
-maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+maintainers         {@bpdegnan} openmaintainer
 platforms           macosx
 
 # Google ships separate prebuilt tarballs per arch; pick the matching one.

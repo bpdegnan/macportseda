@@ -10,7 +10,7 @@ revision            2
 
 categories          cad graphics
 license             BSD
-maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+maintainers         {@bpdegnan} openmaintainer
 platforms           macosx
 
 description         Coin3D 4.x Open Inventor toolkit (private EDA prefix) for FreeCAD

@@ -18,7 +18,7 @@ categories          cad science
 license             BSD
 supported_archs     noarch
 platforms           any
-maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+maintainers         {@bpdegnan} openmaintainer
 homepage            https://ngspice.sourceforge.io/
 
 description         Metaport: the tree's pinned ngspice (default version)

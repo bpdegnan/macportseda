@@ -12,7 +12,7 @@ categories-append   cad
 license             Apache-2
 supported_archs     noarch
 platforms           {darwin any}
-maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+maintainers         {@bpdegnan} openmaintainer
 
 description         Version manager and builder for open-source PDKs (volare successor)
 long_description    Ciel is the FOSSi Foundation's continuation of Volare: a \

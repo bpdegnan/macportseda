@@ -13,7 +13,7 @@ revision            0
 
 categories          cad science
 license             ISC
-maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+maintainers         {@bpdegnan} openmaintainer
 platforms           macosx
 
 description         EQY - equivalence checking with Yosys (RTL vs netlist)

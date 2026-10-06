@@ -17,7 +17,7 @@ revision            0
 
 categories          science cad
 license             GPL-2+
-maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+maintainers         {@bpdegnan} openmaintainer
 platforms           macosx
 
 description         Qucs-S schematic capture front end for SPICE simulators

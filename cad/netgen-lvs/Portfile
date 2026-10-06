@@ -21,7 +21,7 @@ worksrcdir          ${github.project}-${version}
 
 categories          cad
 license             GPL-2+
-maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+maintainers         {@bpdegnan} openmaintainer
 
 description         Netlist comparison (LVS) tool from opencircuitdesign.com
 long_description    Netgen compares netlists for Layout-Versus-Schematic (LVS) \

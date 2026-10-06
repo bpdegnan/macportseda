@@ -8,7 +8,7 @@ revision            0
 
 categories          cad graphics
 license             MIT
-maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+maintainers         {@bpdegnan} openmaintainer
 supported_archs     noarch
 platforms           any
 

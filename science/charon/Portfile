@@ -9,7 +9,7 @@ version             2.2.0
 revision            3
 categories          science
 license             GPL-3
-maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+maintainers         {@bpdegnan} openmaintainer
 
 description         Sandia Charon TCAD semiconductor device simulator
 long_description    Charon is an open-source semiconductor device modeling \

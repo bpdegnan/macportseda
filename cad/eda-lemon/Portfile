@@ -9,7 +9,7 @@ version             1.3.1
 revision            1
 categories          cad math
 license             BSL-1.0
-maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+maintainers         {@bpdegnan} openmaintainer
 
 description         COIN-OR LEMON graph library (private EDA prefix) for OpenROAD
 long_description    LEMON (Library for Efficient Modeling and Optimization in \

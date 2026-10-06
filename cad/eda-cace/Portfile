@@ -12,7 +12,7 @@ categories          cad
 license             Apache-2
 supported_archs     noarch
 platforms           {darwin any}
-maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+maintainers         {@bpdegnan} openmaintainer
 
 description         Circuit Automatic Characterization Engine (analog flow validation)
 long_description    CACE (Circuit Automatic Characterization Engine) drives \

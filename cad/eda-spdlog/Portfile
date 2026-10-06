@@ -12,7 +12,7 @@ revision            0
 
 categories          cad devel
 license             MIT
-maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+maintainers         {@bpdegnan} openmaintainer
 platforms           macosx
 
 description         spdlog 1.16 built against eda-fmt 12 (private EDA prefix) for OpenROAD

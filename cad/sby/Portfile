@@ -17,7 +17,7 @@ worksrcdir          ${distname}
 
 categories          cad science
 license             ISC
-maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+maintainers         {@bpdegnan} openmaintainer
 supported_archs     noarch
 platforms           any
 

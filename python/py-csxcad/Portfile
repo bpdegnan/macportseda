@@ -16,7 +16,7 @@ worksrcdir          CSXCAD-${github.version}/python
 
 categories-append   cad science
 license             LGPL-3
-maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+maintainers         {@bpdegnan} openmaintainer
 platforms           macosx
 
 description         python (cython) bindings for the CSXCAD geometry library

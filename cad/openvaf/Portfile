@@ -34,7 +34,7 @@ worksrcdir          ${distname}
 
 categories          cad science
 license             GPL-3
-maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+maintainers         {@bpdegnan} openmaintainer
 
 description         Verilog-A to OSDI compact-model compiler (community fork)
 long_description    OpenVAF is a Verilog-A compiler that compiles compact \

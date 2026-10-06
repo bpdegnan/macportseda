@@ -10,7 +10,7 @@ version             13.4.0
 revision            1
 categories          science
 license             BSD
-maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+maintainers         {@bpdegnan} openmaintainer
 
 description         Trilinos built with the MPI + Panzer stack for Charon
 long_description    A build of Trilinos configured with MPI and the Panzer \

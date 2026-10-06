@@ -10,7 +10,7 @@ revision            2
 
 categories-append   archivers
 license             BSD
-maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+maintainers         {@bpdegnan} openmaintainer
 
 description         Python bindings to the Zstandard (zstd) compression library
 long_description    zstandard provides Python bindings to the Zstandard (zstd) \

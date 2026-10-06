@@ -8,7 +8,7 @@ revision            0
 categories          aqua graphics
 platforms           macosx
 license             BSD
-maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+maintainers         {@bpdegnan} openmaintainer
 
 description         Skim PDF/PostScript reader and note-taker for macOS
 long_description    Skim is a PDF reader and note-taker for macOS, handy for \

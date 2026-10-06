@@ -10,7 +10,7 @@ revision            0
 
 categories-append   cad science
 license             BSL-1
-maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+maintainers         {@bpdegnan} openmaintainer
 platforms           macosx
 
 description         python library for GDSII/OASIS layout creation

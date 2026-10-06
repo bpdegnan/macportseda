@@ -13,7 +13,7 @@ categories              cad science
 license                 MIT
 supported_archs         noarch
 platforms               any
-maintainers             {icanalytica.com:degnan @bpdegnan} openmaintainer
+maintainers             {@bpdegnan} openmaintainer
 homepage                https://github.com/bpdegnan/macportseda
 
 description             Common files for selecting the default eda-ngspice version

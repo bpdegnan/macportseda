@@ -15,11 +15,11 @@ PortGroup           cmake 1.1
 # the upgrade).
 github.setup        parallaxsw OpenSTA 87ce5680dfa92aa98f07b587df5deb032f6593af
 version             3.1.0
-revision            11
+revision            12
 
 categories          cad
 license             GPL-3
-maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+maintainers         {@bpdegnan} openmaintainer
 
 description         OpenSTA gate-level static timing analyzer
 long_description    OpenSTA is a gate-level static timing verifier. As a \
@@ -76,15 +76,14 @@ patchfiles-append   patch-WriteSpice-async-set-reset.diff
 # for a rise and {D=0, DE=1} for a fall.
 #
 # Not upstream: submitted, no response on the previous write_path_spice PR.
-# Regression test, in the riscvpr repo (hd_ms has no enable flop, so only
-# sky130 exercises this):
-#   DIVERSE=1 PARA=route SKIP=1 zsh scripts/run_sky130_pico.sh
-# then the in-flow deck audit must report seqbad 0.
+# Regression check: run write_path_spice over a design that uses enabled flops
+# (e.g. sky130 picorv32, whose edfxtp cells hit this); every deck must produce
+# its arrival measurements.
 patchfiles-append   patch-WriteSpice-seq-enable.diff
 
 # report_power aborted on any library whose power_lut_template names its slew
 # axis input_net_transition rather than input_transition_time -- both are used
-# in the wild, and charpy (icanalytica/simon) emits the former:
+# in the wild, and some characterization tools emit the former:
 #
 #   Critical 226: liberty/InternalPower.cc line 171, unsupported table axes
 #
@@ -151,8 +150,7 @@ patchfiles-append   patch-ArnoldiReduce-null-driver-term.diff
 # never matches, no warning is issued, and with sta_pocv_mode normal or
 # skew_normal setup/hold slack comes out as if the check arcs carried no
 # statistical data at all. The delay-arc call just above (ocv_sigma_*_transition
-# etc.) is spelled correctly and is not touched. Reported in
-# icanalytica/path_diversity#150.
+# etc.) is spelled correctly and is not touched.
 #
 # POCV here is the OpenSTA 3.x RUNTIME mode, not the 2.x compile-time SSTA build:
 # DelayNormal / DelaySkewNormal / PocvMode are always compiled in, and it is
@@ -186,7 +184,7 @@ patchfiles-append   patch-LibertyReader-lvf-constraint-spelling.diff
 #   early; delayPropertyValue itself is left alone because arrival/required
 #   properties need different tails.
 #
-# Measured on a one-violator fixture (riscvpr tooltest t6), POCV normal, q=3:
+# Measured on a one-violator fixture (one setup path), POCV normal, q=3:
 #                         unpatched      patched
 #   report_checks         -0.436396     -0.436396   (unchanged, was right)
 #   report_worst_slack    +0.836396     -0.436396
@@ -224,6 +222,32 @@ patchfiles-append   patch-POCV-slack-pessimistic-tail.diff
 # dereferences axis2/axis3 without null checks and would crash on a 2-D
 # template. Not fixed upstream (present at parallaxsw master); not submitted.
 patchfiles-append   patch-LibertyReader-ccs-slew-axis-spelling.diff
+
+# The prima delay calculator SIGSEGVs when a driver pin is absent from its net's
+# parasitic network -- the same failure class as ArnoldiReduce above.
+# PrimaDelayCalc::findNodeCount() places a pin in pin_node_map_ only if its node
+# exists, is not external, and (since upstream ef0b6909) has a resistive path to
+# a driver. stampEqns(), updateCeffIdrvr() and dcalcResults() then read that map
+# with operator[], which default-inserts index 0 for a missing pin. With no node
+# placed at all, node_count_ is 0, so the G/B stamps and threshold_times_[0] go
+# out of bounds; with other nodes placed the pin is silently aliased onto node 0
+# (for an unreachable load: zero wire delay, driver slew).
+#
+# The patch checks every driver and load pin is placed before stamping, and
+# otherwise declines exactly as a checkArgs() failure does -- tableDcalcResults()
+# hands the net to the table delay calculator. The four indexing reads become
+# .at() (a future violation throws rather than default-inserting), and
+# voltage(const Pin*) -- debug and watch-pin only -- uses find().
+#
+# Measured, one INV, SPEF variants, set_delay_calculator prima:
+#   driver absent from net z     unpatched SIGSEGV (rc 139)   patched 0.046677
+#   load with no resistive path  unpatched 0.086665           patched 0.039994
+#   well-formed net              byte-identical output before/after
+# All other calculators byte-identical before/after on all three. A crash was
+# produced, so this is a fixed bug, not just a hardening.
+#
+# NOT fixed upstream; not submitted.
+patchfiles-append   patch-PrimaDelayCalc-pin-not-in-network.diff
 
 # OpenSTA is C++20 and its headers rely on P0634 ("Down with typename!"), which
 # lets `typename` be omitted in dependent contexts -- e.g. include/sta/Iterator.hh

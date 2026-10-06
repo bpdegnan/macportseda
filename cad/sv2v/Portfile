@@ -11,7 +11,7 @@ revision            1
 
 categories          cad lang
 license             BSD
-maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+maintainers         {@bpdegnan} openmaintainer
 platforms           macosx
 
 # Built FROM SOURCE with ghc-prebuilt, natively on both architectures

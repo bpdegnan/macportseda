@@ -21,7 +21,7 @@ checksums           rmd160  58617d9251d6b834677f1d0a8539456c25e25ff3 \
 
 categories          cad science
 license             GPL-3
-maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+maintainers         {@bpdegnan} openmaintainer
 platforms           macosx
 
 description         C++ geometry/property description library for openEMS

@@ -9,7 +9,7 @@ categories          cad
 license             MIT
 supported_archs     noarch
 platforms           {darwin any}
-maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+maintainers         {@bpdegnan} openmaintainer
 homepage            https://github.com/bpdegnan/macportseda
 
 description         Metaport: the full open-source sky130 EDA toolchain

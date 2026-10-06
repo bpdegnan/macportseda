@@ -11,7 +11,7 @@ revision            0
 
 categories          cad science
 license             GPL-3+
-maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+maintainers         {@bpdegnan} openmaintainer
 platforms           macosx
 
 description         CVC_RV circuit validity checker (ERC on CDL netlists)

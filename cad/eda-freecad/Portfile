@@ -14,7 +14,7 @@ revision            6
 
 categories          cad
 license             LGPL-2+
-maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+maintainers         {@bpdegnan} openmaintainer
 platforms           macosx
 
 description         FreeCAD parametric 3D CAD (current release, private prefix)

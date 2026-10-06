@@ -24,7 +24,7 @@ checksums           rmd160  8824177c39eaea6a8a3a1ad0d766bca276b0f5e2 \
 
 categories          cad science
 license             GPL-3
-maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+maintainers         {@bpdegnan} openmaintainer
 platforms           macosx
 
 description         free and open-source EC-FDTD electromagnetic field solver

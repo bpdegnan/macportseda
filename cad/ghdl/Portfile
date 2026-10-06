@@ -9,7 +9,7 @@ revision            0
 
 categories          cad science lang
 license             GPL-2+
-maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+maintainers         {@bpdegnan} openmaintainer
 platforms           macosx
 
 description         GHDL VHDL simulator (LLVM backend, official prebuilt)

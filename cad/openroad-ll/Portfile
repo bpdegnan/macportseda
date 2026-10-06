@@ -54,7 +54,7 @@ revision            1
 
 categories          cad
 license             BSD
-maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+maintainers         {@bpdegnan} openmaintainer
 
 description         OpenROAD pinned to LibreLane's validated revision (private prefix)
 long_description    A second OpenROAD build pinned to the exact revision the \

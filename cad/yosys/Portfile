@@ -7,7 +7,7 @@ version             0.66
 revision            0
 categories          cad science
 license             ISC
-maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+maintainers         {@bpdegnan} openmaintainer
 
 description         Yosys open synthesis suite (Verilog RTL synthesis)
 long_description    Yosys is a framework for RTL synthesis. It has extensive \

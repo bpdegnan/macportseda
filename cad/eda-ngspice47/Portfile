@@ -10,7 +10,7 @@ revision            2
 
 categories          cad science
 license             BSD
-maintainers          {icanalytica.com:degnan @bpdegnan} openmaintainer
+maintainers          {@bpdegnan} openmaintainer
 platforms           macosx
 
 description         ngspice ${version} (versioned private prefix) for the analog flow

@@ -10,7 +10,7 @@ revision            0
 
 categories          science cad
 license             GPL-3+
-maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+maintainers         {@bpdegnan} openmaintainer
 platforms           macosx
 
 description         NEC-2 antenna simulation, command-line (C translation of NEC2)

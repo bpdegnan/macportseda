@@ -16,7 +16,7 @@ worksrcdir          openEMS-${github.version}/python
 
 categories-append   cad science
 license             GPL-3
-maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+maintainers         {@bpdegnan} openmaintainer
 platforms           macosx
 
 description         python (cython) bindings for the openEMS FDTD solver

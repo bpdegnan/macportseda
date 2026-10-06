@@ -19,7 +19,7 @@ worksrcdir          ${github.project}-${version}
 
 categories          cad math
 license             BSD
-maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+maintainers         {@bpdegnan} openmaintainer
 
 description         CUDD: CU Decision Diagram package
 long_description    CUDD is a package for the manipulation of binary decision \

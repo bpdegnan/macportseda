@@ -63,7 +63,7 @@ name                py-pyside6
 revision            5
 categories-append   devel aqua
 
-maintainers         {icanalytica.com:degnan @bpdegnan} openmaintainer
+maintainers         {@bpdegnan} openmaintainer
 license             LGPL
 supported_archs     arm64 x86_64
 
