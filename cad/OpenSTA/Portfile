@@ -15,7 +15,7 @@ PortGroup           cmake 1.1
 # the upgrade).
 github.setup        parallaxsw OpenSTA 87ce5680dfa92aa98f07b587df5deb032f6593af
 version             3.1.0
-revision            8
+revision            10
 
 categories          cad
 license             GPL-3
@@ -142,6 +142,64 @@ patchfiles-append   patch-InternalPower-power-lut-axes.diff
 # starts declining reduction on nets that previously reduced, delays shift
 # SILENTLY, which is worse than the crash.
 patchfiles-append   patch-ArnoldiReduce-null-driver-term.diff
+
+# LVF sigma on CHECK (setup/hold) arcs is silently dropped. When reading a
+# constraint arc's LVF tables, LibertyReader asks for
+#     ocv_sigma_{rise,fall}_constraiint      (and _std_dev_, _mean_shift_,
+#                                             _skewness_ -- four names)
+# -- "constraiint", double i. Liberty files spell it _constraint, so the lookup
+# never matches, no warning is issued, and with sta_pocv_mode normal or
+# skew_normal setup/hold slack comes out as if the check arcs carried no
+# statistical data at all. The delay-arc call just above (ocv_sigma_*_transition
+# etc.) is spelled correctly and is not touched. Reported in
+# icanalytica/path_diversity#150.
+#
+# POCV here is the OpenSTA 3.x RUNTIME mode, not the 2.x compile-time SSTA build:
+# DelayNormal / DelaySkewNormal / PocvMode are always compiled in, and it is
+# switched on with `set sta_pocv_mode normal` (or skew_normal) plus
+# sta_pocv_quantile. The old set_pocv_sigma_factor command no longer exists, and
+# the commands live in the sta:: namespace, so `info commands *pocv*` at global
+# scope finds nothing -- that is not evidence of a non-POCV build.
+#
+# NOT fixed upstream: the misspelling is still present at parallaxsw master.
+# NOT submitted upstream. Drop this patch if a future pinned commit fixes it.
+patchfiles-append   patch-LibertyReader-lvf-constraint-spelling.diff
+
+# Under POCV every slack reporter except report_checks returns the wrong value,
+# so a violating design reports clean. Statistical slack is (mean, sigma) and
+# its pessimistic single value is ALWAYS mean - q*sigma -- low slack is the bad
+# direction for setup and hold alike. ReportPath::reportSlack does that
+# (EarlyLate::early()); two other paths do not:
+#
+#   WRONG SIGN. search/Search.i converts slack with delayAsFloat(slack,
+#   min_max, sta) at seven sites (worst_slack_cmd/_scene,
+#   total_negative_slack_cmd/_scene, endpoint_slack, PathEnd::slack,
+#   Path::slack). For -max, MinMax::max() read as an EarlyLate is LATE, so
+#   DelayOpsNormal::asFloat returns mean + q*sigma, the optimistic tail. That
+#   feeds report_worst_slack, report_wns, report_tns, worst_slack and
+#   total_negative_slack. The comparisons that pick the worst endpoint already
+#   use early, so the right endpoints were chosen and then reported wrongly.
+#
+#   SIGMA IGNORED. get_property ... slack (pin slack_max/_min/..., path_end and
+#   path slack) went through Properties::delayPropertyValue, which uses the
+#   one-argument delayAsFloat() = mean. A new slackPropertyValue() converts with
+#   early; delayPropertyValue itself is left alone because arrival/required
+#   properties need different tails.
+#
+# Measured on a one-violator fixture (riscvpr tooltest t6), POCV normal, q=3:
+#                         unpatched      patched
+#   report_checks         -0.436396     -0.436396   (unchanged, was right)
+#   report_worst_slack    +0.836396     -0.436396
+#   report_wns             0.000000     -0.436396
+#   report_tns            +0.836396     -0.436396
+#   get_property slack    +0.200000     -0.436396
+# Scalar mode (no sigma) is unaffected: early == late == mean there.
+#
+# NOT fixed upstream (present at parallaxsw master 7a034b56); not submitted.
+# Same Search.i also converts PathEnd/Path `required` with minMax (lines
+# ~1174/1224) where ReportPath uses the opposite tail -- probably the same
+# class of bug, NOT addressed or tested here.
+patchfiles-append   patch-POCV-slack-pessimistic-tail.diff
 
 # OpenSTA is C++20 and its headers rely on P0634 ("Down with typename!"), which
 # lets `typename` be omitted in dependent contexts -- e.g. include/sta/Iterator.hh

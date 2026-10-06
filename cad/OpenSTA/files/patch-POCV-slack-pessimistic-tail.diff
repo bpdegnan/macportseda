@@ -1,0 +1,133 @@
+--- search/Search.i.orig
++++ search/Search.i
+@@ -170,11 +170,17 @@
+   Sta::sta()->findRequireds();
+ }
+ 
++// POCV: slack is a statistical (mean, sigma) value. Its pessimistic tail
++// is ALWAYS mean - q*sigma (EarlyLate::early()), for setup and hold alike,
++// because low slack is the bad direction for both -- this is what
++// ReportPath::reportSlack uses. Converting with min_max instead picks the
++// LATE tail for -max, mean + q*sigma, which reports violating setup paths
++// as met. Every slack conversion in this file uses early() for that reason.
+ float
+ total_negative_slack_cmd(const MinMax *min_max)
+ {
+   Sta *sta = Sta::sta();
+-  return delayAsFloat(sta->totalNegativeSlack(min_max), min_max, sta);
++  return delayAsFloat(sta->totalNegativeSlack(min_max), EarlyLate::early(), sta);
+ }
+ 
+ float
+@@ -182,7 +188,7 @@
+                                const MinMax *min_max)
+ {
+   Sta *sta = Sta::sta();
+-  return delayAsFloat(sta->totalNegativeSlack(scene, min_max), min_max, sta);
++  return delayAsFloat(sta->totalNegativeSlack(scene, min_max), EarlyLate::early(), sta);
+ }
+ 
+ float
+@@ -192,7 +198,7 @@
+   Slack worst_slack;
+   Vertex *worst_vertex;
+   sta->worstSlack(min_max, worst_slack, worst_vertex);
+-  return delayAsFloat(worst_slack, min_max, sta);
++  return delayAsFloat(worst_slack, EarlyLate::early(), sta);
+ }
+ 
+ Vertex *
+@@ -212,7 +218,7 @@
+   Slack worst_slack;
+   Vertex *worst_vertex;
+   sta->worstSlack(scene, min_max, worst_slack, worst_vertex);
+-  return delayAsFloat(worst_slack, min_max, sta);
++  return delayAsFloat(worst_slack, EarlyLate::early(), sta);
+ }
+ 
+ Path *
+@@ -258,7 +264,7 @@
+   }
+   else {
+     Slack slack = sta->endpointSlack(pin, path_group_name, min_max);
+-    return sta->units()->timeUnit()->staToUser(delayAsFloat(slack, min_max, sta));
++    return sta->units()->timeUnit()->staToUser(delayAsFloat(slack, EarlyLate::early(), sta));
+   }
+ }
+ 
+@@ -1157,7 +1163,7 @@
+ slack()
+ {
+   Sta *sta = Sta::sta();
+-  return delayAsFloat(self->slack(sta), self->minMax(sta), sta);
++  return delayAsFloat(self->slack(sta), EarlyLate::early(), sta);
+ }
+ 
+ float
+@@ -1228,7 +1234,7 @@
+ slack()
+ {
+   Sta *sta = Sta::sta();
+-  return delayAsFloat(self->slack(sta), self->minMax(sta), sta);
++  return delayAsFloat(self->slack(sta), EarlyLate::early(), sta);
+ }
+ 
+ const Pin *
+--- search/Property.cc.orig
++++ search/Property.cc
+@@ -1061,7 +1061,7 @@
+                      const MinMax *min_max)
+ {
+   Slack slack = sta_->slack(pin, rf, sta_->scenes(), min_max);
+-  return PropertyValue(delayPropertyValue(slack));
++  return slackPropertyValue(slack);
+ }
+ 
+ PropertyValue
+@@ -1265,7 +1265,7 @@
+   else if (property == "endpoint_clock_pin")
+     return PropertyValue(end->targetClkPath()->pin(sta_));
+   else if (property == "slack")
+-    return PropertyValue(delayPropertyValue(end->slack(sta_)));
++    return slackPropertyValue(end->slack(sta_));
+   else if (property == "points") {
+     PathExpanded expanded(end->path(), sta_);
+     ConstPathSeq paths;
+@@ -1290,7 +1290,7 @@
+   else if (property == "required")
+     return PropertyValue(delayPropertyValue(path->required()));
+   else if (property == "slack")
+-    return PropertyValue(delayPropertyValue(path->slack(sta_)));
++    return slackPropertyValue(path->slack(sta_));
+   else
+     throw PropertyUnknown("path", property);
+ }
+@@ -1299,6 +1299,18 @@
+ Properties::delayPropertyValue(Delay delay)
+ {
+   return PropertyValue(delayAsFloat(delay), sta_->units()->timeUnit());
++}
++
++// delayPropertyValue() above reports the MEAN, which drops sigma entirely
++// under POCV. For slack the right single number is the pessimistic tail,
++// mean - q*sigma (EarlyLate::early()), matching ReportPath::reportSlack and
++// report_checks. Kept separate rather than changing delayPropertyValue,
++// because arrival/required properties need different tails.
++PropertyValue
++Properties::slackPropertyValue(Delay slack)
++{
++  return PropertyValue(delayAsFloat(slack, EarlyLate::early(), sta_),
++                       sta_->units()->timeUnit());
+ }
+ 
+ PropertyValue
+--- include/sta/Property.hh.orig
++++ include/sta/Property.hh
+@@ -276,6 +276,7 @@
+                         const MinMax *min_max);
+ 
+   PropertyValue delayPropertyValue(Delay delay);
++  PropertyValue slackPropertyValue(Delay slack);
+   PropertyValue resistancePropertyValue(float res);
+   PropertyValue capacitancePropertyValue(float cap);
+   PropertyValue edgeDelay(Edge *edge,

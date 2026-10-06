@@ -25,7 +25,7 @@ github.setup        The-OpenROAD-Project OpenROAD 26Q3
 github.tarball_from archive
 name                openroad
 version             26Q3
-revision            4
+revision            6
 distname            OpenROAD-26Q3
 worksrcdir          OpenROAD-26Q3
 
@@ -145,6 +145,28 @@ post-extract {
 # NOT submitted upstream. Drop this patch if a future pinned OpenSTA fork fixes it
 # (it will then fail to apply).
 patchfiles-append   patch-InternalPower-power-lut-axes.diff
+
+# Same LVF check-arc misspelling cad/OpenSTA patches (ocv_sigma_*_constraiint,
+# four attribute names in liberty/LibertyReader.cc): the vendored fork at
+# ${sta_sha} has it at the identical lines, so setup/hold sigma is silently
+# dropped under POCV here too. Re-rooted to src/sta like the InternalPower
+# patch above; keep the two copies in sync. See cad/OpenSTA for the full note.
+# (cad/openroad-ll's older fork is unaffected: it uses the earlier visitor-based
+# reader, which registers ocv_sigma_{rise,fall}_constraint correctly -- the
+# misspelling arrived with the LibertyReader rewrite.)
+patchfiles-append   patch-LibertyReader-lvf-constraint-spelling.diff
+
+# POCV slack reporting, same defect cad/OpenSTA patches: report_wns /
+# report_tns / report_worst_slack apply sigma with the wrong sign (mean +
+# q*sigma for -max) and get_property ... slack ignores sigma (mean), so under
+# POCV a violating design reports clean. The vendored fork at ${sta_sha} has the
+# identical code at shifted line numbers, so this copy was regenerated against
+# the fork's own files rather than re-rooted from the OpenSTA port's; the edits
+# are the same. Affects Tcl-level reporting and any flow script that gates on
+# wns/tns/worst_slack; whether OpenROAD's own C++ (rsz, etc.) reads slack
+# through these conversions has NOT been checked. See cad/OpenSTA for the
+# full note.
+patchfiles-append   patch-POCV-slack-pessimistic-tail.diff
 
 set edaprefix       ${prefix}/libexec/eda
 
