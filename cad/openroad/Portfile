@@ -25,7 +25,7 @@ github.setup        The-OpenROAD-Project OpenROAD 26Q3
 github.tarball_from archive
 name                openroad
 version             26Q3
-revision            6
+revision            7
 distname            OpenROAD-26Q3
 worksrcdir          OpenROAD-26Q3
 
@@ -167,6 +167,13 @@ patchfiles-append   patch-LibertyReader-lvf-constraint-spelling.diff
 # through these conversions has NOT been checked. See cad/OpenSTA for the
 # full note.
 patchfiles-append   patch-POCV-slack-pessimistic-tail.diff
+
+# CCS waveform slew/cap axis transpose when output_current_template spells its
+# slew axis input_transition_time -- same defect and same edit as cad/OpenSTA
+# (see its note for the measurement). Generated against the vendored fork's own
+# LibertyReader.cc, where the code is identical; it stacks after the
+# constraint-spelling patch above (different hunk, same file).
+patchfiles-append   patch-LibertyReader-ccs-slew-axis-spelling.diff
 
 set edaprefix       ${prefix}/libexec/eda
 

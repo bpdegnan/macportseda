@@ -1,0 +1,18 @@
+--- src/sta/liberty/LibertyReader.cc.orig
++++ src/sta/liberty/LibertyReader.cc
+@@ -2384,8 +2384,13 @@
+         if (table) {
+           TableTemplate *tbl_template = table->tblTemplate();
+           const TableAxis *slew_axis, *cap_axis;
+-          // Canonicalize axis order.
+-          if (tbl_template->axis1()->variable()==TableAxisVariable::input_net_transition){
++          // Canonicalize axis order. Accept both slew-axis spellings, as
++          // GateTableModel::axisValue does: testing input_net_transition
++          // alone sent an input_transition_time axis down the else branch,
++          // which silently swapped slew and load cap for every waveform.
++          TableAxisVariable var1 = tbl_template->axis1()->variable();
++          if (var1 == TableAxisVariable::input_net_transition
++              || var1 == TableAxisVariable::input_transition_time) {
+             slew_axis = table->axis1();
+             cap_axis = table->axis2();
+           }

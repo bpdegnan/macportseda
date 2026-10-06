@@ -15,7 +15,7 @@ PortGroup           cmake 1.1
 # the upgrade).
 github.setup        parallaxsw OpenSTA 87ce5680dfa92aa98f07b587df5deb032f6593af
 version             3.1.0
-revision            10
+revision            11
 
 categories          cad
 license             GPL-3
@@ -200,6 +200,30 @@ patchfiles-append   patch-LibertyReader-lvf-constraint-spelling.diff
 # ~1174/1224) where ReportPath uses the opposite tail -- probably the same
 # class of bug, NOT addressed or tested here.
 patchfiles-append   patch-POCV-slack-pessimistic-tail.diff
+
+# CCS output-current waveforms are silently misread when the library's
+# output_current_template spells its slew axis input_transition_time rather
+# than input_net_transition. LibertyReader::readOutputWaveforms decides which
+# table axis is slew by testing axis1 == input_net_transition ONLY; anything
+# else falls into the else branch, which takes axis2 as slew and axis1 as load
+# cap -- a silent transpose, no warning. GateTableModel::axisValue has always
+# accepted both spellings, so delay tables read fine and only the waveform
+# path is affected, i.e. the ccs_ceff and prima delay calculators.
+#
+# Measured, one INV with an RC net from SPEF, ccs_ceff, rise delay at u1/Z:
+#                      input_net_transition   input_transition_time
+#   unpatched                0.039784               0.046464
+#   patched                  0.039784               0.039784
+# Unpatched, the misspelled-axis library quietly lands on (near) the NLDM
+# answer instead of using its CCS data -- a 17% difference on this fixture.
+# dmp_ceff_elmore (NLDM) is identical across all four, as it should be.
+#
+# The library-side spelling is the Liberty-correct one for CCS templates, so
+# this is tool robustness, consistent with GateTableModel. The related
+# OutputWaveforms::checkAxes is never called; NOTE if anyone wires it up that it
+# dereferences axis2/axis3 without null checks and would crash on a 2-D
+# template. Not fixed upstream (present at parallaxsw master); not submitted.
+patchfiles-append   patch-LibertyReader-ccs-slew-axis-spelling.diff
 
 # OpenSTA is C++20 and its headers rely on P0634 ("Down with typename!"), which
 # lets `typename` be omitted in dependent contexts -- e.g. include/sta/Iterator.hh
