@@ -37,8 +37,10 @@ depends_build-append \
 
 # Yosys auto-detects MacPorts (it adds ${prefix} include/lib/pkgconfig when
 # `port` is on PATH). tcl/readline/zlib are linked; libtommath via pkg-config;
-# abc is bundled.
-depends_lib-append  port:tcl \
+# abc is bundled. libffi is required by the default ENABLE_PLUGINS=1 build
+# (frontends/ast/dpicall.cc includes <ffi.h>).
+depends_lib-append  port:libffi \
+                    port:tcl \
                     port:readline \
                     port:libtommath \
                     port:zlib
