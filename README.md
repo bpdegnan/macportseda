@@ -313,7 +313,7 @@ Notes:
 | eda-coin | [coin3d/coin v4.0.10 `coin-4.0.10-src.tar.gz`](https://github.com/coin3d/coin/releases/download/v4.0.10/coin-4.0.10-src.tar.gz) (release asset, not the git archive) |
 | eda-pivy | [coin3d/pivy 0.6.11](https://github.com/coin3d/pivy/archive/0.6.11/pivy-0.6.11.tar.gz) |
 | eda-freecad | [FreeCAD 1.1.3 `freecad_source_1.1.3.tar.gz`](https://github.com/FreeCAD/FreeCAD/releases/download/1.1.3/freecad_source_1.1.3.tar.gz) (release asset, 98 MB, flat tarball) |
-| openscad | [openscad/openscad @ openscad-2026.01.01-TEST2](https://github.com/openscad/openscad/archive/openscad-2026.01.01-TEST2/openscad-2026.01.01-TEST2.tar.gz) (upstream dev-snapshot tag, 24 MB) + four vendored submodule archives pinned at that tag: [manifold @ b2c6ddd](https://github.com/elalish/manifold/archive/b2c6ddd2e33510498a62c89049c83fa70342ddb3/manifold-b2c6ddd2e33510498a62c89049c83fa70342ddb3.tar.gz) (30 MB), [Clipper2 @ 6901921](https://github.com/AngusJohnson/Clipper2/archive/6901921c4be75126d1de60bfd24bd86a61319fd0/Clipper2-6901921c4be75126d1de60bfd24bd86a61319fd0.tar.gz), [sanitizers-cmake @ c3dc841](https://github.com/arsenm/sanitizers-cmake/archive/c3dc841af4dbf44669e65b82cb68a575864326bd/sanitizers-cmake-c3dc841af4dbf44669e65b82cb68a575864326bd.tar.gz), [MCAD @ 1ea4022](https://github.com/openscad/MCAD/archive/1ea402208c3127ffb443931e9bb1681c191dacca/MCAD-1ea402208c3127ffb443931e9bb1681c191dacca.tar.gz) — the GitHub source archive carries no submodules, so each is fetched separately and moved into place in `post-extract` |
+| openscad | [openscad/openscad @ 81ade7d](https://github.com/openscad/openscad/archive/81ade7d33a8ed14fc6817a1cf0d44334592bb9fc/openscad-81ade7d33a8ed14fc6817a1cf0d44334592bb9fc.tar.gz) (the commit of dev-snapshot tag `openscad-2026.10-TEST3`; pinned by commit because upstream deletes its TEST tags, 26 MB) + four vendored submodule archives pinned at that commit: [manifold @ 0edd9d5](https://github.com/elalish/manifold/archive/0edd9d54876f3135e431575214dd6d8a72866fee/manifold-0edd9d54876f3135e431575214dd6d8a72866fee.tar.gz) (31 MB), [Clipper2 @ c7f820f](https://github.com/AngusJohnson/Clipper2/archive/c7f820f6a03fa91f189b866d27bf40dfe47abaa6/Clipper2-c7f820f6a03fa91f189b866d27bf40dfe47abaa6.tar.gz), [sanitizers-cmake @ bcb1fc6](https://github.com/arsenm/sanitizers-cmake/archive/bcb1fc68616e9645ca5acea2992412606373ab04/sanitizers-cmake-bcb1fc68616e9645ca5acea2992412606373ab04.tar.gz), [MCAD @ 1ea4022](https://github.com/openscad/MCAD/archive/1ea402208c3127ffb443931e9bb1681c191dacca/MCAD-1ea402208c3127ffb443931e9bb1681c191dacca.tar.gz) — the GitHub source archive carries no submodules, so each is fetched separately and moved into place in `post-extract` |
 | py-pyside6 | [Qt `pyside-setup-everywhere-src`](https://download.qt.io/official_releases/QtForPython/pyside6/) (same distfile as the stock port; version tracks `qt6.version`) |
 | py-cxxheaderparser | [PyPI cxxheaderparser 1.9.1](https://files.pythonhosted.org/packages/source/c/cxxheaderparser/cxxheaderparser-1.9.1.tar.gz) |
 | skim-app | [SourceForge Skim 1.7.15](https://downloads.sourceforge.net/project/skim-app/Skim/Skim-1.7.15/Skim-1.7.15.dmg) (prebuilt .dmg) |
@@ -721,13 +721,21 @@ wrapper in `~/.local/bin`), NOT MacPorts ports:
   Error: Can't install cgal4 because conflicting ports are active: cgal6
   ```
 
-  Current OpenSCAD asks for CGAL >= 5.0 with no upper bound, so pinning
-  upstream's own dev-snapshot tag (`openscad-2026.01.01-TEST2`) builds against
-  the cgal6 that is already there. Nothing in MacPorts depends on openscad, so
-  taking the name is risk-free and `port install openscad` gets the one that
-  actually installs — same approach this tree takes for magic, verilator and
-  openEMS. `version` drops the `-TEST2` suffix (hyphens in a MacPorts version
-  are best avoided); the exact tag is pinned in the Portfile.
+  Current OpenSCAD asks for CGAL >= 5.0 with no upper bound, so pinning one of
+  upstream's own dev snapshots builds against the cgal6 that is already there.
+  Nothing in MacPorts depends on openscad, so taking the name is risk-free and
+  `port install openscad` gets the one that actually installs — same approach
+  this tree takes for magic, verilator and openEMS.
+- **Pinned by commit, not by tag — upstream deletes its snapshot tags.** The
+  port was first pinned to `openscad-2026.01.01-TEST2`; by 2026-10 upstream had
+  deleted that tag (and every `2026.01.01-TEST*`), the archive URL 404'd, and a
+  fresh `port install openscad` could not fetch. It now pins
+  `openscad-2026.10-TEST3` by the **commit** that tag points to (`81ade7d3`,
+  on `master`), whose archive URL survives the tag being deleted. `version` is
+  `2026.10`, the snapshot date without `-TESTn` (hyphens in a MacPorts version
+  are best avoided). When bumping again, take the commit from
+  `gh api repos/openscad/openscad/git/ref/tags/<tag>` and the submodule SHAs
+  from `contents/submodules?ref=<tag>`.
 - **Submodules are vendored as pinned distfiles.** The GitHub source archive
   contains no submodules, so manifold, Clipper2, sanitizers-cmake and MCAD are
   fetched as their own checksummed tarballs at the SHAs recorded at that tag
@@ -769,6 +777,14 @@ wrapper in `~/.local/bin`), NOT MacPorts ports:
   does not exist under Qt6 — CMake hard-errors on that combination).
   `SNAPSHOT=ON` matches what this tag is and selects the nightly icon set, so
   the app is visibly distinct from a stable release.
+- **New in the TEST3 bump.** Manifold's parallel backend makes TBB effectively
+  required (`find_package(TBB QUIET)` falls back to a `REQUIRED` pkg-config
+  check), so `port:onetbb` is declared rather than linking whatever copy is
+  around. `ENABLE_HIDAPI` / `ENABLE_SPNAV` (3D-mouse input drivers) default to
+  `AUTO` and would link a stray libhidapi/libspnav, so both are pinned OFF; so is
+  `USE_CCACHE`. Every other configure switch carried over unchanged, and the
+  macOS install layout (`.app` in `bin/`) is the same, so `post-destroot` still
+  applies.
 - **The macOS install puts an `.app` inside `bin/`, and no `openscad` command.**
   On the Apple branch upstream's CMakeLists does only
   `install(TARGETS OpenSCADExe BUNDLE DESTINATION ${CMAKE_INSTALL_BINDIR})` —
@@ -781,8 +797,10 @@ wrapper in `~/.local/bin`), NOT MacPorts ports:
   external binary, so it needs that wrapper — point it there under
   *Edit → Preferences → OpenSCAD*. The same binary serves GUI and CLI; `-o`
   switches it to rendering (`openscad -o part.stl part.scad`).
-- **Verified on BOTH machines** — macOS 13 / Qt **6.7.3** and macOS 15 / Qt
-  **6.11**, which is what proves the `${qt6.dir}` indirection above actually
+- **Verified on BOTH machines, on the previous `2026.01.01-TEST2` snapshot;
+  `2026.10-TEST3` (2026.10_0) is not yet built.** macOS 13 / Qt **6.7.3** and
+  macOS 15 / Qt **6.11**, which is what proves the `${qt6.dir}` indirection
+  above actually
   carries across Qt versions: `openscad --version` reports
   2026.08.19, a 40×30×12 enclosure shell renders to a valid STL (16 vertices,
   28 facets), the binary links Apple's `OpenGL.framework` rather than mesa, and

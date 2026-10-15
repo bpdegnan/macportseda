@@ -11,8 +11,8 @@ PortGroup           boost 1.0
 boost.version       1.81
 
 name                openscad
-version             2026.01.01
-revision            1
+version             2026.10
+revision            0
 
 categories          cad science
 license             GPL-2+
@@ -43,10 +43,17 @@ homepage            https://openscad.org/
 # openscad` gets the one that actually installs -- same approach this tree takes
 # for magic / verilator / openEMS.
 #
-# VERSION/TAG: upstream tags dev snapshots as openscad-<date>-TESTn. The tag is
-# openscad-2026.01.01-TEST2; `version` drops the -TEST2 suffix because a hyphen
-# in a MacPorts version is best avoided, and the exact tag is pinned below.
-set osc_tag         openscad-2026.01.01-TEST2
+# VERSION/PIN: upstream tags dev snapshots as openscad-<YYYY.MM>-TESTn, and
+# DELETES them later -- this port's previous pin, openscad-2026.01.01-TEST2,
+# vanished upstream in 2026-10 and took its archive URL with it, so the port
+# could no longer fetch. The source is therefore pinned by the COMMIT the tag
+# points to, which stays fetchable for as long as it is in master's history
+# (81ade7d3 is an ancestor of master: checked 2026-10-15). It is
+# openscad-2026.10-TEST3, 2026-10-04, "Sign macOS binaries with GPG key
+# (#7093)". `version` is the snapshot date without the -TESTn suffix, because
+# a hyphen in a MacPorts version is best avoided.
+set osc_tag         openscad-2026.10-TEST3
+set osc_commit      81ade7d33a8ed14fc6817a1cf0d44334592bb9fc
 
 # ---- Vendored submodules --------------------------------------------------
 # The GitHub source archive does NOT contain git submodules, so each one is
@@ -58,43 +65,43 @@ set osc_tag         openscad-2026.01.01-TEST2
 #   * OpenCSG  -- USE_BUILTIN_OPENCSG defaults OFF, so find_package finds ours
 #   * mimalloc -- submodules/CMakeLists.txt does find_package(mimalloc QUIET)
 #                 first and only falls back to the submodule if that misses
-set manifold_sha    b2c6ddd2e33510498a62c89049c83fa70342ddb3
-set clipper2_sha    6901921c4be75126d1de60bfd24bd86a61319fd0
-set sanitizers_sha  c3dc841af4dbf44669e65b82cb68a575864326bd
+set manifold_sha    0edd9d54876f3135e431575214dd6d8a72866fee
+set clipper2_sha    c7f820f6a03fa91f189b866d27bf40dfe47abaa6
+set sanitizers_sha  bcb1fc68616e9645ca5acea2992412606373ab04
 set mcad_sha        1ea402208c3127ffb443931e9bb1681c191dacca
 
-master_sites        https://github.com/openscad/openscad/archive/${osc_tag}/:osc \
+master_sites        https://github.com/openscad/openscad/archive/${osc_commit}/:osc \
                     https://github.com/elalish/manifold/archive/${manifold_sha}/:manifold \
                     https://github.com/AngusJohnson/Clipper2/archive/${clipper2_sha}/:clipper2 \
                     https://github.com/arsenm/sanitizers-cmake/archive/${sanitizers_sha}/:sanitizers \
                     https://github.com/openscad/MCAD/archive/${mcad_sha}/:mcad
 
-distname            ${osc_tag}
-worksrcdir          openscad-${osc_tag}
+distname            openscad-${osc_commit}
+worksrcdir          openscad-${osc_commit}
 dist_subdir         openscad
 
-distfiles           ${osc_tag}${extract.suffix}:osc \
+distfiles           openscad-${osc_commit}${extract.suffix}:osc \
                     manifold-${manifold_sha}${extract.suffix}:manifold \
                     Clipper2-${clipper2_sha}${extract.suffix}:clipper2 \
                     sanitizers-cmake-${sanitizers_sha}${extract.suffix}:sanitizers \
                     MCAD-${mcad_sha}${extract.suffix}:mcad
 
-checksums           ${osc_tag}${extract.suffix} \
-                        rmd160  ae48d6e0611af698dc883cad2d33fcbfe84598ff \
-                        sha256  927604ca7fdc5b5b850b330843cbdafc0990ba51240a85149568d2c60f38cb2a \
-                        size    24940366 \
+checksums           openscad-${osc_commit}${extract.suffix} \
+                        rmd160  93ece235ff09eef5b9da16a9db354f0bf8bb6932 \
+                        sha256  097b3f9654165ab99d93d25b9d168fc3e0293292242d06646786c8655d5db5e5 \
+                        size    25604755 \
                     manifold-${manifold_sha}${extract.suffix} \
-                        rmd160  4fccfd7b256e62fa2f3a027c0cc16aef7c7f18a2 \
-                        sha256  0f3e9fdce6cc2f1ecb240169f3ceda4905604cf9a1895d2966c2b4c8d767bd9b \
-                        size    29964477 \
+                        rmd160  82ea44c89162e9d24afbee5b882d21b0ff965ed6 \
+                        sha256  67677a21ec39d24c843b4a2be698bf7acba5f9684df667285cef5e5f94c70267 \
+                        size    30979021 \
                     Clipper2-${clipper2_sha}${extract.suffix} \
-                        rmd160  5be6577607c60a104888b235f3040daaa5af770d \
-                        sha256  d4ba8b5a927caab6e2b3d07d9becd5bf3775489494fd84251e7d288e3b43ae4b \
-                        size    621021 \
+                        rmd160  7e9dc2a418fb83d9062d93c74257f601d024c387 \
+                        sha256  399e712bd653a85e1507fbb02de8032d264e235a8e62e7028cee91f0490418b6 \
+                        size    716242 \
                     sanitizers-cmake-${sanitizers_sha}${extract.suffix} \
-                        rmd160  8bf195a5523967429564a1f151aadf6216eb8e7b \
-                        sha256  19d511a3a4ddc872c89ab62c070dd8d1fcc733e6ea4655f5876a60237cd556ba \
-                        size    7433 \
+                        rmd160  03340a41e073ebffe6960bb8678e88c0eb3860c4 \
+                        sha256  98f25152be7305263189e1167c7b65a79328b335d1cf4861f592318a36d031ae \
+                        size    7491 \
                     MCAD-${mcad_sha}${extract.suffix} \
                         rmd160  044cf8b78e8f2e3861768177190571122b6ee4a5 \
                         sha256  3d04077d369814638c3f018fecc39439011a47f545026f43c1a465bce1773f57 \
@@ -140,7 +147,12 @@ depends_lib-append  port:cgal6 \
                     port:double-conversion \
                     port:lib3mf \
                     port:cairo \
-                    port:glib2
+                    port:glib2 \
+                    port:onetbb
+# onetbb: manifold's parallel backend. Unless MANIFOLD_PAR is preset, CMakeLists
+# does find_package(TBB QUIET) and then falls back to
+# pkg_check_modules(TBB tbb REQUIRED) -- so TBB is effectively REQUIRED, and
+# whatever copy is lying around gets linked. Declared so it is always ours.
 
 configure.args-append \
     -DUSE_QT6=ON \
@@ -152,6 +164,9 @@ configure.args-append \
     -DENABLE_GUI_TESTS=OFF \
     -DMANIFOLD_TEST=OFF \
     -DENABLE_GAMEPAD=OFF \
+    -DENABLE_HIDAPI=OFF \
+    -DENABLE_SPNAV=OFF \
+    -DUSE_CCACHE=OFF \
     -DSNAPSHOT=ON \
     -DBoost_DIR=${prefix}/libexec/boost/1.81/lib/cmake/Boost-1.81.0 \
     -DBOOST_ROOT=${prefix}/libexec/boost/1.81 \
@@ -187,6 +202,11 @@ configure.args-append \
 # OPENGL_INCLUDE_DIR=<framework>/Headers makes CMake's try_compile fail.
 # ENABLE_TESTS defaults ON and would run the (very large) upstream testsuite as
 # part of the build; MANIFOLD_TEST likewise defaults ON inside the submodule.
+# ENABLE_HIDAPI and ENABLE_SPNAV (3D-mouse input drivers) default to AUTO,
+# i.e. link libhidapi / libspnav if they happen to be installed -- an
+# undeclared, machine-dependent dependency. Pinned OFF. USE_CCACHE defaults ON
+# and would route the build through any ccache it finds; OFF for a
+# reproducible port build.
 # ENABLE_GAMEPAD is AUTO by default and its Qt5Gamepad driver is unavailable
 # under Qt6 -- CMake hard-errors on that combination unless it is OFF.
 # Boost lives in a VERSIONED private prefix (libexec/boost/1.81), which CMake's
