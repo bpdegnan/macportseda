@@ -1,0 +1,59 @@
+--- spice/WritePathSpice.cc.orig
++++ spice/WritePathSpice.cc
+@@ -49,6 +49,7 @@
+ #include "TimingArc.hh"
+ #include "Units.hh"
+ #include "WriteSpice.hh"
++#include "search/ClkInfo.hh"
+ #include "search/Sim.hh"
+ 
+ namespace sta {
+@@ -78,6 +79,7 @@ class WritePathSpice : public WriteSpice (private)
+   void writeInputSource();
+   void writeStageSubckts();
+   void writeInputStage(Stage stage);
++  bool inputStageLoads();
+   void writeMeasureStmts();
+   void writeMeasureStmt(const Pin *pin);
+   void writeGateStage(Stage stage);
+@@ -479,10 +481,31 @@ WritePathSpice::writeInputStage(Stage stage)
+              prefix,
+              drvr_pin_name,
+              load_pin_name);
++  if (inputStageLoads()) {
++    const Pin *drvr_pin = stageDrvrPin(stage);
++    PinSet drvr_loads(network_);
++    PinConnectedPinIterator *pin_iter = network_->connectedPinIterator(drvr_pin);
++    while (pin_iter->hasNext())
++      drvr_loads.insert(pin_iter->next());
++    delete pin_iter;
++    writeSubcktInstLoads(drvr_pin, stageLoadPin(stage), drvr_loads, written_insts_);
++  }
+   writeStageParasitics(stage);
+   sta::print(spice_stream_, ".ends\n\n");
+ }
+ 
++// Whether the input stage's net has its other loads: an input port's or a
++// propagated clock's, which the timing loads with them (without them a
++// port's wire simulates faster than it was timed), but not an ideal
++// clock's, whose wires the timing takes as ideal and whose net can reach
++// every register of the design.
++bool
++WritePathSpice::inputStageLoads()
++{
++  const Path *input_path = stageDrvrPath(stageFirst());
++  return !input_path->isClock(this) || input_path->clkInfo(this)->isPropagated();
++}
++
+ // Gate and load parasitics.
+ void
+ WritePathSpice::writeGateStage(Stage stage)
+@@ -579,6 +602,8 @@ WritePathSpice::findPathCellNames()
+         debugPrint(debug_, "write_spice", 2, "cell {}", cell->name());
+         path_cell_names.insert(cell->name());
+       }
++    }
++    if (arc || (stage == stageFirst() && inputStageLoads())) {
+       // Include side receivers.
+       const Pin *drvr_pin = stageDrvrPin(stage);
+       auto pin_iter = network_->connectedPinIterator(drvr_pin);

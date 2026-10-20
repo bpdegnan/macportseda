@@ -1,0 +1,17 @@
+--- spice/WritePathSpice.cc.orig
++++ spice/WritePathSpice.cc
+@@ -659,8 +659,12 @@ WritePathSpice::stageGateArc(Stage stage)
+ WritePathSpice::stageGateArc(Stage stage)
+ {
+   int path_index = stageDrvrPathIndex(stage);
+-  if (path_index >= 0)
+-    return path_expanded_.path(path_index)->prevArc(this);
++  if (path_index >= 0) {
++    // A path with no gate (an input port straight to a register pin) has
++    // no second stage: path() is null past the end.
++    const Path *path = path_expanded_.path(path_index);
++    return path ? path->prevArc(this) : nullptr;
++  }
+   else
+     return nullptr;
+ }

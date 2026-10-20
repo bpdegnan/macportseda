@@ -1,0 +1,320 @@
+--- spice/WriteSpice.hh.orig
++++ spice/WriteSpice.hh
+@@ -25,6 +25,7 @@
+ #pragma once
+ 
+ #include <fstream>
++#include <functional>
+ #include <map>
+ #include <string>
+ #include <string_view>
+@@ -172,6 +173,23 @@ class WriteSpice : public StaState (protected)
+                           const LibertyPort *input_port,
+                           // Return values.
+                           LibertyPortLogicValues &port_values);
++  void clockGatePortValues(const LibertyCell *cell,
++                           const LibertyPort *input_port,
++                           // Return values.
++                           LibertyPortLogicValues &port_values);
++  void loadPortValues(const Pin *load_pin,
++                      // Return values.
++                      LibertyPortLogicValues &port_values);
++  void seqFollowPortValues(const LibertyCell *cell,
++                           const Sequential &seq,
++                           const LibertyPort *load_port,
++                           // Return values.
++                           LibertyPortLogicValues &port_values);
++  bool fewestHighCube(DdNode *care,
++                      const LibertyPortSet &ports,
++                      const std::function<bool(const LibertyPort *)> &skip,
++                      // Return values.
++                      LibertyPortLogicValues &port_values);
+   void writeSubcktInstLoads(const Pin *drvr_pin,
+                             const Pin *path_load,
+                             const PinSet &excluded_input_pins,
+--- spice/WriteSpice.cc.orig
++++ spice/WriteSpice.cc
+@@ -26,9 +26,12 @@
+ 
+ #include <algorithm>  // swap
+ #include <filesystem>
++#include <functional>
+ #include <fstream>
+ #include <string>
+ #include <string_view>
++#include <utility>
++#include <vector>
+ 
+ #include "Bdd.hh"
+ #include "Clock.hh"
+@@ -788,6 +791,11 @@ WriteSpice::gatePortValues(const Pin *input_pin,
+   const Instance *inst = network_->instance(input_pin);
+   const LibertyPort *input_port = network_->libertyPort(input_pin);
+   const LibertyPort *drvr_port = network_->libertyPort(drvr_pin);
++  const LibertyCell *cell = drvr_port->libertyCell();
++  if (cell->isClockGate()) {
++    clockGatePortValues(cell, input_port, port_values);
++    return;
++  }
+   const FuncExpr *drvr_func = drvr_port->function();
+   if (drvr_func) {
+     if (gate_edge && gate_edge->role()->genericRole() == TimingRole::regClkToQ())
+@@ -979,40 +987,17 @@ WriteSpice::seqDataPortValues(Sequential *seq,
+           Cudd_Ref(reduced);
+           Cudd_RecursiveDeref(cudd_mgr, settable);
+           settable = reduced;
+-        }
+-      }
+-    }
+-    int *cube;
+-    CUDD_VALUE_TYPE value;
+-    DdGen *cube_gen = Cudd_FirstCube(cudd_mgr, settable, &cube, &value);
+-    if (!Cudd_IsGenEmpty(cube_gen)) {
+-      LibertyPortSet ports = data->ports();
+-      for (const LibertyPort *port : ports) {
+-        // Do not overwrite the values that sensitize the arc being timed.
+-        if (port_values.contains(port)
+-            || port == seq->output()
+-            || port == seq->outputInv())
+-          continue;
+-        DdNode *port_node = bdd_.findNode(port);
+-        if (port_node) {
+-          int var_index = Cudd_NodeReadIndex(port_node);
+-          switch (cube[var_index]) {
+-            case 0:
+-              port_values[port] = LogicValue::zero;
+-              found = true;
+-              break;
+-            case 1:
+-              port_values[port] = LogicValue::one;
+-              found = true;
+-              break;
+-            default:
+-              // Don't care in this cube; leave it to the tie low default.
+-              break;
+-          }
+         }
+       }
+     }
+-    Cudd_GenFree(cube_gen);
++    // Do not overwrite the values that sensitize the arc being timed.
++    found = fewestHighCube(settable, data->ports(),
++                           [&](const LibertyPort *port) {
++                             return port_values.contains(port)
++                               || port == seq->output()
++                               || port == seq->outputInv();
++                           },
++                           port_values);
+     Cudd_RecursiveDeref(cudd_mgr, settable);
+     Cudd_RecursiveDeref(cudd_mgr, want);
+     Cudd_RecursiveDeref(cudd_mgr, bdd);
+@@ -1089,11 +1074,191 @@ WriteSpice::deassertPortValues(const FuncExpr *expr,
+       }
+     }
+     Cudd_GenFree(cube_gen);
++    Cudd_RecursiveDeref(cudd_mgr, bdd);
++  }
++  bdd_.clearVarMap();
++}
++
++// An integrated clock gate passes its clock with its enable on, whatever
++// models its latch.  Its gated clock's function reads the latched enable, an
++// internal node no deck can drive (IQ, or a statetable node such as sky130's
++// M0, whose GCLK has no function at all), so sensitizing that function left
++// the enable to the tie low default in writeSubcktInstVoltSrcs() and the
++// gated clock never pulsed: every path through the gate was dead in the deck.
++// A test enable keeps the tie low, which is functional mode.
++void
++WriteSpice::clockGatePortValues(const LibertyCell *cell,
++                                const LibertyPort *input_port,
++                                // Return values.
++                                LibertyPortLogicValues &port_values)
++{
++  LibertyCellPortIterator port_iter(cell);
++  while (port_iter.hasNext()) {
++    LibertyPort *port = port_iter.next();
++    if (port != input_port && port->isClockGateEnable())
++      port_values[port] = LogicValue::one;
++  }
++}
++
++// A load is not sensitized, but it loads the net as it does when it
++// captures: in functional mode.  A clock gate's enable on; a sequential
++// cell's next state following its data input (the load pin if the next
++// state reads it) and its set and reset deasserted.  Tying every input low
++// instead holds a load register in reset and an enable flop's enable off,
++// which also changes the load its data pin puts on the net.
++void
++WriteSpice::loadPortValues(const Pin *load_pin,
++                           // Return values.
++                           LibertyPortLogicValues &port_values)
++{
++  const LibertyPort *load_port = network_->libertyPort(load_pin);
++  if (load_port == nullptr)
++    return;
++  const LibertyCell *cell = load_port->libertyCell();
++  if (cell->isClockGate()) {
++    clockGatePortValues(cell, load_port, port_values);
++    return;
++  }
++  const SequentialSeq &seqs = cell->sequentials();
++  if (!seqs.empty()) {
++    const Sequential &seq = seqs.front();
++    seqFollowPortValues(cell, seq, load_port, port_values);
++    deassertPortValues(seq.clear(), load_port, port_values);
++    deassertPortValues(seq.preset(), load_port, port_values);
++  }
++}
++
++// Values for a sequential cell's settable inputs under which its next state
++// follows one input whatever its state: load_port if the next state reads
++// it, else the first input it reads in the cell's port order.
++void
++WriteSpice::seqFollowPortValues(const LibertyCell *cell,
++                                const Sequential &seq,
++                                const LibertyPort *load_port,
++                                // Return values.
++                                LibertyPortLogicValues &port_values)
++{
++  FuncExpr *data = seq.data();
++  if (data == nullptr)
++    return;
++  LibertyPortSet ports = data->ports();
++  auto is_state = [&](const LibertyPort *port) {
++    return port == seq.output() || port == seq.outputInv();
++  };
++  const LibertyPort *follow = nullptr;
++  if (ports.contains(const_cast<LibertyPort*>(load_port)))
++    follow = load_port;
++  else {
++    LibertyCellPortIterator port_iter(cell);
++    while (port_iter.hasNext() && follow == nullptr) {
++      LibertyPort *port = port_iter.next();
++      if (ports.contains(port) && !is_state(port))
++        follow = port;
++    }
++  }
++  if (follow == nullptr)
++    return;
++  DdManager *cudd_mgr = bdd_.cuddMgr();
++  DdNode *bdd = bdd_.funcBdd(data);
++  if (bdd) {
++    DdNode *follow_node = bdd_.findNode(follow);
++    DdNode *f1 = Cudd_Cofactor(cudd_mgr, bdd, follow_node);
++    Cudd_Ref(f1);
++    DdNode *f0 = Cudd_Cofactor(cudd_mgr, bdd, Cudd_Not(follow_node));
++    Cudd_Ref(f0);
++    DdNode *care = Cudd_bddAnd(cudd_mgr, f1, Cudd_Not(f0));
++    Cudd_Ref(care);
++    // For every value of the state, as in seqDataPortValues().
++    for (const LibertyPort *state_port : {seq.output(), seq.outputInv()}) {
++      if (state_port == nullptr)
++        continue;
++      DdNode *state_node = bdd_.findNode(state_port);
++      if (state_node) {
++        DdNode *reduced = Cudd_bddUnivAbstract(cudd_mgr, care, state_node);
++        if (reduced) {
++          Cudd_Ref(reduced);
++          Cudd_RecursiveDeref(cudd_mgr, care);
++          care = reduced;
++        }
++      }
++    }
++    fewestHighCube(care, ports,
++                   [&](const LibertyPort *port) {
++                     return port == follow || is_state(port)
++                       || port_values.contains(port);
++                   },
++                   port_values);
++    Cudd_RecursiveDeref(cudd_mgr, care);
++    Cudd_RecursiveDeref(cudd_mgr, f0);
++    Cudd_RecursiveDeref(cudd_mgr, f1);
+     Cudd_RecursiveDeref(cudd_mgr, bdd);
+   }
+   bdd_.clearVarMap();
+ }
+ 
++// Of the cubes of care, the one with the fewest of ports high (a don't care
++// counts as low: it is tied low), the first such in CUDD's order, assigned to
++// the ports skip does not exclude.  Fewest high is functional mode rather
++// than test mode: CUDD's first cube of a scan flop's next state
++// "(D&!SCE) | (SCD&SCE)" is the scan path, SCE=1 and SCD carrying the edge,
++// so the deck launched the path through the scan mux it does not take.
++// Returns whether any port was assigned.
++bool
++WriteSpice::fewestHighCube(DdNode *care,
++                           const LibertyPortSet &ports,
++                           const std::function<bool(const LibertyPort *)> &skip,
++                           // Return values.
++                           LibertyPortLogicValues &port_values)
++{
++  DdManager *cudd_mgr = bdd_.cuddMgr();
++  std::vector<std::pair<const LibertyPort *, int>> vars;
++  for (const LibertyPort *port : ports) {
++    if (!skip(port)) {
++      DdNode *port_node = bdd_.findNode(port);
++      if (port_node)
++        vars.emplace_back(port, Cudd_NodeReadIndex(port_node));
++    }
++  }
++  std::vector<int> best;
++  int best_high = -1;
++  int *cube;
++  CUDD_VALUE_TYPE value;
++  DdGen *cube_gen = Cudd_FirstCube(cudd_mgr, care, &cube, &value);
++  while (!Cudd_IsGenEmpty(cube_gen)) {
++    std::vector<int> values;
++    int high = 0;
++    for (const auto &[port, var_index] : vars) {
++      values.push_back(cube[var_index]);
++      if (cube[var_index] == 1)
++        high++;
++    }
++    if (best_high < 0 || high < best_high) {
++      best_high = high;
++      best = values;
++    }
++    Cudd_NextCube(cube_gen, &cube, &value);
++  }
++  Cudd_GenFree(cube_gen);
++  bool assigned = false;
++  for (size_t i = 0; i < best.size(); i++) {
++    const LibertyPort *port = vars[i].first;
++    switch (best[i]) {
++      case 0:
++        port_values[port] = LogicValue::zero;
++        assigned = true;
++        break;
++      case 1:
++        port_values[port] = LogicValue::one;
++        assigned = true;
++        break;
++      default:
++        // Don't care in this cube; leave it to the tie low default.
++        break;
++    }
++  }
++  return assigned;
++}
++
+ // Pick a port, any port...
+ LibertyPort *
+ WriteSpice::onePort(FuncExpr *expr)
+@@ -1147,14 +1312,15 @@ WriteSpice::writeSubcktInstLoads(const Pin *drvr_pin,
+ {
+   sta::print(spice_stream_, "* Load pins\n");
+   PinSeq drvr_loads = drvrLoads(drvr_pin);
+-  // Do not sensitize side load gates.
+-  LibertyPortLogicValues port_values;
+   for (const Pin *load_pin : drvr_loads) {
+     const Instance *load_inst = network_->instance(load_pin);
+     if (load_pin != path_load && network_->direction(load_pin)->isAnyInput()
+         && !network_->isHierarchical(load_pin) && !network_->isTopLevelPort(load_pin)
+         && !written_insts.contains(load_inst)) {
+       writeSubcktInst(load_inst);
++      // Do not sensitize side load gates, but put them in functional mode.
++      LibertyPortLogicValues port_values;
++      loadPortValues(load_pin, port_values);
+       writeSubcktInstVoltSrcs(load_inst, port_values, excluded_input_pins);
+       sta::print(spice_stream_, "\n");
+       written_insts.insert(load_inst);

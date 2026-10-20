@@ -1,0 +1,105 @@
+--- spice/WriteSpice.cc.orig
++++ spice/WriteSpice.cc
+@@ -167,6 +167,9 @@ WriteSpice::writeSubckts(StringSet &cell_names)
+ void
+ WriteSpice::writeSubckts(StringSet &cell_names)
+ {
++  // Only the path's cells must be in the file: what they instantiate and
++  // the file does not define (a PDK's transistors) is the model file's.
++  StringSet path_cells = cell_names;
+   findCellSubckts(cell_names);
+   std::ifstream lib_subckts_stream{std::string(lib_subckt_filename_)};
+   if (lib_subckts_stream.is_open()) {
+@@ -203,12 +206,14 @@ WriteSpice::writeSubckts(StringSet &cell_names)
+       subckts_stream.close();
+       lib_subckts_stream.close();
+ 
+-      if (!cell_names.empty()) {
+-        std::string missing_cells;
+-        for (const std::string &cell_name : cell_names) {
++      std::string missing_cells;
++      for (const std::string &cell_name : cell_names) {
++        if (path_cells.contains(cell_name)) {
+           missing_cells += "\n";
+           missing_cells += cell_name;
+         }
++      }
++      if (!missing_cells.empty()) {
+         report_->error(1605, "The subkct file {} is missing definitions for {}",
+                        lib_subckt_filename_, missing_cells);
+       }
+@@ -244,33 +249,51 @@ WriteSpice::recordSpicePortNames(std::string_view cell
+   }
+ }
+ 
+-// Subckts can call subckts (asap7).
++// Subckts can call subckts (asap7, and every sky130 cell, whose transistors
++// are subckts). Add to cell_names every subckt the cells in it instantiate,
++// to a fixed point, so a subckt is found whatever its place in the file: the
++// subckt an X statement calls is its last word (continuation lines joined)
++// that is not a name=value parameter.
+ void
+ WriteSpice::findCellSubckts(StringSet &cell_names)
+ {
+-  std::ifstream lib_subckts_stream{std::string(lib_subckt_filename_)};
+-  if (lib_subckts_stream.is_open()) {
++  StringSet scanned;
++  bool found_more = true;
++  while (found_more) {
++    found_more = false;
++    std::ifstream lib_subckts_stream{std::string(lib_subckt_filename_)};
++    if (!lib_subckts_stream.is_open())
++      throw FileNotReadable(lib_subckt_filename_);
++    auto subckt_call = [&](const std::string &stmt) {
++      if (!stmt.empty() && tolower(stmt[0]) == 'x') {
++        StringSeq words = parseTokens(stmt);
++        for (size_t i = words.size() - 1; i > 0; i--) {
++          if (words[i].find('=') == std::string::npos) {
++            if (cell_names.insert(words[i]).second)
++              found_more = true;
++            break;
++          }
++        }
++      }
++    };
+     std::string line;
+     while (std::getline(lib_subckts_stream, line)) {
+       // .subckt <cell_name> [args..]
+       StringSeq tokens = parseTokens(line);
+       if (tokens.size() >= 2 && stringEqual(tokens[0], ".subckt")) {
+-        const std::string &cell_name = tokens[1];
+-        if (cell_names.contains(cell_name)) {
++        const std::string cell_name = tokens[1];
++        if (cell_names.contains(cell_name) && !scanned.contains(cell_name)) {
++          scanned.insert(cell_name);
+           // Scan the subckt definition for subckt calls.
+           std::string stmt;
+           while (std::getline(lib_subckts_stream, line)) {
+-            if (line[0] == '+')
++            if (!line.empty() && line[0] == '+') {
++              stmt += ' ';
+               stmt += line.substr(1);
+-            else {
+-              // Process previous statement.
+-              if (tolower(stmt[0]) == 'x') {
+-                StringSeq tokens = parseTokens(line);
+-                std::string &subckt_cell = tokens[tokens.size() - 1];
+-                cell_names.insert(subckt_cell);
+-              }
+-              stmt = line;
++              continue;
+             }
++            subckt_call(stmt);
++            stmt = line;
+             if (stringBeginEqual(line, ".ends"))
+               break;
+           }
+@@ -278,8 +301,6 @@ WriteSpice::findCellSubckts(StringSet &cell_names)
+       }
+     }
+   }
+-  else
+-    throw FileNotReadable(lib_subckt_filename_);
+ }
+ 
+ ////////////////////////////////////////////////////////////////

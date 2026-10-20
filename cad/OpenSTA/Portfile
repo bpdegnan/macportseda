@@ -15,7 +15,7 @@ PortGroup           cmake 1.1
 # the upgrade).
 github.setup        parallaxsw OpenSTA 87ce5680dfa92aa98f07b587df5deb032f6593af
 version             3.1.0
-revision            12
+revision            13
 
 categories          cad
 license             GPL-3
@@ -248,6 +248,85 @@ patchfiles-append   patch-LibertyReader-ccs-slew-axis-spelling.diff
 #
 # NOT fixed upstream; not submitted.
 patchfiles-append   patch-PrimaDelayCalc-pin-not-in-network.diff
+
+# The four patches below fix write_path_spice decks so the path in the deck
+# switches as it was timed. Found and checked against icasta's own
+# write_path_spice (icasta BUGS-FIXED.md 32-35), on the routed sky130 6502
+# (riscvpr work_sky130_mos6502) and the s7 6502 (work_mos6502_ccs), and with
+# riscvpr's scripts/polarity_audit.py. They change the decks, so SPICE numbers
+# from decks written after this revision are not comparable with earlier ones
+# where the tied pins or the first stage's net differ.
+
+# write_path_spice SIGSEGVs on a path with no gate on it: an input port wired
+# straight to a register pin (routed sky130 6502, -path_delay min: NMI ->
+# _2023_/D), after writing the decks before it (rc 139).
+# writeInputWaveform()/writeClkWaveform() ask stageGateArc(input_stage + 1)
+# for the next arc's slew axis; on a two-pin path PathExpanded::path() is null
+# past the end and stageGateArc() dereferences it. The guard returns no arc,
+# so findSlew() falls back as it already does (one time unit when the port has
+# no slew). Decks of other paths are byte-identical before/after.
+# NOT submitted upstream.
+patchfiles-append   patch-WritePathSpice-no-gate-path.diff
+
+# write_path_spice fails with error 1605 on a cell subckt file whose cells
+# instantiate their transistors as subckts, as every sky130 cell does
+# ("X0 ... sky130_fd_pr__nfet_01v8 w=... l=..."):
+#
+#   Error: 1605 The subkct file ... is missing definitions for
+#   .ends
+#   l=150000u
+#
+# findCellSubckts() took the last word of the line AFTER each X statement (and
+# of continuation lines) as the called subckt, so parameters and ".ends"
+# became cell names; it also scanned the file once in order, missing a subckt
+# defined before the cell that calls it. riscvpr's flow works around it by
+# appending dummy ".subckt l=..." definitions and stripping them from the
+# decks afterwards. Now the called subckt is the X statement's own last word
+# that is not a name=value parameter (continuation lines joined), found to a
+# fixed point, and only the path's own cells must be in the file: what they
+# instantiate and the file does not define (the PDK's transistors) is the
+# model file's. With the dummies removed, the 6502 decks are byte-identical to
+# the ones written with them; the subckt sidecar lacks only the dummies.
+# NOT submitted upstream.
+patchfiles-append   patch-WriteSpice-nested-subckts.diff
+
+# Three more tie shapes that freeze or misroute the path in the deck
+# (riscvpr polarity_findings shapes 4-5 and the load ties its audit flags):
+#
+#  - An integrated clock gate on the path has its enable tied OFF, so the
+#    gated clock never pulses (riscvpr cv32e40p, 0 of 15 paths measured).
+#    gatePortValues() sensitized the gated clock's function, whose enable
+#    term is the gate's latched state -- IQ, or for sky130's dlclkp/sdlclkp a
+#    statetable node M0 with no GCLK function at all -- which no deck can
+#    drive, so the enable fell to the tie low. Now a clock gate's
+#    clock_gate_enable_pin is tied on (a test enable keeps the tie low).
+#  - A scan flop launches through its scan path: CUDD's first cube of
+#    "(D&!SCE) | (SCD&SCE)" is SCE=1, SCD carrying the edge. Next-state
+#    cubes are now chosen with the fewest inputs high (functional mode: an
+#    enable on, a scan enable off), first in CUDD's order on ties.
+#  - Every input of a path net's other loads was tied low, holding a load
+#    register in reset (sky130 dfrtp RESET_B) and an enable flop's enable off
+#    (which also changes the load its D pin puts on the net). Loads are now in
+#    functional mode: a clock gate's enable on, a sequential's next state
+#    following its data input (the load pin if it is one), set and reset
+#    deasserted. Loads are still not sensitized.
+#
+# polarity_audit.py on the routed sky130 CTS 6502 (21 decks): unpatched 15
+# flipped, 87 seqbad; patched 0, 0. On the s7 6502 (30 decks, 22 non-unate
+# gates): 0, 0 both. NOT submitted upstream.
+patchfiles-append   patch-WriteSpice-functional-ties.diff
+
+# The first stage's net (from an input port) had none of its other loads:
+# writeInputStage() wrote the net's parasitics only, though the timing loads
+# the port with every pin on it. On the routed sky130 6502 the wire from RDY
+# (112 other loads) to _0932_/S simulated at 7.2 ps in ngspice against
+# 13.7 ps timed; with its loads, 13.2 ps. The input stage now writes its loads
+# as a gate stage does, unless the input is an IDEAL clock: the timing takes
+# its wires as ideal, and its net can reach every register of the design
+# (riscvpr found thousands of load flops make a deck take hours). A propagated
+# clock's first net (clock port -> root buffer) does get its loads.
+# NOT submitted upstream.
+patchfiles-append   patch-WritePathSpice-input-stage-loads.diff
 
 # OpenSTA is C++20 and its headers rely on P0634 ("Down with typename!"), which
 # lets `typename` be omitted in dependent contexts -- e.g. include/sta/Iterator.hh
