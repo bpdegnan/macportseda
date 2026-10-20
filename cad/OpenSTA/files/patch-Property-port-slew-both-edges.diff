@@ -1,0 +1,18 @@
+--- search/Property.cc.orig
++++ search/Property.cc
+@@ -788,13 +788,13 @@
+     return portSlack(port, RiseFallBoth::rise(), MinMax::min());
+ 
+   else if (property == "slew_max")
+-    return portSlew(port, RiseFallBoth::fall(), MinMax::max());
++    return portSlew(port, RiseFallBoth::riseFall(), MinMax::max());
+   else if (property == "slew_max_fall")
+     return portSlew(port, RiseFallBoth::fall(), MinMax::max());
+   else if (property == "slew_max_rise")
+     return portSlew(port, RiseFallBoth::rise(), MinMax::max());
+   else if (property == "slew_min")
+-    return portSlew(port, RiseFallBoth::fall(), MinMax::min());
++    return portSlew(port, RiseFallBoth::riseFall(), MinMax::min());
+   else if (property == "slew_min_rise")
+     return portSlew(port, RiseFallBoth::rise(), MinMax::min());
+   else if (property == "slew_min_fall")

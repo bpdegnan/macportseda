@@ -15,7 +15,7 @@ PortGroup           cmake 1.1
 # the upgrade).
 github.setup        parallaxsw OpenSTA 87ce5680dfa92aa98f07b587df5deb032f6593af
 version             3.1.0
-revision            13
+revision            14
 
 categories          cad
 license             GPL-3
@@ -327,6 +327,28 @@ patchfiles-append   patch-WriteSpice-functional-ties.diff
 # clock's first net (clock port -> root buffer) does get its loads.
 # NOT submitted upstream.
 patchfiles-append   patch-WritePathSpice-input-stage-loads.diff
+
+# get_property <pin> is_clock segfaulted on a pin with no liberty port -- a
+# top-level port's pin, as `get_property [get_clocks clk] sources` returns.
+# Properties::getProperty(const Pin*) called isClock() on libertyPort(pin)
+# without the null check its is_register_clock branch has. Now false, as
+# is_register_clock. NOT submitted upstream.
+patchfiles-append   patch-Property-pin-is-clock-no-liberty-port.diff
+
+# A port's slew_max and slew_min properties were its FALL slew only:
+# Properties::getProperty(const Port*) passed RiseFallBoth::fall() where the
+# pin's properties pass riseFall(). On the sky130 6502 with flow.sdc,
+# AB[0] slew_max read 0.030507 though its rise slew is 0.075154. Now the
+# worst of both edges, as a pin's. NOT submitted upstream.
+patchfiles-append   patch-Property-port-slew-both-edges.diff
+
+# An arrival_* property read before anything had built the timing graph
+# (get_property or -filter straight after read_sdc) segfaulted:
+# Sta::arrival(const Pin*) called graph_->pinVertices() on a null graph; the
+# Vertex overload it calls next runs searchPreamble(), too late. Now
+# ensureGraph() first, as Sta::slack(const Pin*) already does.
+# NOT submitted upstream.
+patchfiles-append   patch-Sta-arrival-ensure-graph.diff
 
 # OpenSTA is C++20 and its headers rely on P0634 ("Down with typename!"), which
 # lets `typename` be omitted in dependent contexts -- e.g. include/sta/Iterator.hh

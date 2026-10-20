@@ -1,0 +1,10 @@
+--- search/Sta.cc.orig
++++ search/Sta.cc
+@@ -3087,6 +3087,7 @@
+              const RiseFallBoth *rf,
+              const MinMax *min_max)
+ {
++  ensureGraph();
+   Vertex *vertex, *bidirect_vertex;
+   graph_->pinVertices(pin, vertex, bidirect_vertex);
+   Arrival worst_arrival = min_max->initValue();
