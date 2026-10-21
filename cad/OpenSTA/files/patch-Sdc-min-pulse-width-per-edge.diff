@@ -1,0 +1,37 @@
+--- sdc/Sdc.cc.orig
++++ sdc/Sdc.cc
+@@ -2606,21 +2606,25 @@ Sdc::minPulseWidth(const Pin *pin,
+                    float &min_width,
+                    bool &exists) const
+ {
++  // Each pulse falls through pin, instance, clock and design on its own:
++  // a -high width on an object does not hide the -low width of a broader one.
++  exists = false;
+   RiseFallValues *widths = findKey(pin_min_pulse_width_map_, pin);
+   if (widths)
+     widths->value(hi_low, min_width, exists);
+-  else {
+-    if (pin) {
+-      const Instance *inst = network_->instance(pin);
+-      widths = findKey(inst_min_pulse_width_map_, inst);
+-    }
+-    if (widths == nullptr)
+-      widths = findKey(clk_min_pulse_width_map_, clk);
++  if (!exists && pin) {
++    const Instance *inst = network_->instance(pin);
++    widths = findKey(inst_min_pulse_width_map_, inst);
++    if (widths)
++      widths->value(hi_low, min_width, exists);
++  }
++  if (!exists) {
++    widths = findKey(clk_min_pulse_width_map_, clk);
+     if (widths)
+       widths->value(hi_low, min_width, exists);
+-    else
+-      min_pulse_width_.value(hi_low, min_width, exists);
+   }
++  if (!exists)
++    min_pulse_width_.value(hi_low, min_width, exists);
+ }
+ 
+ void

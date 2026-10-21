@@ -1,0 +1,105 @@
+--- include/sta/Search.hh.orig
++++ include/sta/Search.hh
+@@ -164,6 +164,9 @@ public:
+                          const ClkInfo *clk_info,
+                          const ClockEdge *clk_edge,
+                          const MinMax *min_max) const;
++  // Clock arrival at a clock check (pulse width, skew): an ideal clock's
++  // insertion delay and latency at any pin, not only at register clock pins.
++  Arrival clkCheckArrival(const Path *clk_path) const;
+   // Clock arrival at the path source/launch point.
+   Arrival pathClkPathArrival(const Path *path) const;
+ 
+--- search/CheckMaxSkews.cc.orig
++++ search/CheckMaxSkews.cc
+@@ -181,7 +181,9 @@ MaxSkewCheck::maxSkew(const StaState *sta) const
+ Delay
+ MaxSkewCheck::skew(const StaState *sta) const
+ {
+-  return delayDiff(clk_path_->arrival(), ref_path_->arrival(), sta);
++  const Search *search = sta->search();
++  return delayDiff(search->clkCheckArrival(clk_path_),
++                   search->clkCheckArrival(ref_path_), sta);
+ }
+ 
+ Slack
+--- search/CheckMinPulseWidths.cc.orig
++++ search/CheckMinPulseWidths.cc
+@@ -243,16 +243,16 @@ MinPulseWidthCheck::closePath(const StaState *sta) const
+ }
+ 
+ Arrival
+-MinPulseWidthCheck::openArrival(const StaState *) const
++MinPulseWidthCheck::openArrival(const StaState *sta) const
+ {
+-  return open_path_->arrival();
++  return sta->search()->clkCheckArrival(open_path_);
+ }
+ 
+ Arrival
+ MinPulseWidthCheck::closeArrival(const StaState *sta) const
+ {
+   Path *close = closePath(sta);
+-  return close->arrival();
++  return sta->search()->clkCheckArrival(close);
+ }
+ 
+ Arrival
+@@ -298,7 +298,7 @@ MinPulseWidthCheck::width(const StaState *sta) const
+   Arrival close_with_offset = delaySum(closeArrival(sta),
+                                        closeOffset(sta),
+                                        sta);
+-  Arrival minus_open = delayDiff(close_with_offset, open_path_->arrival(), sta);
++  Arrival minus_open = delayDiff(close_with_offset, openArrival(sta), sta);
+   return delaySum(minus_open, checkCrpr(sta), sta);
+ }
+ 
+--- search/ReportPath.cc.orig
++++ search/ReportPath.cc
+@@ -1614,7 +1614,7 @@ ReportPath::reportSkewClkPath(std::string_view arrival_msg,
+   const RiseFall *clk_end_rf = clk_path->transition(this);
+   std::string clk_name = clkName(clk, clk_end_rf != clk_rf);
+   float clk_time = clk_edge->time();
+-  const Arrival &clk_arrival = search_->clkPathArrival(clk_path);
++  const Arrival clk_arrival = search_->clkCheckArrival(clk_path);
+   Arrival clk_delay = delayDiff(clk_arrival,
+                                 clk_time,
+                                 this);
+@@ -1644,7 +1644,7 @@ ReportPath::reportSkewClkPath(std::string_view arrival_msg,
+     reportLine(descriptionField(clk_vertex), clk_arrival,
+                early_late, clk_end_rf);
+   }
+-  reportLine(arrival_msg, search_->clkPathArrival(clk_path), early_late);
++  reportLine(arrival_msg, clk_arrival, early_late);
+   reportBlankLine();
+ }
+ 
+--- search/Search.cc.orig
++++ search/Search.cc
+@@ -2276,6 +2276,26 @@ Search::clkPathArrival(const Path *clk_path,
+     return clk_path->arrival();
+ }
+ 
++Arrival
++Search::clkCheckArrival(const Path *clk_path) const
++{
++  const ClkInfo *clk_info = clk_path->clkInfo(this);
++  const ClockEdge *clk_edge = clk_info->clkEdge();
++  if (clk_path->isClock(this) && clk_edge
++      && !clk_info->isPropagated()) {
++    // Ideal clock, apply ideal insertion delay and latency.
++    const MinMax *min_max = clk_path->minMax(this);
++    const EarlyLate *early_late = min_max;
++    Arrival insertion = clockInsertion(clk_edge->clock(), clk_info->clkSrc(),
++                                       clk_edge->transition(), min_max,
++                                       early_late, clk_path->scene(this)->mode());
++    return delaySum(delaySum(insertion, clk_edge->time(), this),
++                    clk_info->latency(), this);
++  }
++  else
++    return clk_path->arrival();
++}
++
+ Arrival
+ Search::pathClkPathArrival(const Path *path) const
+ {

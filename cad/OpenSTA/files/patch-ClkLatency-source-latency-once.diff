@@ -1,0 +1,20 @@
+--- search/ClkLatency.cc.orig
++++ search/ClkLatency.cc
+@@ -275,13 +275,16 @@ ClkDelays::latency(Path *clk_path,
+   return delaySum(delay1, delaySum(insertion, lib_clk_delay, sta), sta);
+ }
+ 
++// The network latency: the arrival holds the source latency (insertion)
++// already, which latency() and setLatency() add on their own.
+ Delay
+ ClkDelays::delay(Path *clk_path,
+                  StaState *sta)
+ {
+   Arrival arrival = clk_path->arrival();
+   const ClockEdge *path_clk_edge = clk_path->clkEdge(sta);
+-  return delayDiff(arrival, path_clk_edge->time(), sta);
++  return delayDiff(delayDiff(arrival, path_clk_edge->time(), sta),
++                   insertionDelay(clk_path, sta), sta);
+ }
+ 
+ Delay

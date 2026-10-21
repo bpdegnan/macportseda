@@ -1,0 +1,92 @@
+--- search/ReportPath.cc.orig
++++ search/ReportPath.cc
+@@ -1517,15 +1517,17 @@ ReportPath::reportChecks(const MaxSkewCheckSeq &checks,
+ {
+   if (!checks.empty()) {
+     if (verbose) {
+-      for (const MaxSkewCheck &check : checks)
++      for (const MaxSkewCheck &check : checks) {
+         reportVerbose(check);
++        reportBlankLine();
++      }
+     }
+     else {
+       reportMaxSkewHeaderShort();
+       for (const MaxSkewCheck &check : checks)
+         reportShort(check);
++      reportBlankLine();
+     }
+-    reportBlankLine();
+   }
+ }
+ 
+--- search/Sta.cc.orig
++++ search/Sta.cc
+@@ -5593,18 +5593,21 @@ Sta::reportSlewChecks(const Net *net,
+     if (!verbose)
+       report_path_->reportLimitShortHeader(report_path_->fieldSlew());
+     for (SlewCheck &check : checks) {
+-      if (verbose)
++      if (verbose) {
+         report_path_->reportLimitVerbose(report_path_->fieldSlew(),
+                                          check.pin(), check.edge(),
+                                          delayAsFloat(check.slew(), min_max, this),
+                                          check.limit(), check.slack(),
+                                          check.scene(), min_max);
++        report_->report("");
++      }
+       else
+         report_path_->reportLimitShort(report_path_->fieldSlew(), check.pin(),
+                                        delayAsFloat(check.slew(), min_max, this),
+                                        check.limit(), check.slack());
+     }
+-    report_->report("");
++    if (!verbose)
++      report_->report("");
+   }
+ }
+ 
+@@ -5709,15 +5712,18 @@ Sta::reportFanoutChecks(const Net *net,
+       report_path_->reportLimitShortHeader(report_path_->fieldFanout());
+ 
+     for (const FanoutCheck &check : checks) {
+-      if (verbose)
++      if (verbose) {
+         report_path_->reportLimitVerbose(report_path_->fieldFanout(), check.pin(),
+                                          nullptr, check.fanout(), check.limit(),
+                                          check.slack(), nullptr, min_max);
++        report_->report("");
++      }
+       else
+         report_path_->reportLimitShort(report_path_->fieldFanout(), check.pin(),
+                                        check.fanout(), check.limit(), check.slack());
+     }
+-    report_->report("");
++    if (!verbose)
++      report_->report("");
+   }
+ }
+ 
+@@ -5805,17 +5811,20 @@ Sta::reportCapacitanceChecks(const Net *net,
+     if (!verbose)
+       report_path_->reportLimitShortHeader(report_path_->fieldCapacitance());
+     for (CapacitanceCheck &check : checks) {
+-      if (verbose)
++      if (verbose) {
+         report_path_->reportLimitVerbose(report_path_->fieldCapacitance(),
+                                          check.pin(), check.rf(),
+                                          check.capacitance(), check.limit(),
+                                          check.slack(), check.scene(), min_max);
++        report_->report("");
++      }
+       else
+         report_path_->reportLimitShort(report_path_->fieldCapacitance(), check.pin(),
+                                        check.capacitance(), check.limit(),
+                                        check.slack());
+-      report_->report("");
+     }
++    if (!verbose)
++      report_->report("");
+   }
+ }
+ 

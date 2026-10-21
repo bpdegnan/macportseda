@@ -1,0 +1,11 @@
+--- search/CheckSlews.cc.orig
++++ search/CheckSlews.cc
+@@ -269,7 +269,7 @@ CheckSlews::findLimit(const Pin *pin,
+   if (!clks.empty()) {
+     // Look for clock slew limits.
+     const ClkNetwork *clk_network = scene->mode()->clkNetwork();
+-    bool is_clk = clk_network->isIdealClock(pin);
++    bool is_clk = clk_network->isClock(pin);
+     for (const Clock *clk : clks) {
+       PathClkOrData clk_data = is_clk ? PathClkOrData::clk : PathClkOrData::data;
+       sdc->slewLimit(clk, rf, clk_data, min_max,

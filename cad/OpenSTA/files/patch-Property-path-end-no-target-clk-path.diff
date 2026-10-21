@@ -1,0 +1,16 @@
+--- search/Property.cc.orig
++++ search/Property.cc
+@@ -1262,8 +1262,11 @@
+     return PropertyValue(end->path()->pin(sta_));
+   else if (property == "endpoint_clock")
+     return PropertyValue(end->targetClk(sta_));
+-  else if (property == "endpoint_clock_pin")
+-    return PropertyValue(end->targetClkPath()->pin(sta_));
++  else if (property == "endpoint_clock_pin") {
++    // An output delay end has no capturing clock path.
++    const Path *tgt_clk_path = end->targetClkPath();
++    return PropertyValue(tgt_clk_path ? tgt_clk_path->pin(sta_) : nullptr);
++  }
+   else if (property == "slack")
+     return slackPropertyValue(end->slack(sta_));
+   else if (property == "points") {

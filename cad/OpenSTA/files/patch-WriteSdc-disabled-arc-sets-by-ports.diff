@@ -1,0 +1,37 @@
+--- sdc/WriteSdc.cc.orig
++++ sdc/WriteSdc.cc
+@@ -56,6 +56,7 @@
+ #include "Scene.hh"
+ #include "Sdc.hh"
+ #include "StaState.hh"
++#include "TimingArc.hh"
+ #include "Transition.hh"
+ #include "Units.hh"
+ #include "Variables.hh"
+@@ -1020,11 +1021,21 @@ WriteSdc::writeDisabledCells() const
+       }
+     }
+     if (disable->timingArcSets()) {
+-      // The only syntax to disable timing arc sets disables all of the
+-      // cell's timing arc sets.
+-      sta::print(stream_, "set_disable_timing ");
+-      writeGetTimingArcsOfOjbects(cell);
+-      sta::print(stream_, "\n");
++      // Each arc set by its ports, which disables only the arc sets between
++      // them; get_timing_edges -of_objects would disable all of the cell's.
++      std::set<std::pair<std::string, std::string>> from_tos;
++      for (const TimingArcSet *arc_set : *disable->timingArcSets())
++        from_tos.emplace(arc_set->from() ? arc_set->from()->name() : "",
++                         arc_set->to()->name());
++      for (const auto &[from, to] : from_tos) {
++        if (from.empty())
++          sta::print(stream_, "set_disable_timing -to {{{}}} ", to);
++        else
++          sta::print(stream_, "set_disable_timing -from {{{}}} -to {{{}}} ",
++                     from, to);
++        writeGetLibCell(cell);
++        sta::print(stream_, "\n");
++      }
+     }
+   }
+ }

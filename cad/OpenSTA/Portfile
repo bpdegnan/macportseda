@@ -15,7 +15,7 @@ PortGroup           cmake 1.1
 # the upgrade).
 github.setup        parallaxsw OpenSTA 87ce5680dfa92aa98f07b587df5deb032f6593af
 version             3.1.0
-revision            15
+revision            19
 
 categories          cad
 license             GPL-3
@@ -375,6 +375,145 @@ patchfiles-append   patch-TagGroup-required-init-value.diff
 # by the difference between the two arrivals. No change with propagated
 # clocks. NOT submitted upstream.
 patchfiles-append   patch-Search-required-ideal-clk-launch.diff
+
+# get_property $path_end endpoint_clock_pin segfaulted on an end with no
+# capturing clock path (an output delay end): Properties::getProperty
+# (PathEnd*) called pin() on a null targetClkPath(). Now NULL.
+# NOT submitted upstream.
+patchfiles-append   patch-Property-path-end-no-target-clk-path.diff
+
+# get_property $point required / slack on a path end's points read a
+# required time nothing had set: find_timing_paths never runs the required
+# search, so every point showed -INF or INF (0 before revision 15) and slack
+# INF. The required search now runs first, on the search state the path
+# belongs to (Search::findRequireds, not Sta::findRequired, whose
+# searchPreamble would delete the path ends the point came from).
+# NOT submitted upstream.
+patchfiles-append   patch-Property-path-required-search.diff
+
+# The path ends find_timing_paths returns were freed by the next command
+# that runs Sta::searchPreamble -- a pin's slack, report_tns, any arrival
+# query -- although Search::findPathEnds documents them as kept until the
+# next call; using the handles afterwards read freed memory (on the sky130
+# 6502, get_property [get_pins _1889_/A] slack_max between two
+# get_property $path_end startpoint segfaults). searchPreamble now deletes
+# them only when they point to the filtered arrivals of a -from/-through
+# search, which it deletes too, and makePathGroups deletes the previous set.
+# NOT submitted upstream.
+patchfiles-append   patch-Search-keep-unfiltered-path-ends.diff
+
+# report_check_types laid its reports out unevenly: a blank line after every
+# capacitance check, inside the table too, while verbose slew, fanout and
+# max skew blocks ran together with none between them. Each verbose block
+# and each table now ends with one blank line. Report text only.
+# NOT submitted upstream.
+patchfiles-append   patch-Sta-check-report-blank-lines.diff
+
+# On an ideal clock, minimum pulse widths and maximum skews took the clock
+# tree's buffer delays, which an ideal clock is defined not to have
+# (clkPathArrival applies the ideal edge only at register clock pins): a
+# pulse through two buffers of different rise and fall delays came out
+# narrower than the waveform, and the skew report showed no network delay
+# at one pin and the tree's at the other. New Search::clkCheckArrival gives
+# an ideal clock's edge, insertion and latency at any pin; the checks and
+# the skew report use it. No change with propagated clocks.
+# NOT submitted upstream.
+patchfiles-append   patch-Search-ideal-clk-check-arrival.diff
+
+# set_max_transition -clock_path never applied, and on a propagated clock
+# network the clock's -data_path limit did instead: CheckSlews::findLimit
+# chose by isIdealClock(pin), false for every pin it checks (ideal clock
+# pins are skipped). Now by isClock(pin). NOT submitted upstream.
+patchfiles-append   patch-CheckSlews-clock-path-limit.diff
+
+# set_max_capacitance on a pin was accepted and written by write_sdc but
+# never checked: CheckCapacitances::findLimit asked the design, port and
+# cell only. The pin's limit now counts (Sdc::capacitanceLimit takes a
+# const Pin*). NOT submitted upstream.
+patchfiles-append   patch-CheckCapacitances-pin-limit.diff
+
+# A library's default_max_capacitance was never read (only LibertyWriter
+# wrote it), so output pins without max_capacitance had no limit. Read like
+# default_max_transition; applied to max checks only (the internal pin
+# branch of CheckCapacitances::findLimit lacked that test, harmless while
+# the value was never set). NOT submitted upstream.
+patchfiles-append   patch-LibertyReader-default-max-capacitance.diff
+
+# set_min_pulse_width -high (or -low) on a pin, instance or clock hid the
+# other pulse's broader values: Sdc::minPulseWidth stopped at the first
+# object with a value for either pulse, so after set_min_pulse_width -low
+# 1.6 and set_min_pulse_width -high 1.0 [get_cells r1], r1's low pulse fell
+# to the library's width. Each pulse now falls through pin, instance,
+# clock and design on its own. NOT submitted upstream.
+patchfiles-append   patch-Sdc-min-pulse-width-per-edge.diff
+
+# write_sdc dropped set_max_fanout (and set_min_fanout) on ports when the
+# design had a limit of its own, so a written SDC read back checked those
+# ports against the design's. Both are written. NOT submitted upstream.
+patchfiles-append   patch-WriteSdc-port-fanout-limits.diff
+
+# write_sdc dropped set_min_pulse_width with no objects (the design-wide
+# widths). Written after the pin, instance and clock widths.
+# NOT submitted upstream.
+patchfiles-append   patch-WriteSdc-global-min-pulse-width.diff
+
+# report_clock_latency counted a propagated clock's source latency twice:
+# ClkDelays::delay took the arrival less the edge time as the network
+# latency, though the arrival holds the source latency already, and
+# setLatency added the insertion again (on a test design with
+# set_clock_latency -source 0.5, a register at 0.80 ns showed 1.30 ns).
+# NOT submitted upstream.
+patchfiles-append   patch-ClkLatency-source-latency-once.diff
+
+# On an ideal clock, report_clock_latency and report_clock_skew took the
+# clock tree's buffer delays and left out set_clock_latency: the network
+# latency and the skew now use Search::clkCheckArrival (revision 17), the
+# ideal edge, insertion and latency at any pin. No change with propagated
+# clocks. NOT submitted upstream.
+patchfiles-append   patch-Search-ideal-clk-latency-skew.diff
+
+# report_clock_skew kept the skews of its first report while the timing
+# changed (ClkSkews::findClkSkew returned the stored skews when the clocks
+# and scenes were the same), so later reports showed stale values on
+# paths the timing update had freed. The skews are found for each report.
+# NOT submitted upstream.
+patchfiles-append   patch-ClkSkew-find-skews-each-report.diff
+
+# report_clock_skew -clocks always failed: the proc printed a debug line
+# and then read $clks unset. It now takes the clocks given.
+# NOT submitted upstream.
+patchfiles-append   patch-Search-report-clock-skew-clocks.diff
+
+# A min_clock_tree_path/max_clock_tree_path table with no timing_sense was
+# ignored by -include_internal_latency: an unknown sense makes two arcs to
+# each edge, LibertyPort::clkTreeDelay took arcTo(rf), the opposite edge's,
+# and rejected it. The arc from and to the same edge is used.
+# NOT submitted upstream.
+patchfiles-append   patch-Liberty-clk-tree-delay-any-sense.diff
+
+# report_lib_cell segfaulted on a cell with a clock tree path table:
+# TimingArcSet::to_string named the from port, which those sets do not
+# have. Listed as "-> CK". NOT submitted upstream.
+patchfiles-append   patch-TimingArc-clock-tree-path-to-string.diff
+
+# get_timing_edges -of_objects returned a list of lists, one per instance
+# or Liberty cell (get_timing_arcs_objects lappended each object's list), so
+# foreach handed get_property a list ("... is not an object"). One list.
+# NOT submitted upstream.
+patchfiles-append   patch-Sta-tcl-timing-edges-of-objects-flat.diff
+
+# write_sdc wrote a disabled Liberty timing arc set as set_disable_timing
+# [get_timing_edges -of_objects [get_lib_cells ...]], which read back
+# disables every arc set of the cell. Each arc set is written by its from
+# and to ports (-from/-to on the Liberty cell). NOT submitted upstream.
+patchfiles-append   patch-WriteSdc-disabled-arc-sets-by-ports.diff
+
+# get_full_name / get_property full_name of a clock tree path arc set
+# (min/max_clock_tree_path, which has no from port) segfaulted:
+# TimingArcSet::libertyCell() went through the from port and returned
+# null. It falls back to the to port, and the name has an empty from
+# port. NOT submitted upstream.
+patchfiles-append   patch-TimingArcSet-clock-tree-path-cell.diff
 
 # OpenSTA is C++20 and its headers rely on P0634 ("Down with typename!"), which
 # lets `typename` be omitted in dependent contexts -- e.g. include/sta/Iterator.hh

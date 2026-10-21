@@ -1,0 +1,54 @@
+--- search/Property.cc.orig
++++ search/Property.cc
+@@ -41,6 +41,7 @@
+ #include "PathExpanded.hh"
+ #include "PortDirection.hh"
+ #include "Scene.hh"
++#include "Search.hh"
+ #include "Sta.hh"
+ #include "StringUtil.hh"
+ #include "TimingArc.hh"
+@@ -1282,6 +1283,16 @@
+     throw PropertyUnknown("path end", property);
+ }
+ 
++// Only the required search sets a path's required time. It is run on
++// the search state the path belongs to, not through Sta::findRequired,
++// whose searchPreamble deletes the path ends of a -from/-through search
++// and the paths they point to.
++void
++Properties::findPathRequired(const Path *path)
++{
++  sta_->search()->findRequireds(path->vertex(sta_)->level());
++}
++
+ PropertyValue
+ Properties::getProperty(Path *path,
+                         std::string_view property)
+@@ -1290,10 +1301,14 @@
+     return PropertyValue(path->pin(sta_));
+   else if (property == "arrival")
+     return PropertyValue(delayPropertyValue(path->arrival()));
+-  else if (property == "required")
++  else if (property == "required") {
++    findPathRequired(path);
+     return PropertyValue(delayPropertyValue(path->required()));
+-  else if (property == "slack")
++  }
++  else if (property == "slack") {
++    findPathRequired(path);
+     return slackPropertyValue(path->slack(sta_));
++  }
+   else
+     throw PropertyUnknown("path", property);
+ }
+--- include/sta/Property.hh.orig
++++ include/sta/Property.hh
+@@ -276,6 +276,7 @@
+                         const MinMax *min_max);
+ 
+   PropertyValue delayPropertyValue(Delay delay);
++  void findPathRequired(const Path *path);
+   PropertyValue slackPropertyValue(Delay slack);
+   PropertyValue resistancePropertyValue(float res);
+   PropertyValue capacitancePropertyValue(float cap);

@@ -1,0 +1,26 @@
+--- liberty/TimingArc.cc.orig
++++ liberty/TimingArc.cc
+@@ -238,6 +238,9 @@ TimingArcSet::libertyCell() const
+ {
+   if (from_)
+     return from_->libertyCell();
++  else if (to_)
++    // Clock tree path sets have no from port.
++    return to_->libertyCell();
+   else
+     // Wire timing arc set.
+     return nullptr;
+--- search/Property.cc.orig
++++ search/Property.cc
+@@ -1174,9 +1174,10 @@ Properties::getProperty(TimingArcSet *arc_set,
+     if (arc_set->isWire())
+       return PropertyValue("wire");
+     else {
++      // Clock tree path sets have no from port.
+       std::string name = sta::format("{} {} -> {} {}",
+                                      arc_set->libertyCell()->name(),
+-                                     arc_set->from()->name(),
++                                     arc_set->from() ? arc_set->from()->name() : "",
+                                      arc_set->to()->name(),
+                                      arc_set->role()->to_string());
+       return PropertyValue(name);

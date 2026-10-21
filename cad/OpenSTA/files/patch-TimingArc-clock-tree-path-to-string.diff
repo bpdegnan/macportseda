@@ -1,0 +1,12 @@
+--- liberty/TimingArc.cc.orig
++++ liberty/TimingArc.cc
+@@ -215,7 +215,8 @@ TimingArcSet::TimingArcSet(const TimingRole *role,
+ std::string
+ TimingArcSet::to_string() const
+ {
+-  std::string str = from_->name();
++  // Clock tree path sets have no from port.
++  std::string str = from_ ? from_->name() : "";
+   str += " -> ";
+   str += to_->name();
+   return str;

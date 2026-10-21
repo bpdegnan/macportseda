@@ -1,0 +1,23 @@
+--- liberty/LibertyReader.cc.orig
++++ liberty/LibertyReader.cc
+@@ -242,6 +242,8 @@ LibertyReader::readLibraryAttributes(const LibertyGroup *library_group)
+                    &LibertyLibrary::setDefaultInputPinCap, cap_scale_);
+   readLibAttrFloat(library_group, "default_output_pin_cap",
+                    &LibertyLibrary::setDefaultOutputPinCap, cap_scale_);
++  readLibAttrFloat(library_group, "default_max_capacitance",
++                   &LibertyLibrary::setDefaultMaxCapacitance, cap_scale_);
+   readLibAttrFloatWarnZero(library_group, "default_max_transition",
+                            &LibertyLibrary::setDefaultMaxSlew, time_scale_);
+   readLibAttrFloatWarnZero(library_group, "default_max_fanout",
+--- search/CheckCapacitances.cc.orig
++++ search/CheckCapacitances.cc
+@@ -195,7 +195,8 @@ CheckCapacitances::findLimit(const Pin *pin,
+       LibertyPort *scene_port = port->scenePort(scene, min_max);
+       scene_port->capacitanceLimit(min_max, limit1, exists1);
+       if (!exists1
+-          && port->direction()->isAnyOutput())
++          && port->direction()->isAnyOutput()
++          && min_max == MinMax::max())
+         scene_port->libertyLibrary()->defaultMaxCapacitance(limit1, exists1);
+       if (exists1
+           && (!exists

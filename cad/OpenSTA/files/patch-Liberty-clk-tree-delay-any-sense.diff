@@ -1,0 +1,24 @@
+--- liberty/Liberty.cc.orig
++++ liberty/Liberty.cc
+@@ -2632,11 +2632,16 @@ LibertyPort::clkTreeDelay(float in_slew,
+          && min_max == MinMax::min())
+         || (arc_set->role() == TimingRole::clockTreePathMax()
+             && min_max == MinMax::max())) {
+-      const TimingArc *arc = arc_set->arcTo(to_rf);
+-      if (arc->fromEdge()->asRiseFall() == from_rf) {
+-        const GateTableModel *gate_model = dynamic_cast<GateTableModel*>(arc->model());
+-        if (gate_model)
+-          return gate_model->delayModel()->findValue(in_slew, 0.0, 0.0);
++      // With no timing_sense there are two arcs to each edge; arcTo would
++      // return only one of them.
++      for (const TimingArc *arc : arc_set->arcs()) {
++        if (arc->toEdge()->asRiseFall() == to_rf
++            && arc->fromEdge()->asRiseFall() == from_rf) {
++          const GateTableModel *gate_model =
++            dynamic_cast<GateTableModel*>(arc->model());
++          if (gate_model)
++            return gate_model->delayModel()->findValue(in_slew, 0.0, 0.0);
++        }
+       }
+     }
+   }

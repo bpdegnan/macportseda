@@ -1,0 +1,38 @@
+--- include/sta/Sdc.hh.orig
++++ include/sta/Sdc.hh
+@@ -344,7 +344,7 @@ public:
+                         const MinMax *min_max,
+                         float &cap,
+                         bool &exists) const;
+-  void capacitanceLimit(Pin *pin,
++  void capacitanceLimit(const Pin *pin,
+                         const MinMax *min_max,
+                         float &cap,
+                         bool &exists) const;
+--- sdc/Sdc.cc.orig
++++ sdc/Sdc.cc
+@@ -873,7 +873,7 @@ Sdc::setCapacitanceLimit(Port *port,
+ }
+ 
+ void
+-Sdc::capacitanceLimit(Pin *pin,
++Sdc::capacitanceLimit(const Pin *pin,
+                       const MinMax *min_max,
+                       float &cap,
+                       bool &exists) const
+--- search/CheckCapacitances.cc.orig
++++ search/CheckCapacitances.cc
+@@ -204,6 +204,13 @@ CheckCapacitances::findLimit(const Pin *pin,
+         exists = true;
+       }
+     }
++    sdc->capacitanceLimit(pin, min_max, limit1, exists1);
++    if (exists1
++        && (!exists
++            || min_max->compare(limit, limit1))) {
++      limit = limit1;
++      exists = true;
++    }
+   }
+ }
+ 

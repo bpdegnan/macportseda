@@ -1,0 +1,15 @@
+--- search/ClkSkew.cc.orig
++++ search/ClkSkew.cc
+@@ -175,10 +175,8 @@ ClkSkews::findClkSkew(ConstClockSeq &clks,
+                       const SceneSeq &scenes,
+                       bool include_internal_latency)
+ {
+-  if (scenes == scenes_ && include_internal_latency == include_internal_latency_
+-      && clks == clks_ && !skews_.empty())
+-    return;
+-
++  // Found again each time: the paths stored skews point to are freed
++  // when the timing changes, and nothing clears skews_ then.
+   skews_.clear();
+   clks_ = clks;
+   scenes_ = scenes;

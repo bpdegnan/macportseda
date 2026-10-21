@@ -1,0 +1,34 @@
+--- search/ClkLatency.cc.orig
++++ search/ClkLatency.cc
+@@ -281,7 +281,8 @@ Delay
+ ClkDelays::delay(Path *clk_path,
+                  StaState *sta)
+ {
+-  Arrival arrival = clk_path->arrival();
++  // An ideal clock's ideal latency, not the clock tree's delays.
++  Arrival arrival = sta->search()->clkCheckArrival(clk_path);
+   const ClockEdge *path_clk_edge = clk_path->clkEdge(sta);
+   return delayDiff(delayDiff(arrival, path_clk_edge->time(), sta),
+                    insertionDelay(clk_path, sta), sta);
+--- search/ClkSkew.cc.orig
++++ search/ClkSkew.cc
+@@ -412,7 +412,9 @@ ClkSkew::ClkSkew(const ClkSkew &clk_skew)
+ Arrival
+ ClkSkew::srcLatency(const StaState *sta)
+ {
+-  return delayDiff(delaySum(src_path_->arrival(), clkTreeDelay(src_path_, sta), sta),
++  // An ideal clock's ideal latency, not the clock tree's delays.
++  Arrival src_arrival = sta->search()->clkCheckArrival(src_path_);
++  return delayDiff(delaySum(src_arrival, clkTreeDelay(src_path_, sta), sta),
+                    src_path_->clkEdge(sta)->time(), sta);
+ }
+ 
+@@ -425,7 +427,7 @@ ClkSkew::srcInternalClkLatency(const StaState *sta)
+ float
+ ClkSkew::tgtLatency(const StaState *sta)
+ {
+-  Arrival tgt_arrival = tgt_path_->arrival();
++  Arrival tgt_arrival = sta->search()->clkCheckArrival(tgt_path_);
+   return delayAsFloat(delaySum(delayDiff(tgt_arrival,
+                                          tgt_path_->clkEdge(sta)->time(),sta),
+                                clkTreeDelay(tgt_path_, sta), sta));

@@ -1,0 +1,36 @@
+--- sdc/WriteSdc.cc.orig
++++ sdc/WriteSdc.cc
+@@ -2281,21 +2281,20 @@ WriteSdc::writeFanoutLimits(const MinMax *min_max,
+     writeFloat(fanout);
+     sta::print(stream_, " [current_design]\n");
+   }
+-  else {
+-    CellPortBitIterator *port_iter = sdc_network_->portBitIterator(cell_);
+-    while (port_iter->hasNext()) {
+-      Port *port = port_iter->next();
+-      sdc_->fanoutLimit(port, min_max, fanout, exists);
+-      if (exists) {
+-        sta::print(stream_, "{} ", cmd);
+-        writeFloat(fanout);
+-        sta::print(stream_, " ");
+-        writeGetPort(port);
+-        sta::print(stream_, "\n");
+-      }
++  // The ports' limits too: they are checked beside the design's.
++  CellPortBitIterator *port_iter = sdc_network_->portBitIterator(cell_);
++  while (port_iter->hasNext()) {
++    Port *port = port_iter->next();
++    sdc_->fanoutLimit(port, min_max, fanout, exists);
++    if (exists) {
++      sta::print(stream_, "{} ", cmd);
++      writeFloat(fanout);
++      sta::print(stream_, " ");
++      writeGetPort(port);
++      sta::print(stream_, "\n");
+     }
+-    delete port_iter;
+   }
++  delete port_iter;
+ }
+ 
+ ////////////////////////////////////////////////////////////////

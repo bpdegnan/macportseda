@@ -1,0 +1,38 @@
+--- search/Sta.cc.orig
++++ search/Sta.cc
+@@ -2785,8 +2785,11 @@
+     mode->sdc()->searchPreamble();
+   }
+   updateGeneratedClks();
+-  // Delete results from last findPathEnds because they point to filtered arrivals.
+-  search_->deletePathGroups();
++  // Delete results from last findPathEnds if they point to filtered
++  // arrivals, which are deleted here. Results on the design's arrivals
++  // stay until the next findPathEnds (or until the arrivals change).
++  if (search_->haveFilter())
++    search_->deletePathGroups();
+   search_->deleteFilteredArrivals();
+ }
+ 
+--- search/Mode.cc.orig
++++ search/Mode.cc
+@@ -116,6 +116,8 @@
+                      bool clk_gating_hold,
+                      bool unconstrained_paths)
+ {
++  // The last findPathEnds' results go with the next one's.
++  delete path_groups_;
+   path_groups_ = new PathGroups(group_path_count,
+                                 endpoint_path_count,
+                                 unique_pins, unique_edges,
+--- include/sta/Search.hh.orig
++++ include/sta/Search.hh
+@@ -138,6 +138,8 @@
+   void findRequireds();
+   // Find required times down thru level.
+   void findRequireds(Level level);
++  // A -from/-through filter's arrivals exist.
++  bool haveFilter() const { return have_filter_; }
+   [[nodiscard]] bool requiredsSeeded() const { return requireds_seeded_; }
+   [[nodiscard]] bool requiredsExist() const { return requireds_exist_; }
+   // The sum of all negative endpoints slacks.

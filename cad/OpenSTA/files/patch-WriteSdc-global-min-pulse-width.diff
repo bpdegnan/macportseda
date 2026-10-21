@@ -1,0 +1,29 @@
+--- sdc/WriteSdc.cc.orig
++++ sdc/WriteSdc.cc
+@@ -2050,6 +2050,26 @@ WriteSdc::writeMinPulseWidths() const
+     WriteGetClock write_obj(clk, this);
+     writeMinPulseWidths(min_widths, write_obj);
+   }
++
++  // set_min_pulse_width with no objects.
++  auto write_global = [this](std::string_view hi_low, float value) {
++    sta::print(stream_, "set_min_pulse_width {}", hi_low);
++    writeTime(value);
++    sta::print(stream_, "\n");
++  };
++  bool hi_exists, low_exists;
++  float hi, low;
++  sdc_->min_pulse_width_.value(RiseFall::rise(), hi, hi_exists);
++  sdc_->min_pulse_width_.value(RiseFall::fall(), low, low_exists);
++  if (hi_exists && low_exists
++      && hi == low)
++    write_global("", hi);
++  else {
++    if (hi_exists)
++      write_global("-high ", hi);
++    if (low_exists)
++      write_global("-low ", low);
++  }
+ }
+ 
+ void
