@@ -1,0 +1,27 @@
+--- search/TagGroup.cc.orig
++++ search/TagGroup.cc
+@@ -25,6 +25,7 @@
+ #include "TagGroup.hh"
+ 
+ #include "ClkInfo.hh"
++#include "Delay.hh"
+ #include "Debug.hh"
+ #include "Graph.hh"
+ #include "Path.hh"
+@@ -308,8 +309,14 @@
+     size_t path_index2;
+     bool exists2;
+     tag_group->pathIndex(tag1, path_index2, exists2);
+-    if (exists2)
+-      paths[path_index2] = paths_[path_index1];
++    if (exists2) {
++      Path &path = paths[path_index2];
++      path = paths_[path_index1];
++      // No required time until the required search finds one, not 0:
++      // a path it never reaches would otherwise show slack 0 - arrival,
++      // and its fanin would take that 0 as the tightest required time.
++      path.setRequired(delayInitValue(tag1->minMax()->opposite()));
++    }
+     else
+       sta_->report()->critical(1360, "tag group missing tag");
+   }

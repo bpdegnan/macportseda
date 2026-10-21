@@ -1,0 +1,45 @@
+--- search/Search.cc.orig
++++ search/Search.cc
+@@ -3481,7 +3481,7 @@
+                                  const RiseFall *from_rf,
+                                  Tag *from_tag,
+                                  Path *from_path,
+-                                 const Arrival &,
++                                 const Arrival &from_arrival,
+                                  Edge *edge,
+                                  TimingArc *,
+                                  ArcDelay arc_delay,
+@@ -3499,13 +3499,22 @@
+                from_tag->to_string(this));
+     size_t path_index = from_path->pathIndex(this);
+     const MinMax *req_min = min_max->opposite();
++    // Through a register clk->Q edge on an ideal clock the path launches
++    // from the clock edge (clkPathArrival), not from the clock path's
++    // arrival here, which includes the clock network's delays. Move the
++    // required time by the difference so the clock path's slack is that
++    // of the paths it launches.
++    const Arrival launch_offset = delayEqual(from_arrival, from_path->arrival(), this)
++      ? Arrival(0.0)
++      : delayDiff(from_path->arrival(), from_arrival, this);
+     TagGroup *to_tag_group = search_->tagGroup(to_vertex);
+     // Check to see if to_tag was pruned.
+     if (to_tag_group && to_tag_group->hasTag(to_tag)) {
+       size_t to_path_index = to_tag_group->pathIndex(to_tag);
+       Path &to_path = to_vertex->paths()[to_path_index];
+       const Required &to_required = to_path.required();
+-      Required from_required = delayDiff(to_required, arc_delay, this);
++      Required from_required = delaySum(delayDiff(to_required, arc_delay, this),
++                                        launch_offset, this);
+       debugPrint(debug_, "search", 3, "  to tag   {:2}: {}",
+                  to_tag->index(),
+                  to_tag->to_string(this));
+@@ -3529,7 +3538,8 @@
+           Tag *to_path_tag = to_path->tag(this);
+           if (Tag::matchNoCrpr(to_path_tag, to_tag)) {
+             Required to_required = to_path->required();
+-            Required from_required = delayDiff(to_required, arc_delay, this);
++            Required from_required = delaySum(delayDiff(to_required, arc_delay, this),
++                                              launch_offset, this);
+             debugPrint(debug_, "search", 3, "  to tag   {:2}: {}",
+                        to_path_tag->index(),
+                        to_path_tag->to_string(this));

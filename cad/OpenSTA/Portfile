@@ -15,7 +15,7 @@ PortGroup           cmake 1.1
 # the upgrade).
 github.setup        parallaxsw OpenSTA 87ce5680dfa92aa98f07b587df5deb032f6593af
 version             3.1.0
-revision            14
+revision            15
 
 categories          cad
 license             GPL-3
@@ -349,6 +349,32 @@ patchfiles-append   patch-Property-port-slew-both-edges.diff
 # ensureGraph() first, as Sta::slack(const Pin*) already does.
 # NOT submitted upstream.
 patchfiles-append   patch-Sta-arrival-ensure-graph.diff
+
+# Slack at a pin (get_property slack_max/_min/..., Sta::slack) showed
+# violations where no constrained path goes through it. Every Path starts
+# with required_ 0, and the required search only visits vertices whose
+# fanout required times changed: a path it never reaches keeps 0, so its
+# slack is 0 - arrival, and a fanin taking the tightest of its fanouts'
+# required times takes that 0, stops changing and is never visited
+# itself. On the sky130 6502 with a false path -through _0958_/Y,
+# _0958_/A read slack_max -0.514989 though report_checks -through it
+# finds no paths, and _2017_/Q read -0.344927 though report_checks -from
+# _2017_/CLK gives its paths 3.85. A vertex's paths now start with no
+# required time (INF for max, -INF for min, RequiredCmp's init value).
+# NOT submitted upstream.
+patchfiles-append   patch-TagGroup-required-init-value.diff
+
+# On an ideal clock, slack on the clock network was less than that of
+# anything it launches, by the network's delay to the pin: a register
+# launches from the clock edge (clkPathArrival), but Path::slack takes the
+# clock path's arrival, which includes the clock buffers' delays. On the
+# sky130 6502, _1951_/CLK read slack_max 6.560971 though the worst path it
+# launches has 6.999876 (the clock tree's 0.438904 less), so a
+# slack-driven filter flags clock pins with no violation behind them. The
+# required time carried back through a register clk->Q edge is now moved
+# by the difference between the two arrivals. No change with propagated
+# clocks. NOT submitted upstream.
+patchfiles-append   patch-Search-required-ideal-clk-launch.diff
 
 # OpenSTA is C++20 and its headers rely on P0634 ("Down with typename!"), which
 # lets `typename` be omitted in dependent contexts -- e.g. include/sta/Iterator.hh
