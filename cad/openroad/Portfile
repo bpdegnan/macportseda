@@ -21,13 +21,13 @@ boost.version       1.81
 # deactivate it for the build too:  sudo port -f deactivate spdlog  (reactivate
 # after). (There is no ${prefix}/include/fmt, so no fmt gate is needed.)
 
-github.setup        The-OpenROAD-Project OpenROAD 26Q3
+github.setup        The-OpenROAD-Project OpenROAD 26Q4
 github.tarball_from archive
 name                openroad
-version             26Q3
-revision            8
-distname            OpenROAD-26Q3
-worksrcdir          OpenROAD-26Q3
+version             26Q4
+revision            0
+distname            OpenROAD-26Q4
+worksrcdir          OpenROAD-26Q4
 
 categories          cad
 license             BSD
@@ -36,17 +36,17 @@ maintainers         {@bpdegnan} openmaintainer
 description         OpenROAD RTL-to-GDS digital place-and-route
 long_description    OpenROAD is an integrated chip physical-design tool \
                     (floorplanning, placement, CTS, routing, timing) for \
-                    RTL-to-GDS digital flows. Built from the 26Q3 release via \
+                    RTL-to-GDS digital flows. Built from the 26Q4 release via \
                     CMake (not Bazel), linking a private-prefix or-tools/LEMON.
 
 homepage            https://theopenroadproject.org/
 
-# 26Q3 vendors several git submodules that are NOT in the GitHub archive
+# 26Q4 vendors several git submodules that are NOT in the GitHub archive
 # tarball; fetch each pinned commit as a distfile and drop it into place. The
 # slang SystemVerilog frontend (third-party/slang-elab) IS required by the CMake
 # build and itself nests slang + fmt (no deeper nesting). See charon for the
 # same multi-distfile pattern.
-set sta_sha         8572175ac45c42ce8d3d772f73bbb059786b9c66
+set sta_sha         e983e15b2cb346badf8f23725fd3914d25312c44
 set abc_sha         d527cfab4ad731b767ea0a2be2021d920d3afece
 set slangelab_sha   82effc8d9541be69e1ed3ec44759a4449f5d9247
 set slang_sha       f04e81565793c768b747a8fd058f3e7aeceee1b5
@@ -70,14 +70,14 @@ distfiles-append    ${sta_sha}.tar.gz:sta ${abc_sha}.tar.gz:abc \
                     ${slang_sha}.tar.gz:slang ${fmt_sha}.tar.gz:fmt
 
 checksums \
-    OpenROAD-26Q3.tar.gz \
-        rmd160  6c5eba9d07427533ce515996faed7250b0161aa1 \
-        sha256  26d42275db360b1edfc25ce94d3ab815d28fc5e088aaf79907f008d473454f6f \
-        size    340513978 \
+    OpenROAD-26Q4.tar.gz \
+        rmd160  2bcd26b52e50e42c1f4bce96fd93f0f9edc8f117 \
+        sha256  0f1322459a1e34e252140b6f3cb124d0424e550b1846a0fc4671f69f8bc9a222 \
+        size    344997591 \
     ${sta_sha}.tar.gz \
-        rmd160  266630b5e26a75ed8e9b88a4f19d88f8ae5b8f9e \
-        sha256  805fbf8fef8ff35bc03e1d7fc3eb15760f886a4735e9c96adec303904b5d7d3e \
-        size    95736694 \
+        rmd160  3b644ea7e416fdd318030b259bf14e9492df3cce \
+        sha256  e30d3270b29e3249849b84ad09fafc58323017af03a700250807208654b028f8 \
+        size    95388418 \
     ${abc_sha}.tar.gz \
         rmd160  b1ecec8f04f35fee50fc9d2287fad851286fd4e1 \
         sha256  0cbf538e60d0303d0e00360d8973aaad7dae198954bed6e34cc31c9a13b3f802 \
@@ -159,10 +159,10 @@ patchfiles-append   patch-LibertyReader-lvf-constraint-spelling.diff
 # POCV slack reporting, same defect cad/OpenSTA patches: report_wns /
 # report_tns / report_worst_slack apply sigma with the wrong sign (mean +
 # q*sigma for -max) and get_property ... slack ignores sigma (mean), so under
-# POCV a violating design reports clean. The vendored fork at ${sta_sha} has the
-# identical code at shifted line numbers, so this copy was regenerated against
-# the fork's own files rather than re-rooted from the OpenSTA port's; the edits
-# are the same. Affects Tcl-level reporting and any flow script that gates on
+# POCV a violating design reports clean. The vendored fork has the identical
+# code at shifted line numbers, so this copy was generated against the fork's own
+# files (at 26Q3) rather than re-rooted from the OpenSTA port's; the edits are
+# the same, and it applies unchanged to the 26Q4 fork. Affects Tcl-level reporting and any flow script that gates on
 # wns/tns/worst_slack; whether OpenROAD's own C++ (rsz, etc.) reads slack
 # through these conversions has NOT been checked. See cad/OpenSTA for the
 # full note.
@@ -179,22 +179,27 @@ patchfiles-append   patch-LibertyReader-ccs-slew-axis-spelling.diff
 # cad/OpenSTA, so openroad's vendored copy was still exposed: the same wild
 # tindex read in setTerms() that SIGSEGVs report_checks on a 976k-cell design
 # under set_delay_calculator arnoldi. The fork's dcalc/ArnoldiReduce.cc at
-# ${sta_sha} is byte-identical to parallaxsw 87ce5680, so this is cad/OpenSTA's
-# patch re-rooted to src/sta. Verified on a standalone build of the fork: with
-# the driver absent from its net's SPEF, arnoldi gave 0.047112 unpatched (a
-# model reduced from stale memory) and 0.033340 patched, which matches the same
-# design with no parasitics for that net at all. See cad/OpenSTA for the full
-# note.
+# ${sta_sha} (26Q4) is still byte-identical to parallaxsw 87ce5680, so this is
+# cad/OpenSTA's patch re-rooted to src/sta. Verified on a standalone build of
+# the 26Q4 fork: with the driver absent from its net's SPEF, arnoldi gave
+# u1/Z 0.172372 unpatched (a model reduced from stale memory) and 0.147778
+# patched, which matches the same design with no parasitics for that net at
+# all. See cad/OpenSTA for the full note.
 patchfiles-append   patch-ArnoldiReduce-null-driver-term.diff
 
 # prima: driver/load pin missing from the parasitic network -- same fix as
-# cad/OpenSTA, generated against the fork's own PrimaDelayCalc.cc. The fork
-# predates upstream ef0b6909, so its findNodeCount() places EVERY non-external
-# node rather than walking resistors: here a missing driver is silently aliased
-# onto node 0 (measured: -0.020 delay unpatched, 0.046677 patched) rather than
-# crashing, and an unreachable load is still simulated as a floating node --
-# that part is ef0b6909's territory, which this patch does not backport.
-# Fork built standalone and checked: all other calculators byte-identical.
+# cad/OpenSTA, regenerated against the 26Q4 fork's own PrimaDelayCalc.cc. That
+# fork now includes upstream ef0b6909 (resistor-walk node placement), so it
+# fails the same way parallaxsw does: a driver absent from its net's SPEF
+# SIGSEGVs, and a load with no resistive path is silently aliased onto the
+# driver node. The fork also moved the driver stamp into a new stampDriver(),
+# which is why the 26Q3 copy of this patch no longer applied. Measured on a
+# standalone build of the 26Q4 fork, set_delay_calculator prima:
+#   driver absent        unpatched SIGSEGV (rc 139)   patched 0.046677
+#   unreachable load     unpatched 0.086665           patched 0.039994 (= the
+#                                                     table calculator's answer)
+# With all six patches the 26Q4 fork passes a regression test for each of the
+# six bugs; without them it fails every one.
 patchfiles-append   patch-PrimaDelayCalc-pin-not-in-network.diff
 
 set edaprefix       ${prefix}/libexec/eda
@@ -270,7 +275,7 @@ depends_lib-append \
 # no link library -> undefined ___kmpc_* at the final link. Point it at libomp
 # explicitly (OpenMP_* below) and add the lib dir to the link path.
 
-# OpenROAD 26Q3 requires C++20; the Ventura CLT libc++ (15) lacks parts of it,
+# OpenROAD 26Q4 requires C++20; the Ventura CLT libc++ (15) lacks parts of it,
 # so build with MacPorts clang-19 + its libc++ 19 headers (same recipe as the
 # kicad port), linking the system libc++ runtime.
 configure.compiler        macports-clang-19

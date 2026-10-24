@@ -294,7 +294,7 @@ A few details:
 | eda-lemon | [lemon.cs.elte.hu 1.3.1](https://lemon.cs.elte.hu/pub/sources/lemon-1.3.1.tar.gz) (404s; falls back to a [Spack mirror](https://mirror.spack.io/_source-cache/archive/71/71b7c725f4c0b4a8ccb92eb87b208701586cf7a96156ebd821ca3ed855bad3c8.tar.gz), keyed by sha256) |
 | eda-fmt | [fmtlib/fmt 12.1.0](https://github.com/fmtlib/fmt/archive/12.1.0/fmt-12.1.0.tar.gz) |
 | eda-spdlog | [gabime/spdlog v1.16.0](https://github.com/gabime/spdlog/archive/v1.16.0/spdlog-1.16.0.tar.gz) |
-| openroad | [OpenROAD 26Q3](https://github.com/The-OpenROAD-Project/OpenROAD/archive/26Q3/OpenROAD-26Q3.tar.gz) + vendored pins: [its OpenSTA fork](https://github.com/The-OpenROAD-Project/OpenSTA/archive/8572175ac45c42ce8d3d772f73bbb059786b9c66.tar.gz), [abc](https://github.com/The-OpenROAD-Project/abc/archive/d527cfab4ad731b767ea0a2be2021d920d3afece.tar.gz), sv-elab (ex yosys-slang; repo renamed 2026-07, tarball checksums changed)/slang (commits in Portfile) |
+| openroad | [OpenROAD 26Q4](https://github.com/The-OpenROAD-Project/OpenROAD/archive/26Q4/OpenROAD-26Q4.tar.gz) + vendored pins: [its OpenSTA fork](https://github.com/The-OpenROAD-Project/OpenSTA/archive/e983e15b2cb346badf8f23725fd3914d25312c44.tar.gz), [abc](https://github.com/The-OpenROAD-Project/abc/archive/d527cfab4ad731b767ea0a2be2021d920d3afece.tar.gz), sv-elab (ex yosys-slang; repo renamed 2026-07, tarball checksums changed)/slang (commits in Portfile) |
 | openroad-ll | [OpenROAD @ dcf3613](https://github.com/The-OpenROAD-Project/OpenROAD/archive/dcf36133a369abc8f3c5e5738cd4d82e4903c0e0.tar.gz) (LibreLane's validated rev) + matching vendored pins (see Portfile) |
 | xcircuit | [opencircuitdesign.com 3.10.30](http://opencircuitdesign.com/xcircuit/archive/xcircuit-3.10.30.tgz) |
 | gtksheet | [fpaquet/gtksheet V4.3.14](https://github.com/fpaquet/gtksheet/archive/V4.3.14/gtksheet-4.3.14.tar.gz) |
@@ -375,10 +375,10 @@ The whole tree builds on macOS 15.3 / Xcode 16.2, with these caveats.
 - What native mode needed (all of it in this tree or in the wrapper):
   - The `openroad-ll` port. This is OpenROAD pinned to the revision LibreLane
     validated (2026-02-17), in the private prefix `libexec/openroad-ll`. The
-    tag-tracking `openroad` port (26Q3) has confirmed upstream regressions
-    against the flow: the resizer inserts so many buffers that utilization goes
-    past 100% (librelane#944 / OpenROAD#10622), and I/O pins get placed outside
-    the die. It has the same build gates as `openroad` (deactivate
+    tag-tracking `openroad` port had confirmed upstream regressions against the
+    flow at 26Q3, and both issues are still open at 26Q4: the resizer inserts so
+    many buffers that utilization goes past 100% (librelane#944 /
+    OpenROAD#10622), and I/O pins get placed outside the die. It has the same build gates as `openroad` (deactivate
     `boost spdlog protobuf3-cpp OpenSTA` to build).
   - The `yosys +pyosys` variant. LibreLane runs synthesis as Python scripts via
     `yosys -y`, so yosys needs its pybind11 Python bindings. The new
@@ -1144,7 +1144,7 @@ Python 3.9 and 3.12 headers in one build. The FreeCAD notes have the details.
 
 ## openroad notes (RTL-to-GDS place and route, builds and runs)
 
-- OpenROAD 26Q3, built with CMake. 26Q3 also has Bazel, but CMake avoids it.
+- OpenROAD 26Q4, built with CMake. 26Q4 also has Bazel, but CMake avoids it.
   It's C++20, so it uses MacPorts clang-19 with the libc++ 19 headers, the same
   recipe as kicad. The binary runs: `openroad -version`, the Tcl interpreter,
   and `+GPU +Python` (`-GUI`).
@@ -1200,8 +1200,9 @@ Python 3.9 and 3.12 headers in one build. The FreeCAD notes have the details.
   CCS slew-axis transpose, ArnoldiReduce null driver terminal, and
   PrimaDelayCalc pin-not-in-network. The spaceship build fix isn't needed with
   clang-19's libc++, and I didn't port the two `write_path_spice` fixes. Keep
-  each pair in sync. The fork predates upstream `ef0b6909` (PrimaDelayCalc
-  degenerate networks), and that fix isn't backported here.
+  each pair in sync. As of 26Q4 the fork (`e983e15b`) includes upstream's
+  `ef0b6909` (PrimaDelayCalc degenerate networks); the 26Q3 fork didn't. All six
+  bugs were still present in the 26Q4 fork, so all six patches are still needed.
 - Why not build openroad against the patched OpenSTA port instead? OpenROAD
   offers `USE_SYSTEM_OPENSTA`, but I considered it and decided against it. The
   fork and the port's pin have diverged since 2026-06-16, in exactly the
