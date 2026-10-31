@@ -10,7 +10,7 @@ boost.version       1.81
 
 name                eda-freecad
 version             1.1.3
-revision            6
+revision            7
 
 categories          cad
 license             LGPL-2+
@@ -113,6 +113,35 @@ qt6.depends_lib-append \
                     qtsvg \
                     qttools
 
+# Two upstream FreeCAD fixes that are NOT in the 1.1.x releases, applied -p1:
+#
+# patch-occt8-backport.diff -- FreeCAD PR #33629, a ready-made backport to the
+#   releases/FreeCAD-1-1 branch of #25502 "Adapt FreeCAD to OpenCascade 8" (130
+#   files, mostly Part and the bundled salomesmesh). Upstream CLOSED it unmerged,
+#   so 1.1.4 doesn't have it either. MacPorts moved opencascade to 8.0.1, which
+#   removed APIs 1.1 uses, so the stock source dies compiling Part with e.g.
+#     fatal error: 'TopTools_ListIteratorOfListOfShape.hxx' file not found
+#     error: no member named 'Raise' in 'Standard_Failure'
+#   It applies cleanly to 1.1.3. Drop it when moving to a FreeCAD line (26.3+)
+#   that has OCCT 8 support natively.
+#
+# patch-pyside612-pyobjectwrapper.diff -- FreeCAD PR #33408 (merged to main and
+#   26.3, not 1.1). PySide 6.12 moved PySide::PyObjectWrapper out of
+#   signalmanager.h into its own pyobjectwrapper.h, so src/Gui/PythonWrapper.cpp
+#   fails with "no type named 'PyObjectWrapper' in namespace 'PySide'". The fix
+#   is a guarded `#if __has_include(<pyobjectwrapper.h>)`, a no-op on 6.11.
+patchfiles          patch-occt8-backport.diff \
+                    patch-pyside612-pyobjectwrapper.diff
+patch.pre_args      -p1
+
+# onetbb: MacPorts builds opencascade 8 WITH TBB (OpenCASCADE_WITH_TBB ON), and
+# OCCT's exported CMake flags push -DHAVE_TBB into every consumer. FreeCAD's
+# Import module (ImportOCAF.cpp) then compiles its tbb::task_group path, but
+# nothing in FreeCAD's CMake links TBB into Import.so, so it fails to link with
+#   Undefined symbols: tbb::detail::r1::initialize(...task_group_context&) ...
+# (macOS links with -undefined error). Declare it and link it (ldflags below).
+depends_lib-append  port:onetbb
+
 depends_lib-append  port:opencascade \
                     port:eda-coin \
                     port:eda-pivy \
@@ -132,6 +161,12 @@ depends_lib-append  port:opencascade \
 configure.args-append \
     -DFREECAD_QT_MAJOR_VERSION=6 \
     -DPython3_EXECUTABLE=${py_framework}/bin/python${py_ver} \
+    -DPython_EXECUTABLE=${py_framework}/bin/python${py_ver} \
+    -DPySide6_DIR=${py_framework}/lib/python${py_ver}/site-packages/PySide6/lib/cmake/PySide6 \
+    -DShiboken6_DIR=${py_framework}/lib/python${py_ver}/site-packages/shiboken6/lib/cmake/Shiboken6 \
+    -DShiboken6Tools_DIR=${py_framework}/lib/python${py_ver}/site-packages/shiboken6_generator/lib/cmake/Shiboken6Tools \
+    -Dlibaec_ROOT=${prefix}/lib/libaec \
+    -DHDF5_DIR=${workpath}/hdf5-cmake \
     -DCoin_DIR=${edaprefix}/lib/cmake/Coin-${coin_version} \
     -DCOIN3D_VERSION=${coin_version} \
     -DCOIN3D_MAJOR_VERSION=${coin_major} \
@@ -154,6 +189,59 @@ configure.args-append \
     -DBoost_DIR=${prefix}/libexec/boost/1.81/lib/cmake/Boost-1.81.0 \
     -DBOOST_ROOT=${prefix}/libexec/boost/1.81 \
     -DBoost_NO_SYSTEM_PATHS=ON
+
+# PIN PYTHON 3.12 AND ITS OWN PySide6/Shiboken6 CONFIGS.
+#
+# PySide6_DIR / Shiboken6_DIR / Shiboken6Tools_DIR point at the configs INSIDE
+# python ${py_ver}'s site-packages. The global ${prefix}/lib/cmake/{PySide6,
+# Shiboken6,Shiboken6Tools}/*Config.cmake are forwarders that EVERY python's
+# py3xx-pyside6 +extracmakepcfiles installs, so whichever is active last owns
+# them. In 2026-10 a stock py314-pyside6 6.12.0 owned them and FreeCAD compiled
+# its GUI against python 3.14 / PySide 6.12 headers while linking 3.12 / 6.11.
+#
+# Python_EXECUTABLE as well as Python3_EXECUTABLE: FreeCAD pins Python3_*, but
+# Shiboken's own ShibokenHelpers.cmake calls find_package(Python) -- which reads
+# Python_EXECUTABLE. Unset, it takes `python3` from PATH, and `port select
+# python3` (3.14 here) put python3.14 include dirs on the FreeCADGui compile line.
+# That is the same python-header mixing that once made freecad abort at launch
+# (see the CMAKE_FIND_FRAMEWORK note below).
+#
+# TWO WORKAROUNDS FOR MacPorts hdf5 2.1.1_1 (not FreeCAD's fault; drop them when
+# the hdf5 port is fixed). FreeCAD's SMESH setup loads VTK 9.7, whose
+# FindHDF5 loads hdf5's own hdf5-config.cmake, which is broken twice:
+#   1. find_dependency(libaec) cannot find libaec: MacPorts installs it under
+#      ${prefix}/lib/libaec/{lib,include}, off every default path, and the
+#      config passes no hint.  ->  -Dlibaec_ROOT (documented by Findlibaec).
+#   2. It includes its own files at ${PACKAGE_PREFIX_DIR}/${PACKAGE_PREFIX_DIR}/
+#      lib/cmake/hdf5/..., i.e. /opt/local//opt/local/...: the hdf5 port's
+#      2026-10-14 "Fix #74514" set HDF5_INSTALL_CMAKE_DIR to an ABSOLUTE path,
+#      and the config template prefixes it again. Every CMake consumer of hdf5
+#      breaks.  ->  pre-configure below writes a corrected copy of the config
+#      into ${workpath}/hdf5-cmake and HDF5_DIR points CMake at it. The copy
+#      pins PACKAGE_PREFIX_DIR to ${prefix} and un-doubles the prefix; it still
+#      includes the real targets files from ${prefix}/lib/cmake/hdf5. If hdf5
+#      gets fixed, the copy is simply an equivalent, correct config.
+pre-configure {
+    set hsrc ${prefix}/lib/cmake/hdf5
+    set hdst ${workpath}/hdf5-cmake
+    delete ${hdst}
+    copy ${hsrc} ${hdst}
+    foreach f [glob -nocomplain ${hdst}/*.cmake] {
+        set fd [open ${f} r]; set c [read ${fd}]; close ${fd}
+        set n [string map [list \
+            {get_filename_component(PACKAGE_PREFIX_DIR "${CMAKE_CURRENT_LIST_DIR}/../../../" ABSOLUTE)} \
+            "set(PACKAGE_PREFIX_DIR \"${prefix}\")" \
+            {${PACKAGE_PREFIX_DIR}/${PACKAGE_PREFIX_DIR}/} \
+            {${PACKAGE_PREFIX_DIR}/}] ${c}]
+        if {${n} ne ${c}} {
+            set fd [open ${f} w]; puts -nonewline ${fd} ${n}; close ${fd}
+        }
+    }
+}
+
+# TBB is linked into everything (see the onetbb note above). Harmless: every
+# FreeCAD library already loads it through OCCT's TKernel.
+configure.ldflags-append -L${prefix}/lib -ltbb
 
 # USE APPLE'S OpenGL, NOT MacPorts mesa. FreeCAD's SetupOpenGL.cmake just calls
 # find_package(OpenGL), and the cmake PortGroup passes -DCMAKE_FIND_FRAMEWORK=LAST,

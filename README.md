@@ -121,7 +121,7 @@ python/
 │   └── Portfile
 ├── py-ciel/            # PDK version manager (volare successor; eda-cace dep)
 │   └── Portfile
-├── py-pyside6/         # vendored stock snapshot + 2 fixes (eda-freecad dep)
+├── py-pyside6/         # vendored stock snapshot + 5 changes (eda-freecad dep)
 │   └── Portfile
 └── py-volare/
     └── Portfile
@@ -196,7 +196,7 @@ Ports live under a category directory (`cad`) as MacPorts expects.
    | eda-cace | `sudo port install eda-cace` | Analog characterization (`cace`, `cace-web`). An application port on py312; pulls in `py-ciel`. Set `PDK_ROOT` at run time. See the CACE notes. |
    | nec2c | `sudo port install nec2c` | NEC-2 method-of-moments antenna simulation, command line (`nec2c -i in.nec -o out.txt`). The stock `xnec2c` GUI doesn't replace it; see the nec2c notes. |
    | py-ciel | `sudo port install py-ciel` | PDK version manager that succeeds volare; installs `ciel`. Also a dependency of eda-cace. |
-   | eda-freecad | `sudo port install eda-freecad` | FreeCAD 1.1.3 for enclosures (KiCad StepUp). Pulls in `eda-coin`, `eda-pivy`, `py312-pyside6`, plus `vtk`, `libmed` and `boost181`. Build PySide6 with `-addonmodules`. No boost gate needed, because it uses boost181. Builds and runs; see the FreeCAD notes. |
+   | eda-freecad | `sudo port install eda-freecad` | FreeCAD 1.1.3 for enclosures (KiCad StepUp). Pulls in `eda-coin`, `eda-pivy`, `py312-pyside6`, plus `vtk`, `libmed`, `onetbb` and `boost181`. No boost gate needed, because it uses boost181. Builds and runs; see the FreeCAD notes. |
    | openroad / openroad-ll | see below | RTL-to-GDS place and route. `boost spdlog protobuf3-cpp OpenSTA` must be deactivated while it builds. |
    | kicad | see below | Full EDA suite plus libraries. `boost` must be deactivated while it builds. Simulates on whichever eda-ngspice version is selected (46 by default). |
    | trilinos-charon / charon | see below | TCAD. `trilinos16` must be deactivated while they build. |
@@ -450,10 +450,10 @@ It's four ports. Build them bottom-up, in this order:
 
 | Port | What | Status |
 |------|------|--------|
-| `python/py-pyside6` | vendored stock snapshot + 3 real fixes | builds (6.11.1 on macOS 15, 6.7.3 on macOS 13) |
+| `python/py-pyside6` | vendored stock snapshot + 5 changes | builds (6.12.0 on macOS 15; 6.7.3 on macOS 13 not re-checked since the 6.12 re-sync) |
 | `cad/eda-coin` | Coin3D 4.0.10, private prefix | builds and verified (rev 2: Apple OpenGL, not mesa) |
 | `cad/eda-pivy` | pivy 0.6.11 against eda-coin, py312 | builds, reports `SIM Coin 4.0.10` |
-| `cad/eda-freecad` | FreeCAD 1.1.3, Qt6 + OCCT 7.9 | builds and runs, GUI and .app verified (rev 6; macOS 13 and 15) |
+| `cad/eda-freecad` | FreeCAD 1.1.3, Qt 6.12 + OCCT 8.0 | rev 7 builds and runs on macOS 15 (CLI verified; GUI to re-check). Rev 6 was verified on macOS 13 and 15 |
 
 ### Two GUI-only bugs
 
@@ -560,7 +560,7 @@ Its fixes also detect the layout instead of assuming it: if the layout is
 different, they warn and leave stock behaviour alone rather than fail a build
 that would otherwise have worked.
 
-### macOS 13 (Ventura) builds and runs too
+### macOS 13 (Ventura): rev 2 built and ran
 
 eda-freecad rev 2, checked 2026-08 on macOS 13.7.8 / Darwin 22 / x86_64:
 `freecadcmd --version` reports `FreeCAD 1.1.3 Revision: 20260725`, the same
@@ -568,9 +568,21 @@ scripted 40×30×12 box exports a valid ISO-10303-21 STEP through OpenCASCADE
 (volume 14400), `pivy 0.6.11` reports `SIM Coin 4.0.10` to match eda-coin, and
 `rev-upgrade` is clean.
 
-It needed two fixes that macOS 15 didn't:
+That was rev 2. Rev 7 hasn't been built on Ventura yet. Two things could stop
+it, and I can't check either from the Sequoia machine:
 
-1. The broken Shiboken6 CMake config (FIX 3 in py-pyside6, below).
+- The OCCT 8 backport patch is applied unconditionally. If Ventura's
+  `opencascade` is still 7.9, the patch may not compile against it.
+- py-pyside6 is now a re-sync of stock 6.12.0. On Ventura it still builds
+  PySide6 6.7.3, and the old FIX 3, which repaired 6.7.3's CMake include paths,
+  is gone. eda-freecad's `PySide6_DIR`/`Shiboken6_DIR` pins assume the configs
+  live in site-packages, which may not be true for a 6.7.3 build.
+
+Build rev 7 on the Ventura machine before relying on it there.
+
+Rev 2 needed two fixes that macOS 15 didn't:
+
+1. The broken Shiboken6 CMake config (the old FIX 3 in py-pyside6).
 2. C++20 `<source_location>`. FreeCAD's `src/Base/Exception.h` includes it,
    libc++ only got it in LLVM 16, and the Ventura CLT ships libc++ 15:
    ```
@@ -587,14 +599,15 @@ It needed two fixes that macOS 15 didn't:
    header, and Darwin 24 builds clean.
 
 Why Ventura is different at all: Qt stops at 6.7.3 there, so `py-pyside6` builds
-PySide6 6.7.3 instead of the 6.11.1 used on macOS 15. At 6.7.3 the stock port
+PySide6 6.7.3 instead of the 6.11.1 macOS 15 had then. At 6.7.3 the stock port
 emits a broken Shiboken6 CMake config, and `eda-freecad` dies at configure:
 ```
 CMake Error in src/Gui/CMakeLists.txt:
   Imported target "Shiboken6::libshiboken" includes non-existent path
     "/opt/local/include/shiboken6"
 ```
-That's FIX 3 below, and it's why the same tree built on macOS 15 but not on 13.
+That was the old FIX 3, and it's why the same tree built on macOS 15 but not
+on 13.
 
 A one-time migration note: if a py-pyside6 with the broken config is already
 active, the port can't rebuild itself. Its own build does
@@ -649,8 +662,62 @@ None of these were predicted.
    `find_package(Boost 1.74)` happily accepts 1.76 and the failure only shows up
    at compile time.
 
-OpenCASCADE 7.9 needed no changes at all. The OCCT API drift I expected never
-showed up.
+Against OpenCASCADE 7.9 none of this needed source patches. That stopped being
+true in 2026-10 (next section).
+
+### What broke in 2026-10, and rev 7
+
+A routine `port upgrade` moved the stack underneath FreeCAD 1.1.3, and
+`port install eda-freecad` stopped building. Nothing in FreeCAD itself changed.
+There were five separate causes. Each one only showed up after the previous one
+was fixed:
+
+1. OpenCASCADE went to 8.0.1, which removes APIs FreeCAD 1.1 uses
+   (`TopTools_ListIteratorOfListOfShape.hxx`, `Standard_Failure::Raise`, and
+   more). Upstream ported FreeCAD to OCCT 8 on main, and the backport to the 1.1
+   branch is FreeCAD PR #33629. Upstream closed that PR without merging, but it
+   applies cleanly to 1.1.3, so it's carried as `patch-occt8-backport.diff` (130
+   files).
+2. MacPorts builds OCCT 8 with TBB, and its CMake config exports `-DHAVE_TBB`.
+   That makes FreeCAD's Import module compile its `tbb::task_group` path, and
+   the link then fails with undefined `tbb::detail::r1::…` symbols, because
+   nothing adds TBB to the link line. The port depends on `onetbb` and adds
+   `-ltbb`.
+3. Qt went to 6.12, so PySide6 had to go to 6.12 as well, since its minor
+   version must match Qt's. PySide 6.12 moved `PySide::PyObjectWrapper` into its
+   own `pyobjectwrapper.h`. FreeCAD PR #33408 handles that with a
+   `__has_include` guard, carried as `patch-pyside612-pyobjectwrapper.diff`.
+4. A stock `py314-pyside6` with `+extracmakepcfiles` owned the global
+   `${prefix}/lib/cmake/{PySide6,Shiboken6,Shiboken6Tools}` forwarders. Those
+   paths are shared by every Python version, so the Python 3.12 build of
+   FreeCAD was picking up PySide6 headers for 3.14. On top of that, Shiboken's
+   CMake helpers read `Python_EXECUTABLE`, not the `Python3_EXECUTABLE` that
+   FreeCAD sets, and otherwise take `python3` from PATH, which is 3.14 here. The
+   port now pins `PySide6_DIR`, `Shiboken6_DIR` and `Shiboken6Tools_DIR` to the
+   configs inside python3.12's site-packages, and sets `Python_EXECUTABLE`, so
+   whatever else owns the global forwarders no longer matters.
+5. MacPorts `hdf5` 2.1.1_1 ships a broken CMake config. That isn't FreeCAD's
+   fault: VTK 9.7 loads it for SMESH, and any CMake consumer of hdf5 would hit
+   it. There are two bugs. First, `find_dependency(libaec)` fails, because
+   libaec lives under `${prefix}/lib/libaec/`, which is off every default path;
+   `-Dlibaec_ROOT` fixes that. Second, the config includes its own files from
+   `${PACKAGE_PREFIX_DIR}/${PACKAGE_PREFIX_DIR}/…`, which resolves to
+   `/opt/local//opt/local/lib/cmake/hdf5/…`. This looks like a regression from
+   the MacPorts commit for trac #74514. `pre-configure` copies the config into
+   the work directory, fixes both lines there and points `HDF5_DIR` at the copy,
+   so the installed hdf5 is left alone. Drop this when the hdf5 port is fixed;
+   the second bug is worth reporting upstream.
+
+Rev 7 was checked on macOS 15.3 / x86_64 on 2026-10-31.
+`FreeCAD.Version()` reports 1.1.3 (Revision 20260725), with Python 3.12.16,
+PySide6/shiboken6 6.12.0 and `Part.OCC_VERSION` 8.0.1. The scripted 40×30×12
+box has volume 14400, survives a STEP export and re-read through OCCT 8 (still
+14400, one solid), and `rev-upgrade` is clean. `otool -L` across every `.so` and
+`.dylib` in the install shows Python 3.12, `libpyside6.abi3.6.12`,
+`libtbb.12`, Apple's OpenGL, and no references to `/usr/local`, Python 3.14 or
+mesa. Still to check by hand: launching the GUI, and the Addon Manager.
+`freecadcmd --version` printed nothing when run without a terminal; the version
+above comes from a script.
 
 The install layout: binaries land in `libexec/freecad/MacOS/`, not `bin/`. Even
 with `FREECAD_CREATE_MAC_APP=OFF`, FreeCAD keeps its bundle-style layout
@@ -660,47 +727,49 @@ through a single `fc_bindir` variable.
 
 ### py-pyside6
 
-`py-pyside6` is vendored here with three real fixes, and I'm keeping the shadow
-on purpose. I decided that in 2026-08, after diffing against current stock at
-6.11.1. Stock still has a real bug: it points both PySide6 symlinks at
-`libpyside6.abi3*`, so `lib/libpyside6qml.abi3.dylib` resolves to the wrong
-library. Ours points the qml one at `libpyside6qml.abi3*`. That bug doesn't
-depend on the version, so it won't go away on its own. The other two fixes
-(`xinstall -d`, and the llvm PATH fix) do nothing when the problem they fix isn't
-present, so carrying them costs nothing and removes a latent trap. The PATH fix
-in particular keeps the port working if `port select clang` is ever pointed at
-another major version. The snapshot tracks stock's version (6.11.1 here), so
-the fork doesn't hold anything back. Don't swap back to stock just to drop a
-fork: the fixes are cheap and the bug is real.
+`py-pyside6` is a vendored snapshot of the stock port, re-synced to stock
+6.12.0 on 2026-10-31, with five changes. The header of the Portfile lists them,
+and the exit path is the same as always: after a ports-tree sync, diff against
+stock and keep only the changes that are still needed.
 
-The three fixes:
-
-1. `post-destroot` symlinks into `PySide6/lib/` and `shiboken6/lib/`, but
-   PySide6 6.7.3 never creates those directories, so destroot died with
+1. `xinstall -d` for `PySide6/lib/` and `shiboken6/lib/` before
+   `post-destroot` symlinks into them. PySide6 6.7.3 (what macOS 13 gets) never
+   creates those directories, so destroot died with
    `symlink: .../PySide6/lib/libpyside6.abi3.dylib: no such file or directory`.
-   `xinstall -d` first fixes it, and does nothing where the directories already
-   exist. Stock also points both PySide6 symlinks at `libpyside6.abi3*`; the qml
-   one now correctly points at `libpyside6qml.abi3*`.
-2. Shiboken's ApiExtractor loads libclang from `LLVM_INSTALL_DIR`, but then runs
-   a bare `clang++` from PATH. If `port select clang` points at a different
-   major version, that binary crashes in dyld with
-   `Symbol not found: llvm::RISCVISAInfo::printEnabledExtensions` (present in
-   libLLVM 19, missing in 18), and every module then fails with
-   `'type_traits' file not found` / `Error running ApiExtractor`. Putting the
-   matching `llvm-N/bin` first on the build PATH fixes it, so the port no longer
-   depends on `port select` at all.
-3. Broken include directories on the imported targets. This is what blocks
-   macOS 13. The stock reinplaces that are meant to relocate the include
-   directories match `${_IMPORT_PREFIX}/<dir>/include`, but the real content is
-   `${_IMPORT_PREFIX}/include/<dir>`. The components are reversed, so the
-   reinplaces never fire. The imported targets keep pointing at
-   `${prefix}/include/{shiboken6,PySide6}`, which the port never creates, and
-   any CMake consumer fails at configure. On top of that, the shiboken headers
-   install under `shiboken6_generator/include`, not `shiboken6/include`, so
-   stock's `shiboken6.pc` `includedir` is wrong for the same reason. Ours looks
-   for `shiboken.h` instead of hardcoding a path. And, which matters on the older
-   machines, if it can't find it, it warns and leaves the stock paths alone
-   rather than fail a build that would otherwise have worked.
+   Where the directories already exist it does nothing. The other half of the
+   old fix, stock pointing both symlinks at `libpyside6.abi3*`, is fixed in
+   stock 6.12.0.
+2. The matching `llvm-N/bin` goes first on the build PATH. Shiboken's
+   ApiExtractor loads libclang from `LLVM_INSTALL_DIR`, but then runs a bare
+   `clang++` from PATH. If `port select clang` points at a different major
+   version, that binary crashes in dyld with
+   `Symbol not found: llvm::RISCVISAInfo::printEnabledExtensions`, and every
+   module then fails with `'type_traits' file not found`. With the PATH fixed,
+   the port doesn't depend on `port select` at all.
+3. `--disable-pyi`. The stub-generation step runs the newly built interpreter
+   module against a partial staging install, and it dies with
+   `Library not loaded: @rpath/libshiboken6.abi3.*.dylib` whenever a copy of
+   the port is already active, which is always the case during an upgrade.
+   Skipping it makes in-place upgrades work. All you lose is `.pyi` stubs for
+   editors.
+4. `+addonmodules` is not a default. Stock turns it on, and it pulls in
+   `qt6-qtwebengine` (a full Chromium build) plus about 20 more Qt modules. It
+   also comes back on every `port upgrade`, because a port installed as a
+   dependency has no recorded variant request. FreeCAD only needs the base
+   modules, hence `-DBUILD_WEB=OFF` in eda-freecad.
+5. `+extracmakepcfiles` is not a default. It's new in 6.12.0 and installs
+   forwarding configs in `${prefix}/lib/cmake/{PySide6,Shiboken6,Shiboken6Tools}`
+   plus `.pc` links in `${prefix}/lib/pkgconfig`. Every Python version shares
+   those paths, so whichever `py3xx-pyside6` was activated last owns them. That
+   is cause 4 of the 2026-10 breakage above. eda-freecad now points at the
+   configs inside python3.12's site-packages, so it needs none of the global
+   files, and leaving the variant off lets this port sit next to stock
+   `py313-`/`py314-pyside6` without a fight.
+
+The old FIX 3, which rewrote reversed include paths in the CMake files stock
+copied into `${prefix}/lib/cmake`, is gone. Stock 6.12.0 no longer copies those
+files; it forwards to the site-packages configs, whose paths are correct. The
+macOS 13 caveat above follows from this.
 
 The shadow covers Python 312 only (stock declares 310 to 314). This matters,
 because stock `py-pyside6` has real users at other versions: `py313-pyside6` for
@@ -720,11 +789,6 @@ needs PYTHONPATH injection and risks two copies of the PySide6 C extension in on
 process (duplicate type objects, crashes). Renaming it while keeping the install
 location just swaps a harmless substitution for hard file conflicts. Narrowing
 the version range is cheaper and safer.
-
-Always build PySide6 with `-addonmodules`. The addon set pulls in
-`qt67-qtwebengine` (a full Chromium build) plus `llvm-22`/`clang-22`: 38 extra
-ports instead of 1. FreeCAD only needs the base modules, hence `-DBUILD_WEB=OFF`
-in eda-freecad.
 
 ### Other things worth knowing
 

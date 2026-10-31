@@ -1,0 +1,4088 @@
+diff --git a/cMake/FreeCadMacros.cmake b/cMake/FreeCadMacros.cmake
+index 96aeea575903..1a6f7d410dfb 100644
+--- a/cMake/FreeCadMacros.cmake
++++ b/cMake/FreeCadMacros.cmake
+@@ -328,3 +328,8 @@ function(target_compile_warn_error ProjectName)
+     endif()
+ endfunction()
+ 
++function(disable_occt8_deprecation_warnings)
++    if (OCC_VERSION_STRING VERSION_GREATER_EQUAL "8.0.0")
++        add_compile_definitions(-DOCCT_NO_DEPRECATED)
++    endif()
++endfunction()
+diff --git a/src/3rdParty/salomesmesh/inc/SMESH_ControlsDef.hxx b/src/3rdParty/salomesmesh/inc/SMESH_ControlsDef.hxx
+index 0405727fbb0b..7d7e5e6bc59e 100644
+--- a/src/3rdParty/salomesmesh/inc/SMESH_ControlsDef.hxx
++++ b/src/3rdParty/salomesmesh/inc/SMESH_ControlsDef.hxx
+@@ -29,7 +29,12 @@
+ #include "SMESH_TypeDefs.hxx"
+ 
+ #include <BRepClass3d_SolidClassifier.hxx>
++#include <Standard_Version.hxx>
++#if OCC_VERSION_HEX >= 0x080000
++#include <Bnd_B3.hxx>
++#else
+ #include <Bnd_B3d.hxx>
++#endif
+ #include <GeomAPI_ProjectPointOnCurve.hxx>
+ #include <GeomAPI_ProjectPointOnSurf.hxx>
+ #include <Quantity_Color.hxx>
+diff --git a/src/3rdParty/salomesmesh/inc/SMESH_MeshVSLink.hxx b/src/3rdParty/salomesmesh/inc/SMESH_MeshVSLink.hxx
+index 6155e2053999..da9cb67b42c5 100644
+--- a/src/3rdParty/salomesmesh/inc/SMESH_MeshVSLink.hxx
++++ b/src/3rdParty/salomesmesh/inc/SMESH_MeshVSLink.hxx
+@@ -27,6 +27,8 @@
+ #ifndef _SMESH_MeshVSLink_HeaderFile
+ #define _SMESH_MeshVSLink_HeaderFile
+ 
++#include <MeshVS_HArray1OfSequenceOfInteger.hxx>
++#include <TColStd_Array1OfReal.hxx>
+ #if OCC_VERSION_HEX < 0x070000
+ #ifndef _Handle_SMESH_MeshVSLink_HeaderFile
+ #include <Handle_SMESH_MeshVSLink.hxx>
+diff --git a/src/3rdParty/salomesmesh/inc/SMESH_Octree.hxx b/src/3rdParty/salomesmesh/inc/SMESH_Octree.hxx
+index d99081d75a30..1a73ec06b74f 100644
+--- a/src/3rdParty/salomesmesh/inc/SMESH_Octree.hxx
++++ b/src/3rdParty/salomesmesh/inc/SMESH_Octree.hxx
+@@ -31,7 +31,12 @@
+ 
+ #include "SMESH_Utils.hxx"
+ #include "SMESH_tree.hxx"
++#include <Standard_Version.hxx>
++#if OCC_VERSION_HEX >= 0x080000
++#include <Bnd_B3.hxx>
++#else
+ #include <Bnd_B3d.hxx>
++#endif
+ 
+ //================================================================================
+ /*!
+diff --git a/src/3rdParty/salomesmesh/inc/SMESH_Quadtree.hxx b/src/3rdParty/salomesmesh/inc/SMESH_Quadtree.hxx
+index 0117529e4403..fee8ceafa348 100644
+--- a/src/3rdParty/salomesmesh/inc/SMESH_Quadtree.hxx
++++ b/src/3rdParty/salomesmesh/inc/SMESH_Quadtree.hxx
+@@ -29,7 +29,12 @@
+ 
+ #include "SMESH_Utils.hxx"
+ #include "SMESH_tree.hxx"
++#include <Standard_Version.hxx>
++#if OCC_VERSION_HEX >= 0x080000
++#include <Bnd_B2.hxx>
++#else
+ #include <Bnd_B2d.hxx>
++#endif
+ 
+ /*!
+  * \brief 2D tree of anything.
+diff --git a/src/3rdParty/salomesmesh/inc/SMESH_TryCatch.hxx b/src/3rdParty/salomesmesh/inc/SMESH_TryCatch.hxx
+index bf2a8a73ccde..c27474d65d40 100644
+--- a/src/3rdParty/salomesmesh/inc/SMESH_TryCatch.hxx
++++ b/src/3rdParty/salomesmesh/inc/SMESH_TryCatch.hxx
+@@ -65,6 +65,40 @@
+ // Two onExceptionFun() are defined here: SMESH::throwSalomeEx() and SMESH::doNothing().
+ // To add your own catch close, define SMY_OWN_CATCH macro before including this file.
+ 
++#include <Standard_Version.hxx>
++#if OCC_VERSION_HEX >= 0x080000
++#define SMESH_CATCH( onExceptionFun )                                   \
++  }                                                                     \
++  catch (Standard_Failure& ex)                                          \
++  {                                                                     \
++    SMESH_Comment text("OCCT Exception: ");                             \
++    text << ": " << ex.ExceptionType();                                 \
++    if ( ex.what() && strlen( ex.what() ))                              \
++      text << ": " << ex.what();                                        \
++    SMESH_CAUGHT onExceptionFun( text );                                \
++  }                                                                     \
++  catch ( ::SMESH_ComputeError& ce )                                    \
++  {                                                                     \
++    if ( !ce.myComment.empty() )                                        \
++      SMESH_CAUGHT onExceptionFun( ce.myComment.c_str() );              \
++    else if ( ce.IsCommon() )                                           \
++      SMESH_CAUGHT onExceptionFun( ce.CommonName().c_str() );           \
++    else                                                                \
++      SMESH_CAUGHT onExceptionFun                                       \
++        (SMESH_Comment("SMESH_ComputeError: ") << ce.myName );          \
++  }                                                                     \
++  catch ( const std::exception& ex)                                     \
++  {                                                                     \
++    SMESH_CAUGHT onExceptionFun( ex.what() );                           \
++  }                                                                     \
++                                                                        \
++  SMY_OWN_CATCH                                                         \
++                                                                        \
++  catch (...)                                                           \
++  {                                                                     \
++    SMESH_CAUGHT onExceptionFun("Unknown Exception caught");            \
++  }
++#else
+ #define SMESH_CATCH( onExceptionFun )                                   \
+   }                                                                     \
+   catch (Standard_Failure& ex)                                          \
+@@ -96,6 +130,7 @@
+   {                                                                     \
+     SMESH_CAUGHT onExceptionFun("Unknown Exception caught");            \
+   }
++#endif
+ 
+ //-------------------------------------------------------------------------------------
+ // Functions that can be used as an argument of SMESH_CATCH
+diff --git a/src/3rdParty/salomesmesh/inc/StdMeshers_Distribution.hxx b/src/3rdParty/salomesmesh/inc/StdMeshers_Distribution.hxx
+index a3a96c6633d4..88aeca6a59c9 100644
+--- a/src/3rdParty/salomesmesh/inc/StdMeshers_Distribution.hxx
++++ b/src/3rdParty/salomesmesh/inc/StdMeshers_Distribution.hxx
+@@ -34,7 +34,12 @@
+ #include <vector>
+ #include <math_Function.hxx>
+ #include <ExprIntrp_GenExp.hxx>
++#include <Standard_Version.hxx>
++#if OCC_VERSION_HEX >= 0x080000
++#include <Expr_NamedUnknown.hxx>
++#else
+ #include <Expr_Array1OfNamedUnknown.hxx>
++#endif
+ #include <TColStd_Array1OfReal.hxx>
+ 
+ namespace StdMeshers
+@@ -87,6 +92,10 @@ private:
+   std::vector<double>  myData;
+ };
+ 
++#if OCC_VERSION_HEX >= 0x080000
++using Expr_Array1OfNamedUnknown = NCollection_Array1<occ::handle<Expr_NamedUnknown>>;
++#endif
++
+ class STDMESHERS_EXPORT FunctionExpr : public Function, public math_Function
+ {
+ public:
+diff --git a/src/3rdParty/salomesmesh/inc/StdMeshers_Quadrangle_2D.hxx b/src/3rdParty/salomesmesh/inc/StdMeshers_Quadrangle_2D.hxx
+index 460a5e4ab7fb..dc30a4dfc0e7 100644
+--- a/src/3rdParty/salomesmesh/inc/StdMeshers_Quadrangle_2D.hxx
++++ b/src/3rdParty/salomesmesh/inc/StdMeshers_Quadrangle_2D.hxx
+@@ -34,7 +34,12 @@
+ #include "StdMeshers_QuadrangleParams.hxx"
+ 
+ #include <TopoDS_Face.hxx>
++#include <Standard_Version.hxx>
++#if OCC_VERSION_HEX >= 0x080000
++#include <Bnd_B2.hxx>
++#else
+ #include <Bnd_B2d.hxx>
++#endif
+ 
+ class SMDS_MeshNode;
+ class SMESH_Mesh;
+diff --git a/src/3rdParty/salomesmesh/src/Controls/SMESH_Controls.cpp b/src/3rdParty/salomesmesh/src/Controls/SMESH_Controls.cpp
+index 6decc0733ac3..cba6c0092543 100644
+--- a/src/3rdParty/salomesmesh/src/Controls/SMESH_Controls.cpp
++++ b/src/3rdParty/salomesmesh/src/Controls/SMESH_Controls.cpp
+@@ -51,7 +51,6 @@
+ #include <Geom_Plane.hxx>
+ #include <Geom_Surface.hxx>
+ #include <Precision.hxx>
+-#include <TColStd_MapIteratorOfMapOfInteger.hxx>
+ #include <TColStd_MapOfInteger.hxx>
+ #include <TColStd_SequenceOfAsciiString.hxx>
+ #include <TColgp_Array1OfXYZ.hxx>
+diff --git a/src/3rdParty/salomesmesh/src/DriverSTL/DriverSTL_R_SMDS_Mesh.cpp b/src/3rdParty/salomesmesh/src/DriverSTL/DriverSTL_R_SMDS_Mesh.cpp
+index 4b3791292a74..3aebf832c1ce 100644
+--- a/src/3rdParty/salomesmesh/src/DriverSTL/DriverSTL_R_SMDS_Mesh.cpp
++++ b/src/3rdParty/salomesmesh/src/DriverSTL/DriverSTL_R_SMDS_Mesh.cpp
+@@ -306,7 +306,7 @@ Driver_Mesh::Status DriverSTL_R_SMDS_Mesh::readBinary(SMESH_File& file) const
+   if ( (filesize - HEADER_SIZE) % SIZEOF_STL_FACET !=0 
+       // Commented to allow reading small files (ex: 1 face)
+       /*|| (filesize < STL_MIN_FILE_SIZE)*/) {
+-    Standard_NoMoreObject::Raise("DriverSTL_R_SMDS_MESH::readBinary (wrong file size)");
++      throw Standard_NoMoreObject("DriverSTL_R_SMDS_MESH::readBinary (wrong file size)");
+   }
+ 
+   // don't trust the number of triangles which is coded in the file
+diff --git a/src/3rdParty/salomesmesh/src/NETGENPlugin/NETGENPlugin_Mesher.cpp b/src/3rdParty/salomesmesh/src/NETGENPlugin/NETGENPlugin_Mesher.cpp
+index 9676d2f20983..1c9d0694810d 100644
+--- a/src/3rdParty/salomesmesh/src/NETGENPlugin/NETGENPlugin_Mesher.cpp
++++ b/src/3rdParty/salomesmesh/src/NETGENPlugin/NETGENPlugin_Mesher.cpp
+@@ -62,7 +62,12 @@
+ #include <BRepBuilderAPI_Copy.hxx>
+ #include <BRepMesh_IncrementalMesh.hxx>
+ #include <BRep_Tool.hxx>
++#include <Standard_Version.hxx>
++#if OCC_VERSION_HEX >= 0x080000
++#include <Bnd_B3.hxx>
++#else
+ #include <Bnd_B3d.hxx>
++#endif
+ #include <NCollection_Map.hxx>
+ #include <Standard_ErrorHandler.hxx>
+ #include <Standard_ProgramError.hxx>
+@@ -70,8 +75,10 @@
+ #include <TColStd_MapOfInteger.hxx>
+ #include <TopExp.hxx>
+ #include <TopExp_Explorer.hxx>
+-#include <TopTools_DataMapIteratorOfDataMapOfShapeInteger.hxx>
+-#include <TopTools_DataMapIteratorOfDataMapOfShapeShape.hxx>
++#if OCC_VERSION_HEX < 0x080000
++# include <TopTools_DataMapIteratorOfDataMapOfShapeShape.hxx>
++# include <TopTools_DataMapIteratorOfDataMapOfIntegerListOfShape.hxx>
++#endif
+ #include <TopTools_DataMapOfShapeInteger.hxx>
+ #include <TopTools_DataMapOfShapeShape.hxx>
+ #include <TopTools_MapOfShape.hxx>
+@@ -739,7 +746,7 @@ double NETGENPlugin_Mesher::GetDefaultMinSize(const TopoDS_Shape& geom,
+         return triangulation->Node(index);
+     };
+ #endif
+-    const Poly_Array1OfTriangle& trias = triangulation->Triangles();
++    const auto& trias = triangulation->Triangles();
+     for ( int iT = trias.Lower(); iT <= trias.Upper(); ++iT )
+     {
+       trias(iT).Get( i1, i2, i3 );
+@@ -2407,8 +2414,11 @@ namespace
+   {
+     SMESH_Comment str("Exception in netgen::OCCGenerateMesh()");
+     str << " at " << netgen::multithread.task
+-        << ": " << ex.DynamicType()->Name();
+-    if ( ex.GetMessageString() && strlen( ex.GetMessageString() ))
++#if OCC_VERSION_HEX < 0x080000
++            << ": " << ex.DynamicType()->Name();
++#else
++      << ": " << ex.ExceptionType();
++#endif    if ( ex.GetMessageString() && strlen( ex.GetMessageString() ))
+       str << ": " << ex.GetMessageString();
+     return std::move(str);
+   }
+diff --git a/src/3rdParty/salomesmesh/src/NETGENPlugin/NETGENPlugin_NETGEN_2D_ONLY.cpp b/src/3rdParty/salomesmesh/src/NETGENPlugin/NETGENPlugin_NETGEN_2D_ONLY.cpp
+index 2ccde3e472ce..113e0b6fcf8d 100644
+--- a/src/3rdParty/salomesmesh/src/NETGENPlugin/NETGENPlugin_NETGEN_2D_ONLY.cpp
++++ b/src/3rdParty/salomesmesh/src/NETGENPlugin/NETGENPlugin_NETGEN_2D_ONLY.cpp
+@@ -565,7 +565,11 @@ bool NETGENPlugin_NETGEN_2D_ONLY::Compute(SMESH_Mesh&         aMesh,
+         err = 1;
+         str << "Exception in  netgen::OCCGenerateMesh()"
+             << " at " << netgen::multithread.task
++#if OCC_VERSION_HEX < 0x080000
+             << ": " << ex.DynamicType()->Name();
++#else
++            << ": " << ex.ExceptionType();
++#endif
+         if ( ex.GetMessageString() && strlen( ex.GetMessageString() ))
+           str << ": " << ex.GetMessageString();
+       }
+diff --git a/src/3rdParty/salomesmesh/src/NETGENPlugin/NETGENPlugin_NETGEN_3D.cpp b/src/3rdParty/salomesmesh/src/NETGENPlugin/NETGENPlugin_NETGEN_3D.cpp
+index 9271cebaa48b..a4b3a0f0009e 100644
+--- a/src/3rdParty/salomesmesh/src/NETGENPlugin/NETGENPlugin_NETGEN_3D.cpp
++++ b/src/3rdParty/salomesmesh/src/NETGENPlugin/NETGENPlugin_NETGEN_3D.cpp
+@@ -58,7 +58,9 @@
+ #include <GProp_GProps.hxx>
+ #include <TopExp.hxx>
+ #include <TopExp_Explorer.hxx>
++#if OCC_VERSION_HEX < 0x080000
+ #include <TopTools_ListIteratorOfListOfShape.hxx>
++#endif
+ #include <TopoDS.hxx>
+ 
+ #include <Standard_Failure.hxx>
+@@ -541,8 +543,12 @@ bool NETGENPlugin_NETGEN_3D::compute(SMESH_Mesh&                     aMesh,
+   {
+     SMESH_Comment str("Exception in  netgen::OCCGenerateMesh()");
+     str << " at " << netgen::multithread.task
+-        << ": " << ex.DynamicType()->Name();
+-    if ( ex.GetMessageString() && strlen( ex.GetMessageString() ))
++#if OCC_VERSION_HEX < 0x080000
++            << ": " << ex.DynamicType()->Name();
++#else
++      << ": " << ex.ExceptionType();
++#endif
++      if ( ex.GetMessageString() && strlen( ex.GetMessageString() ))
+       str << ": " << ex.GetMessageString();
+     error(str);
+   }
+diff --git a/src/3rdParty/salomesmesh/src/SMESH/GEOMUtils.cpp b/src/3rdParty/salomesmesh/src/SMESH/GEOMUtils.cpp
+index 3d8131b35986..1e02cbcde915 100644
+--- a/src/3rdParty/salomesmesh/src/SMESH/GEOMUtils.cpp
++++ b/src/3rdParty/salomesmesh/src/SMESH/GEOMUtils.cpp
+@@ -26,8 +26,6 @@
+ # pragma clang diagnostic ignored "-Wimport-preprocessor-directive-pedantic"
+ #endif
+ 
+-#include <Standard_Stream.hxx>
+-
+ #include <GEOMUtils.hxx>
+ 
+ #include <Basics_OCCTVersion.hxx>
+@@ -69,7 +67,6 @@
+ #include <TopExp_Explorer.hxx>
+ #include <TopTools_MapOfShape.hxx>
+ #include <TopTools_ListOfShape.hxx>
+-#include <TopTools_ListIteratorOfListOfShape.hxx>
+ #include <TopTools_Array1OfShape.hxx>
+ 
+ #include <Geom_Circle.hxx>
+@@ -406,10 +403,10 @@ gp_Vec GEOMUtils::GetVector (const TopoDS_Shape& theShape,
+                              Standard_Boolean doConsiderOrientation)
+ {
+   if (theShape.IsNull())
+-    Standard_NullObject::Raise("Null shape is given for a vector");
++    throw Standard_NullObject("Null shape is given for a vector");
+ 
+   if (theShape.ShapeType() != TopAbs_EDGE)
+-    Standard_TypeMismatch::Raise("Invalid shape is given, must be a vector or an edge");
++    throw Standard_TypeMismatch("Invalid shape is given, must be a vector or an edge");
+ 
+   TopoDS_Edge anE = TopoDS::Edge(theShape);
+ 
+@@ -417,11 +414,11 @@ gp_Vec GEOMUtils::GetVector (const TopoDS_Shape& theShape,
+   TopExp::Vertices(anE, V1, V2, doConsiderOrientation);
+ 
+   if (V1.IsNull() || V2.IsNull())
+-    Standard_NullObject::Raise("Invalid edge is given, it must have two points");
++    throw Standard_NullObject("Invalid edge is given, it must have two points");
+ 
+   gp_Vec aV (BRep_Tool::Pnt(V1), BRep_Tool::Pnt(V2));
+   if (aV.Magnitude() < gp::Resolution()) {
+-    Standard_ConstructionError::Raise("Vector of zero length is given");
++    throw Standard_ConstructionError("Vector of zero length is given");
+   }
+ 
+   return aV;
+@@ -771,7 +768,7 @@ TopoDS_Shape GEOMUtils::GetEdgeNearPoint (const TopoDS_Shape& theShape,
+   }
+ 
+   if (nbEdges == 0)
+-    Standard_NullObject::Raise("Given shape contains no edges");
++    throw Standard_NullObject("Given shape contains no edges");
+ 
+   mapShape.Clear();
+   Standard_Integer ind = 1;
+@@ -785,7 +782,7 @@ TopoDS_Shape GEOMUtils::GetEdgeNearPoint (const TopoDS_Shape& theShape,
+       // 2. Classify the point relatively each edge
+       BRepExtrema_DistShapeShape aDistTool (thePoint, anEdges(ind));
+       if (!aDistTool.IsDone())
+-        Standard_ConstructionError::Raise("Cannot find a distance from the given point to one of edges");
++        throw Standard_ConstructionError("Cannot find a distance from the given point to one of edges");
+ 
+       aDistances(ind) = aDistTool.Value();
+       ind++;
+@@ -808,10 +805,10 @@ TopoDS_Shape GEOMUtils::GetEdgeNearPoint (const TopoDS_Shape& theShape,
+     }
+   }
+   if (nbFound > 1) {
+-    Standard_ConstructionError::Raise("Multiple edges near the given point are found");
++    throw Standard_ConstructionError("Multiple edges near the given point are found");
+   }
+   else if (nbFound == 0) {
+-    Standard_ConstructionError::Raise("There are no edges near the given point");
++    throw Standard_ConstructionError("There are no edges near the given point");
+   }
+   else {
+   }
+diff --git a/src/3rdParty/salomesmesh/src/SMESH/SMESH_Algo.cpp b/src/3rdParty/salomesmesh/src/SMESH/SMESH_Algo.cpp
+index 4d344559b19e..ece46444ebb8 100644
+--- a/src/3rdParty/salomesmesh/src/SMESH/SMESH_Algo.cpp
++++ b/src/3rdParty/salomesmesh/src/SMESH/SMESH_Algo.cpp
+@@ -53,7 +53,6 @@
+ #include <TopExp.hxx>
+ #include <TopExp_Explorer.hxx>
+ #include <TopLoc_Location.hxx>
+-#include <TopTools_ListIteratorOfListOfShape.hxx>
+ #include <TopTools_ListOfShape.hxx>
+ #include <TopoDS.hxx>
+ #include <TopoDS_Edge.hxx>
+diff --git a/src/3rdParty/salomesmesh/src/SMESH/SMESH_Block.cpp b/src/3rdParty/salomesmesh/src/SMESH/SMESH_Block.cpp
+index 0cac50853d81..2da25569d9b9 100644
+--- a/src/3rdParty/salomesmesh/src/SMESH/SMESH_Block.cpp
++++ b/src/3rdParty/salomesmesh/src/SMESH/SMESH_Block.cpp
+@@ -38,7 +38,12 @@
+ #include <BRepTools_WireExplorer.hxx>
+ #include <BRep_Builder.hxx>
+ #include <BRep_Tool.hxx>
++#include <Standard_Version.hxx>
++#if OCC_VERSION_HEX >= 0x080000
++#include <Bnd_B2.hxx>
++#else
+ #include <Bnd_B2d.hxx>
++#endif
+ #include <Bnd_Box.hxx>
+ #include <Extrema_ExtPC.hxx>
+ #include <Extrema_ExtPS.hxx>
+@@ -48,7 +53,6 @@
+ #include <ShapeAnalysis.hxx>
+ #include <TopExp_Explorer.hxx>
+ #include <TopTools_IndexedDataMapOfShapeListOfShape.hxx>
+-#include <TopTools_ListIteratorOfListOfShape.hxx>
+ #include <TopTools_ListOfShape.hxx>
+ #include <TopoDS.hxx>
+ #include <TopoDS_Compound.hxx>
+diff --git a/src/3rdParty/salomesmesh/src/SMESH/SMESH_Mesh.cpp b/src/3rdParty/salomesmesh/src/SMESH/SMESH_Mesh.cpp
+index 4c0a901c5998..bd528e01e049 100644
+--- a/src/3rdParty/salomesmesh/src/SMESH/SMESH_Mesh.cpp
++++ b/src/3rdParty/salomesmesh/src/SMESH/SMESH_Mesh.cpp
+@@ -71,7 +71,6 @@
+ #include <TColStd_MapOfInteger.hxx>
+ #include <TopExp.hxx>
+ #include <TopExp_Explorer.hxx>
+-#include <TopTools_ListIteratorOfListOfShape.hxx>
+ #include <TopTools_ListOfShape.hxx>
+ #include <TopTools_MapOfShape.hxx>
+ #include <TopoDS_Iterator.hxx>
+diff --git a/src/3rdParty/salomesmesh/src/SMESH/SMESH_MeshEditor.cpp b/src/3rdParty/salomesmesh/src/SMESH/SMESH_MeshEditor.cpp
+index 990e310d3dda..6cadbf02e1ed 100644
+--- a/src/3rdParty/salomesmesh/src/SMESH/SMESH_MeshEditor.cpp
++++ b/src/3rdParty/salomesmesh/src/SMESH/SMESH_MeshEditor.cpp
+@@ -75,7 +75,6 @@
+ #include <TopAbs_State.hxx>
+ #include <TopExp.hxx>
+ #include <TopExp_Explorer.hxx>
+-#include <TopTools_ListIteratorOfListOfShape.hxx>
+ #include <TopTools_ListOfShape.hxx>
+ #include <TopTools_SequenceOfShape.hxx>
+ #include <TopoDS.hxx>
+diff --git a/src/3rdParty/salomesmesh/src/SMESH/SMESH_MesherHelper.cpp b/src/3rdParty/salomesmesh/src/SMESH/SMESH_MesherHelper.cpp
+index 7841496ec506..04004679456a 100644
+--- a/src/3rdParty/salomesmesh/src/SMESH/SMESH_MesherHelper.cpp
++++ b/src/3rdParty/salomesmesh/src/SMESH/SMESH_MesherHelper.cpp
+@@ -50,8 +50,7 @@
+ #include <ShapeAnalysis.hxx>
+ #include <TopExp.hxx>
+ #include <TopExp_Explorer.hxx>
+-#include <TopTools_ListIteratorOfListOfShape.hxx>
+-#include <TopTools_MapIteratorOfMapOfShape.hxx>
++#include <TopTools_ListOfShape.hxx>
+ #include <TopTools_MapOfShape.hxx>
+ #include <TopoDS.hxx>
+ #include <gp_Ax3.hxx>
+diff --git a/src/3rdParty/salomesmesh/src/SMESH/SMESH_Pattern.cpp b/src/3rdParty/salomesmesh/src/SMESH/SMESH_Pattern.cpp
+index 87b09776aeab..abf436ed987e 100644
+--- a/src/3rdParty/salomesmesh/src/SMESH/SMESH_Pattern.cpp
++++ b/src/3rdParty/salomesmesh/src/SMESH/SMESH_Pattern.cpp
+@@ -60,7 +60,8 @@
+ #include <TopExp.hxx>
+ #include <TopExp_Explorer.hxx>
+ #include <TopLoc_Location.hxx>
+-#include <TopTools_ListIteratorOfListOfShape.hxx>
++#include <TopTools_ListOfShape.hxx>
++#include <TopTools_MapOfShape.hxx>
+ #include <TopoDS.hxx>
+ #include <TopoDS_Edge.hxx>
+ #include <TopoDS_Face.hxx>
+diff --git a/src/3rdParty/salomesmesh/src/SMESH/SMESH_ProxyMesh.cpp b/src/3rdParty/salomesmesh/src/SMESH/SMESH_ProxyMesh.cpp
+index ed3f6680375a..516b450c6c74 100644
+--- a/src/3rdParty/salomesmesh/src/SMESH/SMESH_ProxyMesh.cpp
++++ b/src/3rdParty/salomesmesh/src/SMESH/SMESH_ProxyMesh.cpp
+@@ -26,7 +26,7 @@
+ #include "SMDS_SetIterator.hxx"
+ #include "SMESH_MesherHelper.hxx"
+ 
+-#include <TopTools_ListIteratorOfListOfShape.hxx>
++#include <TopTools_ListOfShape.hxx>
+ #include <TopExp.hxx>
+ #include <TopTools_IndexedMapOfShape.hxx>
+ 
+diff --git a/src/3rdParty/salomesmesh/src/SMESH/SMESH_subMesh.cpp b/src/3rdParty/salomesmesh/src/SMESH/SMESH_subMesh.cpp
+index 2b5044b60d90..7270fe7f6d8f 100644
+--- a/src/3rdParty/salomesmesh/src/SMESH/SMESH_subMesh.cpp
++++ b/src/3rdParty/salomesmesh/src/SMESH/SMESH_subMesh.cpp
+@@ -47,10 +47,10 @@
+ 
+ #include <BRep_Builder.hxx>
+ #include <BRep_Tool.hxx>
++#include <Standard_Version.hxx>
+ #include <TopExp.hxx>
+ #include <TopExp_Explorer.hxx>
+ #include <TopTools_IndexedMapOfShape.hxx>
+-#include <TopTools_ListIteratorOfListOfShape.hxx>
+ #include <TopTools_ListOfShape.hxx>
+ #include <TopoDS.hxx>
+ #include <TopoDS_Compound.hxx>
+@@ -1548,7 +1548,11 @@ bool SMESH_subMesh::ComputeStateEngine(int event)
+         catch (Standard_Failure& ex) {
+           if ( !_computeError ) _computeError = SMESH_ComputeError::New();
+           _computeError->myName    = COMPERR_OCC_EXCEPTION;
++#if OCC_VERSION_HEX >= 0x080000
++          _computeError->myComment += ex.ExceptionType();
++#else
+           _computeError->myComment += ex.DynamicType()->Name();
++#endif
+           if ( ex.GetMessageString() && strlen( ex.GetMessageString() )) {
+             _computeError->myComment += ": ";
+             _computeError->myComment += ex.GetMessageString();
+diff --git a/src/3rdParty/salomesmesh/src/StdMeshers/SMESH_MAT2d.cpp b/src/3rdParty/salomesmesh/src/StdMeshers/SMESH_MAT2d.cpp
+index d848e951b009..1a00d03190a9 100644
+--- a/src/3rdParty/salomesmesh/src/StdMeshers/SMESH_MAT2d.cpp
++++ b/src/3rdParty/salomesmesh/src/StdMeshers/SMESH_MAT2d.cpp
+@@ -32,7 +32,12 @@
+ #include <BRepBuilderAPI_MakeVertex.hxx>
+ #include <BRep_Builder.hxx>
+ #include <BRep_Tool.hxx>
++#include <Standard_Version.hxx>
++#if OCC_VERSION_HEX >= 0x080000
++#include <Bnd_B2.hxx>
++#else
+ #include <Bnd_B2d.hxx>
++#endif
+ //#include <GCPnts_AbscissaPoint.hxx>
+ #include <GCPnts_TangentialDeflection.hxx>
+ // #include <GCPnts_UniformAbscissa.hxx>
+diff --git a/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_Adaptive1D.cpp b/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_Adaptive1D.cpp
+index 7c51601c7bbe..14550ffc006e 100644
+--- a/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_Adaptive1D.cpp
++++ b/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_Adaptive1D.cpp
+@@ -38,7 +38,10 @@
+ #include <BRepBndLib.hxx>
+ #include <BRepMesh_IncrementalMesh.hxx>
+ #include <BRep_Tool.hxx>
++#include <Standard_Version.hxx>
++#if OCC_VERSION_HEX < 0x080000
+ #include <Bnd_B3d.hxx>
++#endif
+ #include <Bnd_Box.hxx>
+ #include <GCPnts_AbscissaPoint.hxx>
+ #include <GeomAdaptor_Curve.hxx>
+@@ -48,6 +51,7 @@
+ #include <Poly_Triangulation.hxx>
+ #include <Standard_Version.hxx>
+ #include <TColgp_Array1OfPnt.hxx>
++#include <TColStd_Array1OfInteger.hxx>
+ #include <TopExp.hxx>
+ #include <TopExp_Explorer.hxx>
+ #include <TopLoc_Location.hxx>
+@@ -73,9 +77,27 @@ namespace // internal utils
+    */
+   struct BBox : public Bnd_B3d
+   {
++#if OCC_VERSION_HEX >= 0x080000
++      gp_XYZ Center() const
++      {
++          const auto& myCenter = Bnd_B3d::Center();
++          return gp_XYZ(myCenter[0], myCenter[1], myCenter[2]);
++      }
++      gp_XYZ HSize() const
++      {
++          const auto& myHSize = Bnd_B3d::HSize();
++          return gp_XYZ(myHSize[0], myHSize[1], myHSize[2]);
++      }
++      double Size() const
++      {
++          const auto& myHSize = Bnd_B3d::HSize();
++          return 2 * myHSize[0];
++      }
++#else
+     gp_XYZ Center() const { return gp_XYZ( myCenter[0], myCenter[1], myCenter[2] ); }
+     gp_XYZ HSize()  const { return gp_XYZ( myHSize[0],  myHSize[1],  myHSize[2]  ); }
+     double Size()   const { return 2 * myHSize[0]; }
++#endif
+   };
+   //================================================================================
+   /*!
+diff --git a/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_CartesianParameters3D.cpp b/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_CartesianParameters3D.cpp
+index 82655fffd054..c6f78d2e22c3 100644
+--- a/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_CartesianParameters3D.cpp
++++ b/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_CartesianParameters3D.cpp
+@@ -44,7 +44,6 @@
+ #include <Precision.hxx>
+ #include <TopExp_Explorer.hxx>
+ #include <TopLoc_Location.hxx>
+-#include <TopTools_MapIteratorOfMapOfShape.hxx>
+ #include <TopTools_MapOfShape.hxx>
+ #include <TopoDS.hxx>
+ #include <TopoDS_Face.hxx>
+diff --git a/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_Cartesian_3D.cpp b/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_Cartesian_3D.cpp
+index 119860ba3e89..835e8061c6c6 100644
+--- a/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_Cartesian_3D.cpp
++++ b/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_Cartesian_3D.cpp
+@@ -55,7 +55,12 @@
+ #include <BRepTopAdaptor_FClass2d.hxx>
+ #include <BRep_Builder.hxx>
+ #include <BRep_Tool.hxx>
++#include <Standard_Version.hxx>
++#if OCC_VERSION_HEX >= 0x080000
++#include <Bnd_B3.hxx>
++#else
+ #include <Bnd_B3d.hxx>
++#endif
+ #include <Bnd_Box.hxx>
+ #include <ElSLib.hxx>
+ #include <GCPnts_UniformDeflection.hxx>
+@@ -3462,7 +3467,11 @@ namespace
+         double dist = GEOMUtils::GetMinDistance( plane, allFacesComp, pPlane, pFaces );
+         if ( dist < 0 )
+         {
++#if OCC_VERSION_HEX >= 0x080000
++          Bnd_B3<double> bb;
++#else
+           Bnd_B3d bb;
++#endif
+           gp_XYZ corner;
+           for ( int i = 0; i < 2; ++i ) {
+             corner.SetCoord( 1, sP[ i*3 ]);
+diff --git a/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_CompositeHexa_3D.cpp b/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_CompositeHexa_3D.cpp
+index 6d4798cf2096..0c388c58758d 100644
+--- a/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_CompositeHexa_3D.cpp
++++ b/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_CompositeHexa_3D.cpp
+@@ -42,7 +42,6 @@
+ #include <Standard_Failure.hxx>
+ #include <TopExp_Explorer.hxx>
+ #include <TopTools_IndexedMapOfShape.hxx>
+-#include <TopTools_MapIteratorOfMapOfShape.hxx>
+ #include <TopTools_MapOfShape.hxx>
+ #include <TopTools_SequenceOfShape.hxx>
+ #include <TopoDS.hxx>
+diff --git a/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_CompositeSegment_1D.cpp b/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_CompositeSegment_1D.cpp
+index ac8ae093513c..c74835074d96 100644
+--- a/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_CompositeSegment_1D.cpp
++++ b/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_CompositeSegment_1D.cpp
+@@ -45,7 +45,6 @@
+ #include <GCPnts_AbscissaPoint.hxx>
+ #include <TopExp.hxx>
+ #include <TopExp_Explorer.hxx>
+-#include <TopTools_ListIteratorOfListOfShape.hxx>
+ #include <TopTools_MapOfShape.hxx>
+ #include <TopoDS.hxx>
+ #include <TopoDS_Edge.hxx>
+diff --git a/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_Import_1D2D.cpp b/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_Import_1D2D.cpp
+index 22005bfe2470..1142bb3221e1 100644
+--- a/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_Import_1D2D.cpp
++++ b/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_Import_1D2D.cpp
+@@ -49,7 +49,12 @@
+ #include <BRepTools.hxx>
+ #include <BRep_Builder.hxx>
+ #include <BRep_Tool.hxx>
++#include <Standard_Version.hxx>
++#if OCC_VERSION_HEX >= 0x080000
++#include <Bnd_B2.hxx>
++#else
+ #include <Bnd_B2d.hxx>
++#endif
+ #include <Bnd_Box.hxx>
+ #include <GeomAPI_ProjectPointOnSurf.hxx>
+ #include <GeomAdaptor_Surface.hxx>
+diff --git a/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_MEFISTO_2D.cpp b/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_MEFISTO_2D.cpp
+index d82ca55b42dd..2d7cd38cf4ff 100644
+--- a/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_MEFISTO_2D.cpp
++++ b/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_MEFISTO_2D.cpp
+@@ -56,7 +56,6 @@
+ #include <Precision.hxx>
+ #include <TopExp.hxx>
+ #include <TopExp_Explorer.hxx>
+-#include <TopTools_ListIteratorOfListOfShape.hxx>
+ #include <TopTools_ListOfShape.hxx>
+ #include <TopTools_MapOfShape.hxx>
+ #include <TopoDS.hxx>
+diff --git a/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_NumberOfSegments.cpp b/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_NumberOfSegments.cpp
+index fdeb9fe1afa1..97125e9c746b 100644
+--- a/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_NumberOfSegments.cpp
++++ b/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_NumberOfSegments.cpp
+@@ -34,13 +34,20 @@
+ #include "SMESH_Comment.hxx"
+ 
+ #include <ExprIntrp_GenExp.hxx>
++#include <Standard_Version.hxx>
++#if OCC_VERSION_HEX < 0x080000
+ #include <Expr_Array1OfNamedUnknown.hxx>
++#endif
+ #include <Expr_NamedUnknown.hxx>
+ #include <TColStd_Array1OfReal.hxx>
+ #include <TCollection_AsciiString.hxx>
+ #include <TopExp.hxx>
+ #include <TopTools_IndexedMapOfShape.hxx>
+ 
++#if OCC_VERSION_HEX >= 0x080000
++using Expr_Array1OfNamedUnknown = NCollection_Array1<occ::handle<Expr_NamedUnknown>>;
++#endif
++
+ #if (OCC_VERSION_MAJOR << 16 | OCC_VERSION_MINOR << 8 | OCC_VERSION_MAINTENANCE) > 0x060100
+ #define NO_CAS_CATCH
+ #endif
+diff --git a/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_Penta_3D.cpp b/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_Penta_3D.cpp
+index 05a4ca6d6ab1..592ab2557781 100644
+--- a/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_Penta_3D.cpp
++++ b/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_Penta_3D.cpp
+@@ -46,7 +46,6 @@
+ #include <TopExp_Explorer.hxx>
+ #include <TopTools_IndexedDataMapOfShapeListOfShape.hxx>
+ #include <TopTools_IndexedMapOfShape.hxx>
+-#include <TopTools_ListIteratorOfListOfShape.hxx>
+ #include <TopTools_ListOfShape.hxx>
+ #include <TopTools_SequenceOfShape.hxx>
+ #include <TopTools_MapOfShape.hxx>
+diff --git a/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_Prism_3D.cpp b/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_Prism_3D.cpp
+index 133f8a1a7f1d..982545111950 100644
+--- a/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_Prism_3D.cpp
++++ b/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_Prism_3D.cpp
+@@ -46,14 +46,18 @@
+ 
+ #include <BRepAdaptor_CompCurve.hxx>
+ #include <BRep_Tool.hxx>
++#include <Standard_Version.hxx>
++#if OCC_VERSION_HEX >= 0x080000
++#include <Bnd_B3.hxx>
++#else
+ #include <Bnd_B3d.hxx>
++#endif
+ #include <Geom2dAdaptor_Curve.hxx>
+ #include <Geom2d_Line.hxx>
+ #include <GeomLib_IsPlanarSurface.hxx>
+ #include <Geom_Curve.hxx>
+ #include <TopExp.hxx>
+ #include <TopExp_Explorer.hxx>
+-#include <TopTools_ListIteratorOfListOfShape.hxx>
+ #include <TopTools_ListOfShape.hxx>
+ #include <TopTools_MapOfShape.hxx>
+ #include <TopTools_SequenceOfShape.hxx>
+diff --git a/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_ProjectionUtils.cpp b/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_ProjectionUtils.cpp
+index 07435d9d6452..a8cf7a4586c6 100644
+--- a/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_ProjectionUtils.cpp
++++ b/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_ProjectionUtils.cpp
+@@ -57,12 +57,10 @@
+ #include <TopExp.hxx>
+ #include <TopExp_Explorer.hxx>
+ #include <TopTools_Array1OfShape.hxx>
+-#include <TopTools_DataMapIteratorOfDataMapOfShapeListOfShape.hxx>
+-#include <TopTools_DataMapIteratorOfDataMapOfShapeShape.hxx>
+ #include <TopTools_IndexedMapOfShape.hxx>
+-#include <TopTools_ListIteratorOfListOfShape.hxx>
+ #include <TopTools_ListOfShape.hxx>
+ #include <TopTools_MapOfShape.hxx>
++#include <TopTools_DataMapOfShapeListOfShape.hxx>
+ #include <TopoDS.hxx>
+ #include <TopoDS_Compound.hxx>
+ #include <TopoDS_Shape.hxx>
+diff --git a/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_Projection_1D.cpp b/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_Projection_1D.cpp
+index 8c0210d41f89..350e8078cf62 100644
+--- a/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_Projection_1D.cpp
++++ b/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_Projection_1D.cpp
+@@ -48,7 +48,6 @@
+ #include <TopExp.hxx>
+ #include <TopoDS.hxx>
+ #include <gp_Pnt.hxx>
+-#include <TopTools_ListIteratorOfListOfShape.hxx>
+ 
+ #include "utilities.h"
+ 
+diff --git a/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_Projection_2D.cpp b/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_Projection_2D.cpp
+index 46113cfdf277..0bf76ea6e06c 100644
+--- a/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_Projection_2D.cpp
++++ b/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_Projection_2D.cpp
+@@ -49,13 +49,16 @@
+ 
+ #include <BRepAdaptor_Surface.hxx>
+ #include <BRep_Tool.hxx>
++#include <Standard_Version.hxx>
++#if OCC_VERSION_HEX >= 0x080000
++#include <Bnd_B2.hxx>
++#else
+ #include <Bnd_B2d.hxx>
++#endif
+ #include <GeomAPI_ProjectPointOnSurf.hxx>
+ #include <GeomLib_IsPlanarSurface.hxx>
+ #include <TopExp.hxx>
+ #include <TopExp_Explorer.hxx>
+-#include <TopTools_DataMapIteratorOfDataMapOfShapeShape.hxx>
+-#include <TopTools_ListIteratorOfListOfShape.hxx>
+ #include <TopTools_MapOfShape.hxx>
+ #include <TopoDS.hxx>
+ #include <TopoDS_Solid.hxx>
+diff --git a/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_Propagation.cpp b/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_Propagation.cpp
+index b158ef2f0e80..01e66e3bf0fd 100644
+--- a/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_Propagation.cpp
++++ b/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_Propagation.cpp
+@@ -36,7 +36,6 @@
+ #include "SMESH_subMesh.hxx"
+ 
+ #include <BRepTools_WireExplorer.hxx>
+-#include <TopTools_ListIteratorOfListOfShape.hxx>
+ #include <TopTools_MapOfShape.hxx>
+ #include <TopoDS.hxx>
+ 
+diff --git a/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_Quadrangle_2D.cpp b/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_Quadrangle_2D.cpp
+index 02173a2abe11..f2c1d061be71 100644
+--- a/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_Quadrangle_2D.cpp
++++ b/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_Quadrangle_2D.cpp
+@@ -56,7 +56,6 @@
+ #include <TopExp.hxx>
+ #include <TopExp_Explorer.hxx>
+ #include <TopTools_DataMapOfShapeReal.hxx>
+-#include <TopTools_ListIteratorOfListOfShape.hxx>
+ #include <TopTools_MapOfShape.hxx>
+ #include <TopoDS.hxx>
+ 
+diff --git a/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_RadialPrism_3D.cpp b/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_RadialPrism_3D.cpp
+index a26328877870..9440654ea16f 100644
+--- a/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_RadialPrism_3D.cpp
++++ b/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_RadialPrism_3D.cpp
+@@ -50,7 +50,6 @@
+ #include <BRepBuilderAPI_MakeEdge.hxx>
+ #include <BRep_Tool.hxx>
+ #include <TopExp_Explorer.hxx>
+-#include <TopTools_DataMapIteratorOfDataMapOfShapeShape.hxx>
+ #include <TopTools_MapOfShape.hxx>
+ #include <TopoDS.hxx>
+ #include <TopoDS_Shell.hxx>
+diff --git a/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_RadialQuadrangle_1D2D.cpp b/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_RadialQuadrangle_1D2D.cpp
+index 0fbe3cbab662..957a9932c850 100644
+--- a/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_RadialQuadrangle_1D2D.cpp
++++ b/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_RadialQuadrangle_1D2D.cpp
+@@ -50,7 +50,6 @@
+ #include <TColgp_SequenceOfPnt2d.hxx>
+ #include <TopExp.hxx>
+ #include <TopExp_Explorer.hxx>
+-#include <TopTools_ListIteratorOfListOfShape.hxx>
+ #include <TopoDS.hxx>
+ 
+ 
+diff --git a/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_Regular_1D.cpp b/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_Regular_1D.cpp
+index 086ee524b840..2f0dce2e4178 100644
+--- a/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_Regular_1D.cpp
++++ b/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_Regular_1D.cpp
+@@ -63,6 +63,7 @@
+ #include <TopoDS.hxx>
+ #include <TopoDS_Edge.hxx>
+ #include <TopoDS_Vertex.hxx>
++#include <TColStd_SequenceOfReal.hxx>
+ 
+ #include <string>
+ #include <limits>
+diff --git a/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_ViscousLayers.cpp b/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_ViscousLayers.cpp
+index e9f46183059e..c2bf06b623a2 100644
+--- a/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_ViscousLayers.cpp
++++ b/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_ViscousLayers.cpp
+@@ -52,8 +52,13 @@
+ #include <BRepAdaptor_Surface.hxx>
+ #include <BRepLProp_SLProps.hxx>
+ #include <BRep_Tool.hxx>
++#if OCC_VERSION_HEX >= 0x080000
++#include <Bnd_B2.hxx>
++#include <Bnd_B3.hxx>
++#else
+ #include <Bnd_B2d.hxx>
+ #include <Bnd_B3d.hxx>
++#endif
+ #include <ElCLib.hxx>
+ #include <GCPnts_AbscissaPoint.hxx>
+ #include <Geom2d_Circle.hxx>
+diff --git a/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_ViscousLayers2D.cpp b/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_ViscousLayers2D.cpp
+index dbad480ae2e1..cafbbe09c56a 100644
+--- a/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_ViscousLayers2D.cpp
++++ b/src/3rdParty/salomesmesh/src/StdMeshers/StdMeshers_ViscousLayers2D.cpp
+@@ -49,8 +49,14 @@
+ #include <BRepAdaptor_Curve.hxx>
+ #include <BRepAdaptor_Curve2d.hxx>
+ #include <BRep_Tool.hxx>
++#include <Standard_Version.hxx>
++#if OCC_VERSION_HEX >= 0x080000
++#include <Bnd_B2.hxx>
++#include <Bnd_B3.hxx>
++#else
+ #include <Bnd_B2d.hxx>
+ #include <Bnd_B3d.hxx>
++#endif
+ #include <ElCLib.hxx>
+ #include <GCPnts_AbscissaPoint.hxx>
+ #include <Geom2dAdaptor_Curve.hxx>
+@@ -71,7 +77,6 @@
+ #include <TopExp_Explorer.hxx>
+ #include <TopTools_IndexedDataMapOfShapeListOfShape.hxx>
+ #include <TopTools_IndexedMapOfShape.hxx>
+-#include <TopTools_ListIteratorOfListOfShape.hxx>
+ #include <TopTools_ListOfShape.hxx>
+ #include <TopTools_MapOfShape.hxx>
+ #include <TopoDS.hxx>
+diff --git a/src/Mod/Assembly/CMakeLists.txt b/src/Mod/Assembly/CMakeLists.txt
+index f79b42cb352a..cbfdb98f630a 100644
+--- a/src/Mod/Assembly/CMakeLists.txt
++++ b/src/Mod/Assembly/CMakeLists.txt
+@@ -1,5 +1,7 @@
+ # SPDX-License-Identifier: LGPL-2.1-or-later
+ 
++disable_occt8_deprecation_warnings()
++
+ if (NOT FREECAD_USE_EXTERNAL_ONDSELSOLVER)
+ include_directories(
+     ${CMAKE_SOURCE_DIR}/src/3rdParty/OndselSolver
+diff --git a/src/Mod/CAM/App/Area.cpp b/src/Mod/CAM/App/Area.cpp
+index 4bff07f0e0ec..ee527c33c288 100644
+--- a/src/Mod/CAM/App/Area.cpp
++++ b/src/Mod/CAM/App/Area.cpp
+@@ -381,7 +381,7 @@ static std::vector<gp_Pnt> discretize(const TopoDS_Edge& edge, double deflection
+     //
+     GCPnts_UniformDeflection discretizer(curve, deflection, efirst, elast);
+     if (!discretizer.IsDone()) {
+-        Standard_Failure::Raise("Curve discretization failed");
++        throw Standard_Failure("Curve discretization failed");
+     }
+     if (discretizer.NbPoints() > 1) {
+         int nbPoints = discretizer.NbPoints();
+diff --git a/src/Mod/CAM/CMakeLists.txt b/src/Mod/CAM/CMakeLists.txt
+index 9bba3add3d0c..fa9a2bface5e 100644
+--- a/src/Mod/CAM/CMakeLists.txt
++++ b/src/Mod/CAM/CMakeLists.txt
+@@ -1,5 +1,7 @@
+ # SPDX-License-Identifier: LGPL-2.1-or-later
+ 
++disable_occt8_deprecation_warnings()
++
+ add_subdirectory(App)
+ add_subdirectory(libarea)
+ add_subdirectory(PathSimulator)
+diff --git a/src/Mod/Fem/CMakeLists.txt b/src/Mod/Fem/CMakeLists.txt
+index d8f8a4a1b2a6..1d2e4cfa56dd 100755
+--- a/src/Mod/Fem/CMakeLists.txt
++++ b/src/Mod/Fem/CMakeLists.txt
+@@ -1,3 +1,4 @@
++disable_occt8_deprecation_warnings()
+ 
+ if(BUILD_FEM_VTK)
+     add_definitions(-DFC_USE_VTK)
+diff --git a/src/Mod/Import/App/ImportOCAF2.cpp b/src/Mod/Import/App/ImportOCAF2.cpp
+index 61aeee5bfaa3..648917d6a20f 100644
+--- a/src/Mod/Import/App/ImportOCAF2.cpp
++++ b/src/Mod/Import/App/ImportOCAF2.cpp
+@@ -38,6 +38,7 @@
+ #include <XCAFDoc_DocumentTool.hxx>
+ #include <XCAFDoc_GraphNode.hxx>
+ #include <XCAFDoc_ShapeTool.hxx>
++#include <TopTools_IndexedMapOfShape.hxx>
+ 
+ 
+ #include <boost/algorithm/string.hpp>
+diff --git a/src/Mod/Import/App/ImportOCAF2.h b/src/Mod/Import/App/ImportOCAF2.h
+index a67d10744b53..04f7f6f43fb8 100644
+--- a/src/Mod/Import/App/ImportOCAF2.h
++++ b/src/Mod/Import/App/ImportOCAF2.h
+@@ -35,6 +35,7 @@
+ #include <TopoDS_Shape.hxx>
+ #include <XCAFDoc_ColorTool.hxx>
+ #include <XCAFDoc_ShapeTool.hxx>
++#include <TDF_LabelSequence.hxx>
+ 
+ #include <Base/Sequencer.h>
+ #include <Mod/Part/App/TopoShape.h>
+diff --git a/src/Mod/Import/App/StepShape.cpp b/src/Mod/Import/App/StepShape.cpp
+index 5e55c71107b8..2cc052d56870 100644
+--- a/src/Mod/Import/App/StepShape.cpp
++++ b/src/Mod/Import/App/StepShape.cpp
+@@ -34,6 +34,7 @@
+ #include <STEPControl_Reader.hxx>
+ #include <Standard_Version.hxx>
+ #include <StepData_StepModel.hxx>
++#include <TColStd_HSequenceOfTransient.hxx>
+ 
+ #include "StepShape.h"
+ 
+diff --git a/src/Mod/Import/App/dxf/ImpExpDxf.cpp b/src/Mod/Import/App/dxf/ImpExpDxf.cpp
+index 903235ca9d09..e8b74cdb4147 100644
+--- a/src/Mod/Import/App/dxf/ImpExpDxf.cpp
++++ b/src/Mod/Import/App/dxf/ImpExpDxf.cpp
+@@ -45,6 +45,9 @@
+ #include <Geom_Line.hxx>
+ #include <Geom_BSplineCurve.hxx>
+ #include <TColgp_Array1OfPnt.hxx>
++#include <TColStd_Array1OfInteger.hxx>
++#include <TColStd_Array1OfReal.hxx>
++#include <TColgp_HArray1OfPnt.hxx>
+ #include <TopExp.hxx>
+ #include <TopExp_Explorer.hxx>
+ #include <TopoDS.hxx>
+diff --git a/src/Mod/Import/CMakeLists.txt b/src/Mod/Import/CMakeLists.txt
+index 0d7a2786f4fc..8dcec5afbfcb 100644
+--- a/src/Mod/Import/CMakeLists.txt
++++ b/src/Mod/Import/CMakeLists.txt
+@@ -1,5 +1,7 @@
+ # SPDX-License-Identifier: LGPL-2.1-or-later
+ 
++disable_occt8_deprecation_warnings()
++
+ add_subdirectory(App)
+ if(BUILD_GUI)
+     add_subdirectory(Gui)
+diff --git a/src/Mod/Import/Gui/OCAFBrowser.cpp b/src/Mod/Import/Gui/OCAFBrowser.cpp
+index 9ee3935c1d2b..1a48ec212fee 100644
+--- a/src/Mod/Import/Gui/OCAFBrowser.cpp
++++ b/src/Mod/Import/Gui/OCAFBrowser.cpp
+@@ -41,7 +41,6 @@
+ #include <TDF_ChildIDIterator.hxx>
+ #include <TDF_IDList.hxx>
+ #include <TDF_Label.hxx>
+-#include <TDF_ListIteratorOfIDList.hxx>
+ #include <TDF_TagSource.hxx>
+ #include <TDF_Tool.hxx>
+ #include <TDocStd_Document.hxx>
+diff --git a/src/Mod/Inspection/App/CMakeLists.txt b/src/Mod/Inspection/App/CMakeLists.txt
+index 216221ba95cb..fc41b73bc462 100644
+--- a/src/Mod/Inspection/App/CMakeLists.txt
++++ b/src/Mod/Inspection/App/CMakeLists.txt
+@@ -1,5 +1,7 @@
+ # SPDX-License-Identifier: LGPL-2.1-or-later
+ 
++disable_occt8_deprecation_warnings()
++
+ set(Inspection_LIBS
+     FreeCADApp
+     Mesh
+diff --git a/src/Mod/Inspection/App/InspectionFeature.cpp b/src/Mod/Inspection/App/InspectionFeature.cpp
+index 0ec5affa3a74..9f44017bc17d 100644
+--- a/src/Mod/Inspection/App/InspectionFeature.cpp
++++ b/src/Mod/Inspection/App/InspectionFeature.cpp
+@@ -32,6 +32,7 @@
+ #include <BRepGProp_Face.hxx>
+ #include <TopExp.hxx>
+ #include <TopoDS.hxx>
++#include <TopTools_IndexedMapOfShape.hxx>
+ #include <gp_Pnt.hxx>
+ 
+ #include <QEventLoop>
+diff --git a/src/Mod/Measure/CMakeLists.txt b/src/Mod/Measure/CMakeLists.txt
+index 9eac576b48cd..aac1b504de79 100644
+--- a/src/Mod/Measure/CMakeLists.txt
++++ b/src/Mod/Measure/CMakeLists.txt
+@@ -1,5 +1,7 @@
+ # SPDX-License-Identifier: LGPL-2.1-or-later
+ 
++disable_occt8_deprecation_warnings()
++
+ add_subdirectory(App)
+ 
+ set(Measure_Scripts
+diff --git a/src/Mod/MeshPart/CMakeLists.txt b/src/Mod/MeshPart/CMakeLists.txt
+index 8d67df2120b5..90bf215e802a 100644
+--- a/src/Mod/MeshPart/CMakeLists.txt
++++ b/src/Mod/MeshPart/CMakeLists.txt
+@@ -1,5 +1,7 @@
+ # SPDX-License-Identifier: LGPL-2.1-or-later
+ 
++disable_occt8_deprecation_warnings()
++
+ add_subdirectory(App)
+ if(BUILD_GUI)
+     add_subdirectory(Gui)
+diff --git a/src/Mod/Part/App/AppPartPy.cpp b/src/Mod/Part/App/AppPartPy.cpp
+index 64389b4ed7e1..2d64acb89b2d 100644
+--- a/src/Mod/Part/App/AppPartPy.cpp
++++ b/src/Mod/Part/App/AppPartPy.cpp
+@@ -67,7 +67,7 @@
+ #include <TopoDS_Face.hxx>
+ #include <TopoDS_Shell.hxx>
+ #include <TopoDS_Solid.hxx>
+-#include <TopTools_ListIteratorOfListOfShape.hxx>
++#include <TopTools_ListOfShape.hxx>
+ 
+ #include <BRepFill_Generator.hxx>
+ 
+@@ -1633,7 +1633,7 @@ class Module: public Py::ExtensionModule<Module>
+             }
+ 
+             if (!mkPoly.IsDone()) {
+-                Standard_Failure::Raise(
++                throw Standard_Failure(
+                     "Cannot create polygon because less than two vertices are given"
+                 );
+             }
+diff --git a/src/Mod/Part/App/BRepFeat/MakePrismPyImp.cpp b/src/Mod/Part/App/BRepFeat/MakePrismPyImp.cpp
+index 592af396475b..a68c2db5720d 100644
+--- a/src/Mod/Part/App/BRepFeat/MakePrismPyImp.cpp
++++ b/src/Mod/Part/App/BRepFeat/MakePrismPyImp.cpp
+@@ -27,6 +27,7 @@
+ #include <TopoDS.hxx>
+ #include <TopoDS_Edge.hxx>
+ #include <TopoDS_Face.hxx>
++#include <TColGeom_SequenceOfCurve.hxx>
+ 
+ 
+ #include <Base/PyWrapParseTupleAndKeywords.h>
+diff --git a/src/Mod/Part/App/BRepOffsetAPI_MakeOffsetFix.cpp b/src/Mod/Part/App/BRepOffsetAPI_MakeOffsetFix.cpp
+index fba1144aaec8..6aa5a3d5749b 100644
+--- a/src/Mod/Part/App/BRepOffsetAPI_MakeOffsetFix.cpp
++++ b/src/Mod/Part/App/BRepOffsetAPI_MakeOffsetFix.cpp
+@@ -37,7 +37,6 @@
+ #include <TopoDS_Compound.hxx>
+ #include <TopoDS_Edge.hxx>
+ #include <TopoDS_Wire.hxx>
+-#include <TopTools_ListIteratorOfListOfShape.hxx>
+ #include <TopTools_ListOfShape.hxx>
+ #include <TopTools_MapOfShape.hxx>
+ 
+diff --git a/src/Mod/Part/App/BRepOffsetAPI_MakePipeShellPyImp.cpp b/src/Mod/Part/App/BRepOffsetAPI_MakePipeShellPyImp.cpp
+index 40ff6f448a26..d2dbd9fcde4d 100644
+--- a/src/Mod/Part/App/BRepOffsetAPI_MakePipeShellPyImp.cpp
++++ b/src/Mod/Part/App/BRepOffsetAPI_MakePipeShellPyImp.cpp
+@@ -30,7 +30,7 @@
+ #include <gp_Pnt.hxx>
+ #include <Standard_Version.hxx>
+ #include <TopoDS.hxx>
+-#include <TopTools_ListIteratorOfListOfShape.hxx>
++#include <TopTools_ListOfShape.hxx>
+ 
+ 
+ #include <Base/GeometryPyCXX.h>
+diff --git a/src/Mod/Part/App/BSplineCurvePyImp.cpp b/src/Mod/Part/App/BSplineCurvePyImp.cpp
+index 2b0d7b93f0a9..84870ba6f28a 100644
+--- a/src/Mod/Part/App/BSplineCurvePyImp.cpp
++++ b/src/Mod/Part/App/BSplineCurvePyImp.cpp
+@@ -36,6 +36,7 @@
+ #include <TColStd_Array1OfReal.hxx>
+ #include <TColStd_HArray1OfBoolean.hxx>
+ #include <TColStd_HArray1OfReal.hxx>
++#include <Standard_Version.hxx>
+ 
+ 
+ #include <Base/GeometryPyCXX.h>
+@@ -313,7 +314,7 @@ PyObject* BSplineCurvePy::segment(PyObject* args)
+         tempCurve->Segment(u1, u2);
+         if (std::abs(tempCurve->FirstParameter() - u1) > Precision::Approximation()
+             || std::abs(tempCurve->LastParameter() - u2) > Precision::Approximation()) {
+-            Standard_Failure::Raise("Failed to segment BSpline curve");
++            throw Standard_Failure("Failed to segment BSpline curve");
+             return nullptr;
+         }
+         else {
+@@ -938,7 +939,7 @@ PyObject* BSplineCurvePy::approximate(PyObject* args, PyObject* kwds)
+         }
+ 
+         if (degMin > degMax) {
+-            Standard_Failure::Raise("DegMin must be lower or equal to DegMax");
++            throw Standard_Failure("DegMin must be lower or equal to DegMax");
+         }
+ 
+         GeomAbs_Shape c;
+@@ -977,7 +978,7 @@ PyObject* BSplineCurvePy::approximate(PyObject* args, PyObject* kwds)
+                 Py_Return;
+             }
+             else {
+-                Standard_Failure::Raise("Smoothing approximation failed");
++                throw Standard_Failure("Smoothing approximation failed");
+                 return nullptr;  // goes to the catch block
+             }
+         }
+@@ -998,7 +999,7 @@ PyObject* BSplineCurvePy::approximate(PyObject* args, PyObject* kwds)
+                 Py_Return;
+             }
+             else {
+-                Standard_Failure::Raise("Approximation with parameters failed");
++                throw Standard_Failure("Approximation with parameters failed");
+                 return nullptr;  // goes to the catch block
+             }
+         }
+@@ -1022,7 +1023,7 @@ PyObject* BSplineCurvePy::approximate(PyObject* args, PyObject* kwds)
+             Py_Return;
+         }
+         else {
+-            Standard_Failure::Raise("failed to approximate points");
++            throw Standard_Failure("failed to approximate points");
+             return nullptr;  // goes to the catch block
+         }
+     }
+@@ -1152,7 +1153,7 @@ PyObject* BSplineCurvePy::interpolate(PyObject* args, PyObject* kwds)
+         }
+ 
+         if (interpolationPoints->Length() < 2) {
+-            Standard_Failure::Raise("not enough points given");
++            throw Standard_Failure("not enough points given");
+         }
+ 
+         Handle(TColStd_HArray1OfReal) parameters;
+@@ -1221,14 +1222,18 @@ PyObject* BSplineCurvePy::interpolate(PyObject* args, PyObject* kwds)
+             Py_Return;
+         }
+         else {
+-            Standard_Failure::Raise("failed to interpolate points");
++            throw Standard_Failure("failed to interpolate points");
+             return nullptr;  // goes to the catch block
+         }
+     }
+     catch (Standard_Failure& e) {
+         std::string err = e.GetMessageString();
+         if (err.empty()) {
++#if OCC_VERSION_HEX >= 0x080000
++            err = e.ExceptionType();
++#else
+             err = e.DynamicType()->Name();
++#endif
+         }
+         PyErr_SetString(PartExceptionOCCError, err.c_str());
+         return nullptr;
+@@ -1285,7 +1290,7 @@ PyObject* BSplineCurvePy::buildFromPoles(PyObject* args)
+                 Py_Return;
+             }
+             else {
+-                Standard_Failure::Raise("failed to create spline");
++                throw Standard_Failure("failed to create spline");
+                 return nullptr;  // goes to the catch block
+             }
+         }
+@@ -1306,7 +1311,7 @@ PyObject* BSplineCurvePy::buildFromPoles(PyObject* args)
+                 Py_Return;
+             }
+             else {
+-                Standard_Failure::Raise("failed to create spline");
++                throw Standard_Failure("failed to create spline");
+                 return nullptr;  // goes to the catch block
+             }
+         }
+@@ -1354,7 +1359,7 @@ PyObject* BSplineCurvePy::buildFromPolesMultsKnots(PyObject* args, PyObject* key
+ 
+         number_of_poles = list.size();
+         if ((number_of_poles) < 2) {
+-            Standard_Failure::Raise("need two or more poles");
++            throw Standard_Failure("need two or more poles");
+             return nullptr;
+         }
+         TColgp_Array1OfPnt occpoles(1, number_of_poles);
+@@ -1368,7 +1373,7 @@ PyObject* BSplineCurvePy::buildFromPolesMultsKnots(PyObject* args, PyObject* key
+         if (mults != Py_None && knots != Py_None) {
+             number_of_knots = PyObject_Length(mults);
+             if (PyObject_Length(knots) != number_of_knots) {
+-                Standard_Failure::Raise("number of knots and mults mismatch");
++                throw Standard_Failure("number of knots and mults mismatch");
+                 return nullptr;
+             }
+         }
+@@ -1429,7 +1434,7 @@ PyObject* BSplineCurvePy::buildFromPolesMultsKnots(PyObject* args, PyObject* key
+         // check multiplicity of inner knots
+         for (Standard_Integer i = 2; i < occmults.Length(); i++) {
+             if (occmults(i) > degree) {
+-                Standard_Failure::Raise("multiplicity of inner knot higher than degree");
++                throw Standard_Failure("multiplicity of inner knot higher than degree");
+             }
+         }
+         if (knots != Py_None) {  // knots are given
+@@ -1449,7 +1454,7 @@ PyObject* BSplineCurvePy::buildFromPolesMultsKnots(PyObject* args, PyObject* key
+         }
+         if (weights != Py_None) {  // weights are given
+             if (PyObject_Length(weights) != number_of_poles) {
+-                Standard_Failure::Raise("number of poles and weights mismatch");
++                throw Standard_Failure("number of poles and weights mismatch");
+                 return nullptr;
+             }  // complain about mismatch
+             Py::Sequence weightssq(weights);
+@@ -1467,7 +1472,7 @@ PyObject* BSplineCurvePy::buildFromPolesMultsKnots(PyObject* args, PyObject* key
+         // check if the number of poles matches the sum of mults
+         if ((Base::asBoolean(periodic) && sum_of_mults != number_of_poles)
+             || (!Base::asBoolean(periodic) && sum_of_mults - degree - 1 != number_of_poles)) {
+-            Standard_Failure::Raise("number of poles and sum of mults mismatch");
++            throw Standard_Failure("number of poles and sum of mults mismatch");
+             return (nullptr);
+         }
+ 
+@@ -1485,7 +1490,7 @@ PyObject* BSplineCurvePy::buildFromPolesMultsKnots(PyObject* args, PyObject* key
+             Py_Return;
+         }
+         else {
+-            Standard_Failure::Raise("failed to create spline");
++            throw Standard_Failure("failed to create spline");
+             return nullptr;  // goes to the catch block
+         }
+     }
+@@ -1564,7 +1569,11 @@ PyObject* BSplineCurvePy::makeC1Continuous(PyObject* args)
+     catch (Standard_Failure& e) {
+         std::string err = e.GetMessageString();
+         if (err.empty()) {
++#if OCC_VERSION_HEX >= 0x080000
++            err = e.ExceptionType();
++#else
+             err = e.DynamicType()->Name();
++#endif
+         }
+         PyErr_SetString(PartExceptionOCCError, err.c_str());
+         return nullptr;
+@@ -1580,7 +1589,7 @@ PyObject* BSplineCurvePy::scaleKnotsToBounds(PyObject* args)
+     }
+     try {
+         if (u0 >= u1) {
+-            Standard_Failure::Raise("Bad parameter range");
++            throw Standard_Failure("Bad parameter range");
+             return nullptr;
+         }
+         GeomBSplineCurve* curve = getGeomBSplineCurvePtr();
+@@ -1590,7 +1599,11 @@ PyObject* BSplineCurvePy::scaleKnotsToBounds(PyObject* args)
+     catch (Standard_Failure& e) {
+         std::string err = e.GetMessageString();
+         if (err.empty()) {
++#if OCC_VERSION_HEX >= 0x080000
++            err = e.ExceptionType();
++#else
+             err = e.DynamicType()->Name();
++#endif
+         }
+         PyErr_SetString(PartExceptionOCCError, err.c_str());
+         return nullptr;
+diff --git a/src/Mod/Part/App/BSplineSurfacePyImp.cpp b/src/Mod/Part/App/BSplineSurfacePyImp.cpp
+index ffb0bb21373b..453c25cfb264 100644
+--- a/src/Mod/Part/App/BSplineSurfacePyImp.cpp
++++ b/src/Mod/Part/App/BSplineSurfacePyImp.cpp
+@@ -26,11 +26,13 @@
+ #include <GeomAbs_Shape.hxx>
+ #include <GeomAPI_PointsToBSplineSurface.hxx>
+ #include <Precision.hxx>
++#include <Standard_Version.hxx>
+ #include <TColgp_Array1OfPnt.hxx>
+ #include <TColgp_Array2OfPnt.hxx>
+ #include <TColStd_Array1OfReal.hxx>
+ #include <TColStd_Array2OfReal.hxx>
+ #include <TColStd_Array1OfInteger.hxx>
++#include <TColGeom_SequenceOfCurve.hxx>
+ 
+ #include <GeomFill_NSections.hxx>
+ 
+@@ -1360,11 +1362,11 @@ PyObject* BSplineSurfacePy::approximate(PyObject* args, PyObject* kwds)
+         }
+ 
+         if (continuity < 0 || continuity > 2) {
+-            Standard_Failure::Raise("continuity must be between 0 and 2");
++            throw Standard_Failure("continuity must be between 0 and 2");
+         }
+ 
+         if (interpolationPoints.RowLength() < 2 || interpolationPoints.ColLength() < 2) {
+-            Standard_Failure::Raise("not enough points given");
++            throw Standard_Failure("not enough points given");
+         }
+ 
+         GeomAbs_Shape c = GeomAbs_C2;
+@@ -1420,7 +1422,11 @@ PyObject* BSplineSurfacePy::approximate(PyObject* args, PyObject* kwds)
+     catch (Standard_Failure& e) {
+         std::string err = e.GetMessageString();
+         if (err.empty()) {
++#if OCC_VERSION_HEX >= 0x080000
++            err = e.ExceptionType();
++#else
+             err = e.DynamicType()->Name();
++#endif
+         }
+         PyErr_SetString(PartExceptionOCCError, err.c_str());
+         return nullptr;
+@@ -1470,7 +1476,7 @@ PyObject* BSplineSurfacePy::interpolate(PyObject* args)
+         }
+ 
+         if (interpolationPoints.RowLength() < 2 || interpolationPoints.ColLength() < 2) {
+-            Standard_Failure::Raise("not enough points given");
++            throw Standard_Failure("not enough points given");
+         }
+ 
+         GeomAPI_PointsToBSplineSurface surInterpolation;
+@@ -1487,7 +1493,11 @@ PyObject* BSplineSurfacePy::interpolate(PyObject* args)
+     catch (Standard_Failure& e) {
+         std::string err = e.GetMessageString();
+         if (err.empty()) {
++#if OCC_VERSION_HEX >= 0x080000
++            err = e.ExceptionType();
++#else
+             err = e.DynamicType()->Name();
++#endif
+         }
+         PyErr_SetString(PartExceptionOCCError, err.c_str());
+         return nullptr;
+@@ -1570,7 +1580,7 @@ PyObject* BSplineSurfacePy::buildFromPolesMultsKnots(PyObject* args, PyObject* k
+             }
+         }
+         if (occpoles.RowLength() < 2 || occpoles.ColLength() < 2) {
+-            Standard_Failure::Raise("not enough points given");
++            throw Standard_Failure("not enough points given");
+         }
+         if (!genweights) {  // copy the weights
+             Py::Sequence list(weights);
+@@ -1578,7 +1588,7 @@ PyObject* BSplineSurfacePy::buildFromPolesMultsKnots(PyObject* args, PyObject* k
+             Py::Sequence col(list.getItem(0));
+             Standard_Integer lwv = col.size();
+             if (lwu != lu || lwv != lv) {
+-                Standard_Failure::Raise("weights and poles mismatch");
++                throw Standard_Failure("weights and poles mismatch");
+             }
+             Standard_Integer index1 = 0;
+             Standard_Integer index2 = 0;
+@@ -1597,7 +1607,7 @@ PyObject* BSplineSurfacePy::buildFromPolesMultsKnots(PyObject* args, PyObject* k
+         number_of_vknots = PyObject_Length(vmults);
+         if (((uknots != Py_None) && PyObject_Length(uknots) != number_of_uknots)
+             || ((vknots != Py_None) && PyObject_Length(vknots) != number_of_vknots)) {
+-            Standard_Failure::Raise("number of knots and mults mismatch");
++            throw Standard_Failure("number of knots and mults mismatch");
+             return nullptr;
+         }
+         // copy mults
+@@ -1664,17 +1674,17 @@ PyObject* BSplineSurfacePy::buildFromPolesMultsKnots(PyObject* args, PyObject* k
+             || (!Base::asBoolean(uperiodic) && sum_of_umults - udegree - 1 != lu)
+             || (Base::asBoolean(vperiodic) && sum_of_vmults != lv)
+             || (!Base::asBoolean(vperiodic) && sum_of_vmults - vdegree - 1 != lv)) {
+-            Standard_Failure::Raise("number of poles and sum of mults mismatch");
++            throw Standard_Failure("number of poles and sum of mults mismatch");
+         }
+         // check multiplicity of inner knots
+         for (Standard_Integer i = 2; i < occumults.Length(); i++) {
+             if (occumults(i) > udegree) {
+-                Standard_Failure::Raise("multiplicity of inner knot higher than degree");
++                throw Standard_Failure("multiplicity of inner knot higher than degree");
+             }
+         }
+         for (Standard_Integer i = 2; i < occvmults.Length(); i++) {
+             if (occvmults(i) > vdegree) {
+-                Standard_Failure::Raise("multiplicity of inner knot higher than degree");
++                throw Standard_Failure("multiplicity of inner knot higher than degree");
+             }
+         }
+ 
+@@ -1695,7 +1705,7 @@ PyObject* BSplineSurfacePy::buildFromPolesMultsKnots(PyObject* args, PyObject* k
+             Py_Return;
+         }
+         else {
+-            Standard_Failure::Raise("failed to create spline");
++            throw Standard_Failure("failed to create spline");
+             return nullptr;  // goes to the catch block
+         }
+     }
+@@ -1923,7 +1933,7 @@ PyObject* BSplineSurfacePy::scaleKnotsToBounds(PyObject* args)
+     }
+     try {
+         if (u0 >= u1 || v0 >= v1) {
+-            Standard_Failure::Raise("Bad parameter range");
++            throw Standard_Failure("Bad parameter range");
+             return nullptr;
+             ;
+         }
+@@ -1934,7 +1944,11 @@ PyObject* BSplineSurfacePy::scaleKnotsToBounds(PyObject* args)
+     catch (Standard_Failure& e) {
+         std::string err = e.GetMessageString();
+         if (err.empty()) {
++#if OCC_VERSION_HEX >= 0x080000
++            err = e.ExceptionType();
++#else
+             err = e.DynamicType()->Name();
++#endif
+         }
+         PyErr_SetString(PartExceptionOCCError, err.c_str());
+         return nullptr;
+diff --git a/src/Mod/Part/App/BezierCurvePyImp.cpp b/src/Mod/Part/App/BezierCurvePyImp.cpp
+index 80a29325c1c8..2879b845b628 100644
+--- a/src/Mod/Part/App/BezierCurvePyImp.cpp
++++ b/src/Mod/Part/App/BezierCurvePyImp.cpp
+@@ -388,7 +388,7 @@ PyObject* BezierCurvePy::interpolate(PyObject* args)
+         Py::Sequence constraints(obj);
+         int nb_pts = constraints.size();
+         if (nb_pts < 2) {
+-            Standard_Failure::Raise("not enough points given");
++            throw Standard_Failure("not enough points given");
+         }
+ 
+         TColStd_Array1OfReal params(1, nb_pts);
+@@ -396,7 +396,7 @@ PyObject* BezierCurvePy::interpolate(PyObject* args)
+             Py::Sequence plist(par);
+             int param_size = plist.size();
+             if (param_size != nb_pts) {
+-                Standard_Failure::Raise("number of points and parameters don't match");
++                throw Standard_Failure("number of points and parameters don't match");
+             }
+             int idx = 1;
+             for (Py::Sequence::iterator pit = plist.begin(); pit != plist.end(); ++pit) {
+@@ -416,7 +416,7 @@ PyObject* BezierCurvePy::interpolate(PyObject* args)
+             num_poles += (int)row.size();
+         }
+         if (num_poles > curve->MaxDegree()) {
+-            Standard_Failure::Raise("number of constraints exceeds bezier curve capacity");
++            throw Standard_Failure("number of constraints exceeds bezier curve capacity");
+         }
+         // create a bezier-type knot sequence
+         TColStd_Array1OfReal knots(1, 2 * num_poles);
+@@ -459,15 +459,15 @@ PyObject* BezierCurvePy::interpolate(PyObject* args)
+         math_Gauss gauss(OCCmatrix);
+         gauss.Solve(res_x);
+         if (!gauss.IsDone()) {
+-            Standard_Failure::Raise("Failed to solve equations");
++            throw Standard_Failure("Failed to solve equations");
+         }
+         gauss.Solve(res_y);
+         if (!gauss.IsDone()) {
+-            Standard_Failure::Raise("Failed to solve equations");
++            throw Standard_Failure("Failed to solve equations");
+         }
+         gauss.Solve(res_z);
+         if (!gauss.IsDone()) {
+-            Standard_Failure::Raise("Failed to solve equations");
++            throw Standard_Failure("Failed to solve equations");
+         }
+ 
+         TColgp_Array1OfPnt poles(1, num_poles);
+diff --git a/src/Mod/Part/App/ExtrusionHelper.cpp b/src/Mod/Part/App/ExtrusionHelper.cpp
+index feaeb15c03f8..7ced518cb2f1 100644
+--- a/src/Mod/Part/App/ExtrusionHelper.cpp
++++ b/src/Mod/Part/App/ExtrusionHelper.cpp
+@@ -92,13 +92,13 @@ void ExtrusionHelper::makeDraft(
+     bool bMid = !bFwd || !bRev || -1.0 * AngleFwd != AngleRev;
+ 
+     if (shape.IsNull()) {
+-        Standard_Failure::Raise("Not a valid shape");
++        throw Standard_Failure("Not a valid shape");
+     }
+ 
+     // store all wires of the shape into an array
+     size_t numWires = addWiresToWireSections(wiresections);
+     if (numWires == 0) {
+-        Standard_Failure::Raise("Extrusion: Input must not only consist if a vertex");
++        throw Standard_Failure("Extrusion: Input must not only consist if a vertex");
+     }
+ 
+     // to store the sections for the loft
+@@ -128,7 +128,7 @@ void ExtrusionHelper::makeDraft(
+             auto tempFace = mkFace.Shape();
+             BRepPrimAPI_MakePrism mkPrism(tempFace, vecFwd);
+             if (!mkPrism.IsDone()) {
+-                Standard_Failure::Raise("Extrusion: Generating prism failed");
++                throw Standard_Failure("Extrusion: Generating prism failed");
+             }
+             singlePrism = mkPrism.Shape();
+             resultPrisms.push_back(singlePrism);
+@@ -287,7 +287,7 @@ void ExtrusionHelper::makeDraft(
+             }
+             mkTS.Build();
+             if (!mkTS.IsDone()) {
+-                Standard_Failure::Raise("Extrusion: Loft could not be built");
++                throw Standard_Failure("Extrusion: Loft could not be built");
+             }
+ 
+             shells.push_back(mkTS.Shape());
+@@ -321,7 +321,7 @@ void ExtrusionHelper::makeDraft(
+                         );
+                         FCBRepAlgoAPI_Cut mkCut(*itOuter, *itInner);
+                         if (!mkCut.IsDone()) {
+-                            Standard_Failure::Raise("Extrusion: Final cut out failed");
++                            throw Standard_Failure("Extrusion: Final cut out failed");
+                         }
+                         BRepGProp::VolumeProperties(mkCut.Shape(), tempProperties);
+                         momentOfInertiaFinal = tempProperties.MomentOfInertia(
+@@ -415,7 +415,7 @@ void ExtrusionHelper::checkInnerWires(
+             momentOfInertiaInitial = tempProperties.MomentOfInertia(gp_Ax1(gp_Pnt(), direction));
+             FCBRepAlgoAPI_Cut mkCut(*itInner, *itOuter);
+             if (!mkCut.IsDone()) {
+-                Standard_Failure::Raise("Extrusion: Cut out failed");
++                throw Standard_Failure("Extrusion: Cut out failed");
+             }
+             BRepGProp::VolumeProperties(mkCut.Shape(), tempProperties);
+             momentOfInertiaFinal = tempProperties.MomentOfInertia(gp_Ax1(gp_Pnt(), direction));
+@@ -520,7 +520,7 @@ void ExtrusionHelper::createTaperedPrismOffset(
+             throw Base::RuntimeError(e.what());
+         }
+         if (!mkOffset.IsDone()) {
+-            Standard_Failure::Raise("Extrusion: Offset could not be created");
++            throw Standard_Failure("Extrusion: Offset could not be created");
+         }
+     }
+     else {
+@@ -539,7 +539,7 @@ void ExtrusionHelper::createTaperedPrismOffset(
+                 "This means most probably that the along taper angle is too large or small.\n"
+             );
+         }
+-        Standard_Failure::Raise("Extrusion: end face of tapered extrusion is empty");
++        throw Standard_Failure("Extrusion: end face of tapered extrusion is empty");
+     }
+     // assure we return a wire and no edge
+     TopAbs_ShapeEnum type = offsetShape.ShapeType();
+@@ -592,7 +592,7 @@ void ExtrusionHelper::makeElementDraft(
+     TopoShape shape = _shape;
+     TopoShape sourceWire;
+     if (shape.isNull()) {
+-        Standard_Failure::Raise("Not a valid shape");
++        throw Standard_Failure("Not a valid shape");
+     }
+ 
+     if (params.solid && !shape.hasSubShape(TopAbs_FACE)) {
+@@ -603,7 +603,7 @@ void ExtrusionHelper::makeElementDraft(
+         std::vector<TopoShape> wires;
+         TopoShape outerWire = shape.splitWires(&wires, TopoShape::ReorientForward);
+         if (outerWire.isNull()) {
+-            Standard_Failure::Raise("Missing outer wire");
++            throw Standard_Failure("Missing outer wire");
+         }
+         if (wires.empty()) {
+             shape = outerWire;
+@@ -612,7 +612,7 @@ void ExtrusionHelper::makeElementDraft(
+             unsigned pos = drafts.size();
+             makeElementDraft(params, outerWire, drafts, hasher);
+             if (drafts.size() != pos + 1) {
+-                Standard_Failure::Raise("Failed to make drafted extrusion");
++                throw Standard_Failure("Failed to make drafted extrusion");
+             }
+             std::vector<TopoShape> inner;
+             // Inner wires are lofted into separate solids and then cut from the
+@@ -626,7 +626,7 @@ void ExtrusionHelper::makeElementDraft(
+                 makeElementDraft(innerParams, innerWire, inner, hasher);
+             }
+             if (inner.empty()) {
+-                Standard_Failure::Raise("Failed to make drafted extrusion with inner hole");
++                throw Standard_Failure("Failed to make drafted extrusion with inner hole");
+             }
+             inner.insert(inner.begin(), drafts.back());
+             drafts.back().makeElementCut(inner);
+@@ -650,7 +650,7 @@ void ExtrusionHelper::makeElementDraft(
+         }
+     }
+     else {
+-        Standard_Failure::Raise("Only a wire or a face is supported");
++        throw Standard_Failure("Only a wire or a face is supported");
+     }
+ 
+     if (!sourceWire.isNull()) {
+diff --git a/src/Mod/Part/App/FCBRepAlgoAPI_BooleanOperation.cpp b/src/Mod/Part/App/FCBRepAlgoAPI_BooleanOperation.cpp
+index 6fcba9efc59c..3c547041fc50 100644
+--- a/src/Mod/Part/App/FCBRepAlgoAPI_BooleanOperation.cpp
++++ b/src/Mod/Part/App/FCBRepAlgoAPI_BooleanOperation.cpp
+@@ -104,7 +104,7 @@ void FCBRepAlgoAPI_BooleanOperation::Build()
+ void FCBRepAlgoAPI_BooleanOperation::Build(const Message_ProgressRange& progressRange)
+ {
+     if (progressRange.UserBreak()) {
+-        Standard_ConstructionError::Raise("User aborted");
++        throw Standard_ConstructionError("User aborted");
+     }
+     if (myOperation == BOPAlgo_CUT && myArguments.Size() == 1 && myTools.Size() == 1
+         && myTools.First().ShapeType() == TopAbs_COMPOUND) {
+@@ -130,7 +130,7 @@ void FCBRepAlgoAPI_BooleanOperation::Build(const Message_ProgressRange& progress
+ #endif
+     }
+     if (progressRange.UserBreak()) {
+-        Standard_ConstructionError::Raise("User aborted");
++        throw Standard_ConstructionError("User aborted");
+     }
+ }
+ 
+diff --git a/src/Mod/Part/App/FCBRepAlgoAPI_BooleanOperation.h b/src/Mod/Part/App/FCBRepAlgoAPI_BooleanOperation.h
+index 0167625976e3..745282572d53 100644
+--- a/src/Mod/Part/App/FCBRepAlgoAPI_BooleanOperation.h
++++ b/src/Mod/Part/App/FCBRepAlgoAPI_BooleanOperation.h
+@@ -31,6 +31,7 @@
+ 
+ #include <BRepAlgoAPI_BooleanOperation.hxx>
+ #include <Message_ProgressRange.hxx>
++#include <TopTools_ListOfShape.hxx>
+ 
+ class FCBRepAlgoAPIHelper
+ {
+diff --git a/src/Mod/Part/App/FCBRepAlgoAPI_Section.cpp b/src/Mod/Part/App/FCBRepAlgoAPI_Section.cpp
+index eea94bea3ce6..a6e3648640ba 100644
+--- a/src/Mod/Part/App/FCBRepAlgoAPI_Section.cpp
++++ b/src/Mod/Part/App/FCBRepAlgoAPI_Section.cpp
+@@ -48,10 +48,10 @@ FCBRepAlgoAPI_Section::FCBRepAlgoAPI_Section(
+     : BRepAlgoAPI_Section(S1, S2, false)
+ {
+     if (!BRepCheck_Analyzer(S1).IsValid()) {
+-        Standard_ConstructionError::Raise("Base shape is not valid for boolean operation");
++        throw Standard_ConstructionError("Base shape is not valid for boolean operation");
+     }
+     if (!BRepCheck_Analyzer(S2).IsValid()) {
+-        Standard_ConstructionError::Raise("Tool shape is not valid for boolean operation");
++        throw Standard_ConstructionError("Tool shape is not valid for boolean operation");
+     }
+     setAutoFuzzy();
+     SetRunParallel(Standard_True);
+@@ -69,7 +69,7 @@ FCBRepAlgoAPI_Section::FCBRepAlgoAPI_Section(
+     : BRepAlgoAPI_Section(Sh, Pl, false)
+ {
+     if (!BRepCheck_Analyzer(Sh).IsValid()) {
+-        Standard_ConstructionError::Raise("Base shape is not valid for boolean operation");
++        throw Standard_ConstructionError("Base shape is not valid for boolean operation");
+     }
+     setAutoFuzzy();
+     SetRunParallel(Standard_True);
+diff --git a/src/Mod/Part/App/FaceMakerCheese.cpp b/src/Mod/Part/App/FaceMakerCheese.cpp
+index ac12b790ba5b..b748432179ca 100644
+--- a/src/Mod/Part/App/FaceMakerCheese.cpp
++++ b/src/Mod/Part/App/FaceMakerCheese.cpp
+@@ -88,7 +88,7 @@ TopoDS_Face FaceMakerCheese::validateFace(const TopoDS_Face& face)
+             TopoDS_Face fixedFace = TopoDS::Face(fix.Shape());
+             aChecker.Init(fixedFace);
+             if (!aChecker.IsValid()) {
+-                Standard_Failure::Raise("Failed to validate broken face");
++                throw Standard_Failure("Failed to validate broken face");
+             }
+             return fixedFace;
+         }
+@@ -132,7 +132,7 @@ bool FaceMakerCheese::isInside(const TopoDS_Wire& wire1, const TopoDS_Wire& wire
+ 
+     BRepBuilderAPI_MakeFace mkFace(wire1);
+     if (!mkFace.IsDone()) {
+-        Standard_Failure::Raise("Failed to create a face from wire in sketch");
++        throw Standard_Failure("Failed to create a face from wire in sketch");
+     }
+     TopoDS_Face face = validateFace(mkFace.Face());
+     BRepAdaptor_Surface adapt(face);
+diff --git a/src/Mod/Part/App/FeatureExtrusion.cpp b/src/Mod/Part/App/FeatureExtrusion.cpp
+index 7b5e2b9a5524..372c62bb7142 100644
+--- a/src/Mod/Part/App/FeatureExtrusion.cpp
++++ b/src/Mod/Part/App/FeatureExtrusion.cpp
+@@ -349,7 +349,7 @@ void Extrusion::extrudeShape(TopoShape& result, const TopoShape& source, const E
+         std::vector<TopoShape> drafts;
+         ExtrusionHelper::makeElementDraft(params, myShape, drafts, result.Hasher);
+         if (drafts.empty()) {
+-            Standard_Failure::Raise("Drafting shape failed");
++            throw Standard_Failure("Drafting shape failed");
+         }
+         else {
+             result.makeElementCompound(
+@@ -362,7 +362,7 @@ void Extrusion::extrudeShape(TopoShape& result, const TopoShape& source, const E
+     else {
+         // Regular (non-tapered) extrusion!
+         if (source.isNull()) {
+-            Standard_Failure::Raise("Cannot extrude empty shape");
++            throw Standard_Failure("Cannot extrude empty shape");
+         }
+ 
+         // apply reverse part of extrusion by shifting the source shape
+diff --git a/src/Mod/Part/App/FeatureMirroring.cpp b/src/Mod/Part/App/FeatureMirroring.cpp
+index f37f02e5a9a5..b3eb76d36cb6 100644
+--- a/src/Mod/Part/App/FeatureMirroring.cpp
++++ b/src/Mod/Part/App/FeatureMirroring.cpp
+@@ -345,7 +345,7 @@ App::DocumentObjectExecReturn* Mirroring::execute()
+         gp_Ax2 ax2(gp_Pnt(base.x, base.y, base.z), gp_Dir(norm.x, norm.y, norm.z));
+ 
+         if (shape.isNull()) {
+-            Standard_Failure::Raise("Cannot mirror empty shape");
++            throw Standard_Failure("Cannot mirror empty shape");
+         }
+ 
+         auto mirrored = TopoShape(0).makeElementMirror(shape, ax2);
+diff --git a/src/Mod/Part/App/FeatureProjectOnSurface.cpp b/src/Mod/Part/App/FeatureProjectOnSurface.cpp
+index d7442372d8a6..b06854eb0c06 100644
+--- a/src/Mod/Part/App/FeatureProjectOnSurface.cpp
++++ b/src/Mod/Part/App/FeatureProjectOnSurface.cpp
+@@ -38,6 +38,7 @@
+ #include <ShapeFix_Wireframe.hxx>
+ #include <Standard_Failure.hxx>
+ #include <TopExp_Explorer.hxx>
++#include <TopTools_HSequenceOfShape.hxx>
+ #include <TopoDS.hxx>
+ #include <TopoDS_Builder.hxx>
+ #include <sstream>
+diff --git a/src/Mod/Part/App/Geom2d/BSplineCurve2dPyImp.cpp b/src/Mod/Part/App/Geom2d/BSplineCurve2dPyImp.cpp
+index 4679abbe0b25..3092ca24c499 100644
+--- a/src/Mod/Part/App/Geom2d/BSplineCurve2dPyImp.cpp
++++ b/src/Mod/Part/App/Geom2d/BSplineCurve2dPyImp.cpp
+@@ -28,6 +28,7 @@
+ #include <Geom2dConvert_BSplineCurveToBezierCurve.hxx>
+ #include <gp_Pnt2d.hxx>
+ #include <Precision.hxx>
++#include <Standard_Version.hxx>
+ #include <TColgp_Array1OfPnt2d.hxx>
+ #include <TColgp_Array1OfVec2d.hxx>
+ #include <TColgp_HArray1OfPnt2d.hxx>
+@@ -846,7 +847,7 @@ PyObject* BSplineCurve2dPy::approximate(PyObject* args, PyObject* kwds)
+         }
+ 
+         if (degMin > degMax) {
+-            Standard_Failure::Raise("DegMin must be lower or equal to DegMax");
++            throw Standard_Failure("DegMin must be lower or equal to DegMax");
+         }
+ 
+         GeomAbs_Shape c;
+@@ -889,7 +890,7 @@ PyObject* BSplineCurve2dPy::approximate(PyObject* args, PyObject* kwds)
+                 Py_Return;
+             }
+             else {
+-                Standard_Failure::Raise("Smoothing approximation failed");
++                throw Standard_Failure("Smoothing approximation failed");
+                 return nullptr;  // goes to the catch block
+             }
+         }
+@@ -910,7 +911,7 @@ PyObject* BSplineCurve2dPy::approximate(PyObject* args, PyObject* kwds)
+                 Py_Return;
+             }
+             else {
+-                Standard_Failure::Raise("Approximation with parameters failed");
++                throw Standard_Failure("Approximation with parameters failed");
+                 return nullptr;  // goes to the catch block
+             }
+         }
+@@ -934,7 +935,7 @@ PyObject* BSplineCurve2dPy::approximate(PyObject* args, PyObject* kwds)
+             Py_Return;
+         }
+         else {
+-            Standard_Failure::Raise("failed to approximate points");
++            throw Standard_Failure("failed to approximate points");
+             return nullptr;  // goes to the catch block
+         }
+     }
+@@ -1057,7 +1058,7 @@ PyObject* BSplineCurve2dPy::interpolate(PyObject* args, PyObject* kwds)
+         }
+ 
+         if (interpolationPoints->Length() < 2) {
+-            Standard_Failure::Raise("not enough points given");
++            throw Standard_Failure("not enough points given");
+         }
+ 
+         Handle(TColStd_HArray1OfReal) parameters;
+@@ -1125,14 +1126,18 @@ PyObject* BSplineCurve2dPy::interpolate(PyObject* args, PyObject* kwds)
+             Py_Return;
+         }
+         else {
+-            Standard_Failure::Raise("failed to interpolate points");
++            throw Standard_Failure("failed to interpolate points");
+             return nullptr;  // goes to the catch block
+         }
+     }
+     catch (Standard_Failure& e) {
+         std::string err = e.GetMessageString();
+         if (err.empty()) {
++#if OCC_VERSION_HEX >= 0x080000
++            err = e.ExceptionType();
++#else
+             err = e.DynamicType()->Name();
++#endif
+         }
+         PyErr_SetString(PartExceptionOCCError, err.c_str());
+         return nullptr;
+@@ -1188,7 +1193,7 @@ PyObject* BSplineCurve2dPy::buildFromPoles(PyObject* args)
+                 Py_Return;
+             }
+             else {
+-                Standard_Failure::Raise("failed to create spline");
++                throw Standard_Failure("failed to create spline");
+                 return nullptr;  // goes to the catch block
+             }
+         }
+@@ -1209,7 +1214,7 @@ PyObject* BSplineCurve2dPy::buildFromPoles(PyObject* args)
+                 Py_Return;
+             }
+             else {
+-                Standard_Failure::Raise("failed to create spline");
++                throw Standard_Failure("failed to create spline");
+                 return nullptr;  // goes to the catch block
+             }
+         }
+@@ -1254,7 +1259,7 @@ PyObject* BSplineCurve2dPy::buildFromPolesMultsKnots(PyObject* args, PyObject* k
+ 
+         number_of_poles = list.size();
+         if ((number_of_poles) < 2) {
+-            Standard_Failure::Raise("need two or more poles");
++            throw Standard_Failure("need two or more poles");
+             return nullptr;
+         }
+         TColgp_Array1OfPnt2d occpoles(1, number_of_poles);
+@@ -1267,7 +1272,7 @@ PyObject* BSplineCurve2dPy::buildFromPolesMultsKnots(PyObject* args, PyObject* k
+         if (mults != Py_None && knots != Py_None) {
+             number_of_knots = PyObject_Length(mults);
+             if (PyObject_Length(knots) != number_of_knots) {
+-                Standard_Failure::Raise("number of knots and mults mismatch");
++                throw Standard_Failure("number of knots and mults mismatch");
+                 return nullptr;
+             }
+         }
+@@ -1342,7 +1347,7 @@ PyObject* BSplineCurve2dPy::buildFromPolesMultsKnots(PyObject* args, PyObject* k
+         }
+         if (weights != Py_None) {  // weights are given
+             if (PyObject_Length(weights) != number_of_poles) {
+-                Standard_Failure::Raise("number of poles and weights mismatch");
++                throw Standard_Failure("number of poles and weights mismatch");
+                 return nullptr;
+             }  // complain about mismatch
+             Py::Sequence weightssq(weights);
+@@ -1360,7 +1365,7 @@ PyObject* BSplineCurve2dPy::buildFromPolesMultsKnots(PyObject* args, PyObject* k
+         // check if the number of poles matches the sum of mults
+         if (((Base::asBoolean(periodic)) && sum_of_mults != number_of_poles)
+             || (!Base::asBoolean(periodic) && sum_of_mults - degree - 1 != number_of_poles)) {
+-            Standard_Failure::Raise("number of poles and sum of mults mismatch");
++            throw Standard_Failure("number of poles and sum of mults mismatch");
+             return (nullptr);
+         }
+ 
+@@ -1377,7 +1382,7 @@ PyObject* BSplineCurve2dPy::buildFromPolesMultsKnots(PyObject* args, PyObject* k
+             Py_Return;
+         }
+         else {
+-            Standard_Failure::Raise("failed to create spline");
++            throw Standard_Failure("failed to create spline");
+             return nullptr;  // goes to the catch block
+         }
+     }
+@@ -1442,7 +1447,11 @@ PyObject* BSplineCurve2dPy::makeC1Continuous(PyObject* args)
+     catch (Standard_Failure& e) {
+         std::string err = e.GetMessageString();
+         if (err.empty()) {
++#if OCC_VERSION_HEX >= 0x080000
++            err = e.ExceptionType();
++#else
+             err = e.DynamicType()->Name();
++#endif
+         }
+         PyErr_SetString(PartExceptionOCCError, err.c_str());
+         return nullptr;
+diff --git a/src/Mod/Part/App/Geom2d/Curve2dPyImp.cpp b/src/Mod/Part/App/Geom2d/Curve2dPyImp.cpp
+index 4559ebc50146..12715d345128 100644
+--- a/src/Mod/Part/App/Geom2d/Curve2dPyImp.cpp
++++ b/src/Mod/Part/App/Geom2d/Curve2dPyImp.cpp
+@@ -24,6 +24,7 @@
+ 
+ #include <sstream>
+ 
++#include <Standard_Version.hxx>
+ #include <BRepAdaptor_Curve.hxx>
+ #include <BRepAdaptor_Surface.hxx>
+ #include <BRepBuilderAPI_MakeEdge.hxx>
+@@ -44,7 +45,11 @@
+ #include <Geom2dAPI_InterCurveCurve.hxx>
+ #include <Geom2dAPI_ProjectPointOnCurve.hxx>
+ #include <Geom2dConvert_ApproxCurve.hxx>
+-#include <Geom2dLProp_CLProps2d.hxx>
++#if OCC_VERSION_HEX >= 0x080000
++# include <GeomLProp_CLProps.hxx>
++#else
++# include <Geom2dLProp_CLProps2d.hxx>
++#endif
+ #include <gp_Dir2d.hxx>
+ #include <Precision.hxx>
+ #include <ShapeConstruct_Curve.hxx>
+@@ -602,7 +607,11 @@ PyObject* Curve2dPy::tangent(PyObject* args)
+                 return nullptr;
+             }
+             gp_Dir2d dir;
++#if OCC_VERSION_HEX >= 0x080000
++            GeomLProp_CLProps2d prop(c, u, 2, Precision::Confusion());
++#else
+             Geom2dLProp_CLProps2d prop(c, u, 2, Precision::Confusion());
++#endif
+             if (prop.IsTangentDefined()) {
+                 prop.Tangent(dir);
+             }
+@@ -630,7 +639,11 @@ PyObject* Curve2dPy::normal(PyObject* args) const
+                 return nullptr;
+             }
+             gp_Dir2d dir;
++#if OCC_VERSION_HEX >= 0x080000
++            GeomLProp_CLProps2d prop(c, u, 2, Precision::Confusion());
++#else
+             Geom2dLProp_CLProps2d prop(c, u, 2, Precision::Confusion());
++#endif
+             prop.Normal(dir);
+ 
+             return Py::new_reference_to(Base::Vector2dPy::create(dir.X(), dir.Y()));
+@@ -655,7 +668,11 @@ PyObject* Curve2dPy::curvature(PyObject* args) const
+             if (!PyArg_ParseTuple(args, "d", &u)) {
+                 return nullptr;
+             }
++#if OCC_VERSION_HEX >= 0x080000
++            GeomLProp_CLProps2d prop(c, u, 2, Precision::Confusion());
++#else
+             Geom2dLProp_CLProps2d prop(c, u, 2, Precision::Confusion());
++#endif
+             double C = prop.Curvature();
+             return Py::new_reference_to(Py::Float(C));
+         }
+@@ -679,7 +696,11 @@ PyObject* Curve2dPy::centerOfCurvature(PyObject* args) const
+             if (!PyArg_ParseTuple(args, "d", &u)) {
+                 return nullptr;
+             }
++#if OCC_VERSION_HEX >= 0x080000
++            GeomLProp_CLProps2d prop(c, u, 2, Precision::Confusion());
++#else
+             Geom2dLProp_CLProps2d prop(c, u, 2, Precision::Confusion());
++#endif
+             gp_Pnt2d pnt;
+             prop.CentreOfCurvature(pnt);
+ 
+@@ -737,7 +758,7 @@ PyObject* Curve2dPy::toBSpline(PyObject* args)
+             ShapeConstruct_Curve scc;
+             Handle(Geom2d_BSplineCurve) spline = scc.ConvertToBSpline(c, u, v, Precision::Confusion());
+             if (spline.IsNull()) {
+-                Standard_NullValue::Raise("Conversion to B-spline failed");
++                throw Standard_NullValue("Conversion to B-spline failed");
+             }
+             return new BSplineCurve2dPy(new Geom2dBSplineCurve(spline));
+         }
+diff --git a/src/Mod/Part/App/Geom2d/Line2dPyImp.cpp b/src/Mod/Part/App/Geom2d/Line2dPyImp.cpp
+index dbc9d9ab74fd..6abde289207f 100644
+--- a/src/Mod/Part/App/Geom2d/Line2dPyImp.cpp
++++ b/src/Mod/Part/App/Geom2d/Line2dPyImp.cpp
+@@ -93,7 +93,7 @@ int Line2dPy::PyInit(PyObject* args, PyObject* /*kwd*/)
+             // Create line out of two points
+             double distance = (v1 - v2).Length();
+             if (distance < gp::Resolution()) {
+-                Standard_Failure::Raise("Both points are equal");
++                throw Standard_Failure("Both points are equal");
+             }
+             GCE2d_MakeLine ms(gp_Pnt2d(v1.x, v1.y), gp_Pnt2d(v2.x, v2.y));
+             if (!ms.IsDone()) {
+diff --git a/src/Mod/Part/App/Geom2d/Line2dSegmentPyImp.cpp b/src/Mod/Part/App/Geom2d/Line2dSegmentPyImp.cpp
+index 4fa27523a2ff..248444c0e373 100644
+--- a/src/Mod/Part/App/Geom2d/Line2dSegmentPyImp.cpp
++++ b/src/Mod/Part/App/Geom2d/Line2dSegmentPyImp.cpp
+@@ -140,7 +140,7 @@ int Line2dSegmentPy::PyInit(PyObject* args, PyObject* /*kwd*/)
+             // Create line out of two points
+             double distance = (v1 - v2).Length();
+             if (distance < gp::Resolution()) {
+-                Standard_Failure::Raise("Both points are equal");
++                throw Standard_Failure("Both points are equal");
+             }
+             GCE2d_MakeSegment ms(gp_Pnt2d(v1.x, v1.y), gp_Pnt2d(v2.x, v2.y));
+             if (!ms.IsDone()) {
+@@ -241,7 +241,7 @@ void Line2dSegmentPy::setStartPoint(Py::Object arg)
+     try {
+         // Create line out of two points
+         if (p1.Distance(p2) < gp::Resolution()) {
+-            Standard_Failure::Raise("Both points are equal");
++            throw Standard_Failure("Both points are equal");
+         }
+         GCE2d_MakeSegment ms(p1, p2);
+         if (!ms.IsDone()) {
+@@ -297,7 +297,7 @@ void Line2dSegmentPy::setEndPoint(Py::Object arg)
+     try {
+         // Create line out of two points
+         if (p1.Distance(p2) < gp::Resolution()) {
+-            Standard_Failure::Raise("Both points are equal");
++            throw Standard_Failure("Both points are equal");
+         }
+         GCE2d_MakeSegment ms(p1, p2);
+         if (!ms.IsDone()) {
+diff --git a/src/Mod/Part/App/GeomPlate/BuildPlateSurfacePyImp.cpp b/src/Mod/Part/App/GeomPlate/BuildPlateSurfacePyImp.cpp
+index 434185f58463..770fbed30375 100644
+--- a/src/Mod/Part/App/GeomPlate/BuildPlateSurfacePyImp.cpp
++++ b/src/Mod/Part/App/GeomPlate/BuildPlateSurfacePyImp.cpp
+@@ -25,7 +25,10 @@
+ #include <Mod/Part/PartGlobal.h>
+ 
+ #include <Standard_Failure.hxx>
+-
++#include <TColGeom2d_HArray1OfCurve.hxx>
++#include <TColStd_HArray1OfInteger.hxx>
++#include <TColgp_SequenceOfXY.hxx>
++#include <TColgp_SequenceOfXYZ.hxx>
+ 
+ #include "GeomPlate/BuildPlateSurfacePy.h"
+ #include "GeomPlate/BuildPlateSurfacePy.cpp"
+diff --git a/src/Mod/Part/App/Geometry.cpp b/src/Mod/Part/App/Geometry.cpp
+index b93a11b2d322..0a3850d1a348 100644
+--- a/src/Mod/Part/App/Geometry.cpp
++++ b/src/Mod/Part/App/Geometry.cpp
+@@ -38,6 +38,9 @@
+ #include <GC_MakeHyperbola.hxx>
+ #include <GC_MakeSegment.hxx>
+ #include <GCPnts_AbscissaPoint.hxx>
++#include <TColStd_Array1OfInteger.hxx>
++#include <TColgp_Array1OfPnt2d.hxx>
++#include <TColgp_Array1OfVec.hxx>
+ #include <gce_ErrorType.hxx>
+ #include <gce_MakeParab.hxx>
+ #include <Geom_BezierCurve.hxx>
+@@ -1684,7 +1687,7 @@ bool GeomBSplineCurve::join(const Handle(Geom_BoundedCurve) & other)
+ void GeomBSplineCurve::interpolate(const std::vector<gp_Pnt>& p, Standard_Boolean periodic)
+ {
+     if (p.size() < 2) {
+-        Standard_ConstructionError::Raise();
++        throw Standard_ConstructionError();
+     }
+ 
+     double tol3d = Precision::Approximation();
+@@ -1701,10 +1704,10 @@ void GeomBSplineCurve::interpolate(const std::vector<gp_Pnt>& p, Standard_Boolea
+ void GeomBSplineCurve::interpolate(const std::vector<gp_Pnt>& p, const std::vector<gp_Vec>& t)
+ {
+     if (p.size() < 2) {
+-        Standard_ConstructionError::Raise();
++        throw Standard_ConstructionError();
+     }
+     if (p.size() != t.size()) {
+-        Standard_ConstructionError::Raise();
++        throw Standard_ConstructionError();
+     }
+ 
+     double tol3d = Precision::Approximation();
+@@ -1734,10 +1737,10 @@ void GeomBSplineCurve::getCardinalSplineTangents(
+ {
+     // https://de.wikipedia.org/wiki/Kubisch_Hermitescher_Spline#Cardinal_Spline
+     if (p.size() < 2) {
+-        Standard_ConstructionError::Raise();
++        throw Standard_ConstructionError();
+     }
+     if (p.size() != c.size()) {
+-        Standard_ConstructionError::Raise();
++        throw Standard_ConstructionError();
+     }
+ 
+     t.resize(p.size());
+@@ -1768,7 +1771,7 @@ void GeomBSplineCurve::getCardinalSplineTangents(
+ {
+     // https://de.wikipedia.org/wiki/Kubisch_Hermitescher_Spline#Cardinal_Spline
+     if (p.size() < 2) {
+-        Standard_ConstructionError::Raise();
++        throw Standard_ConstructionError();
+     }
+ 
+     t.resize(p.size());
+@@ -2931,7 +2934,7 @@ void GeomArcOfCircle::setHandle(const Handle(Geom_TrimmedCurve) & c)
+ {
+     Handle(Geom_Circle) basis = Handle(Geom_Circle)::DownCast(c->BasisCurve());
+     if (basis.IsNull()) {
+-        Standard_Failure::Raise("Basis curve is not a circle");
++        throw Standard_Failure("Basis curve is not a circle");
+     }
+     this->myCurve = Handle(Geom_TrimmedCurve)::DownCast(c->Copy());
+ }
+@@ -3463,7 +3466,7 @@ void GeomArcOfEllipse::setHandle(const Handle(Geom_TrimmedCurve) & c)
+ {
+     Handle(Geom_Ellipse) basis = Handle(Geom_Ellipse)::DownCast(c->BasisCurve());
+     if (basis.IsNull()) {
+-        Standard_Failure::Raise("Basis curve is not an ellipse");
++        throw Standard_Failure("Basis curve is not an ellipse");
+     }
+     this->myCurve = Handle(Geom_TrimmedCurve)::DownCast(c->Copy());
+ }
+@@ -3936,7 +3939,7 @@ void GeomArcOfHyperbola::setHandle(const Handle(Geom_TrimmedCurve) & c)
+ {
+     Handle(Geom_Hyperbola) basis = Handle(Geom_Hyperbola)::DownCast(c->BasisCurve());
+     if (basis.IsNull()) {
+-        Standard_Failure::Raise("Basis curve is not an hyperbola");
++        throw Standard_Failure("Basis curve is not an hyperbola");
+     }
+     this->myCurve = Handle(Geom_TrimmedCurve)::DownCast(c->Copy());
+ }
+@@ -4374,7 +4377,7 @@ void GeomArcOfParabola::setHandle(const Handle(Geom_TrimmedCurve) & c)
+ {
+     Handle(Geom_Parabola) basis = Handle(Geom_Parabola)::DownCast(c->BasisCurve());
+     if (basis.IsNull()) {
+-        Standard_Failure::Raise("Basis curve is not a parabola");
++        throw Standard_Failure("Basis curve is not a parabola");
+     }
+     this->myCurve = Handle(Geom_TrimmedCurve)::DownCast(c->Copy());
+ }
+@@ -4708,7 +4711,7 @@ void GeomLineSegment::setHandle(const Handle(Geom_TrimmedCurve) & c)
+ {
+     Handle(Geom_Line) basis = Handle(Geom_Line)::DownCast(c->BasisCurve());
+     if (basis.IsNull()) {
+-        Standard_Failure::Raise("Basis curve is not a line");
++        throw Standard_Failure("Basis curve is not a line");
+     }
+     this->myCurve = Handle(Geom_TrimmedCurve)::DownCast(c->Copy());
+ }
+diff --git a/src/Mod/Part/App/Geometry2d.cpp b/src/Mod/Part/App/Geometry2d.cpp
+index dca98049fbb7..4944eb44005a 100644
+--- a/src/Mod/Part/App/Geometry2d.cpp
++++ b/src/Mod/Part/App/Geometry2d.cpp
+@@ -28,7 +28,12 @@
+ #include <Geom2dAPI_ProjectPointOnCurve.hxx>
+ #include <Geom2dConvert.hxx>
+ #include <Geom2dConvert_CompCurveToBSplineCurve.hxx>
+-#include <Geom2dLProp_CLProps2d.hxx>
++#include <Standard_Version.hxx>
++#if OCC_VERSION_HEX >= 0x080000
++# include <GeomLProp_CLProps.hxx>
++#else
++# include <Geom2dLProp_CLProps2d.hxx>
++#endif
+ #include <gce_ErrorType.hxx>
+ #include <gp_Ax22d.hxx>
+ #include <gp_Circ2d.hxx>
+@@ -221,7 +226,11 @@ TopoDS_Shape Geom2dCurve::toShape() const
+ bool Geom2dCurve::tangent(double u, gp_Dir2d& dir) const
+ {
+     Handle(Geom2d_Curve) c = Handle(Geom2d_Curve)::DownCast(handle());
++#if OCC_VERSION_HEX >= 0x080000
++    GeomLProp_CLProps2d prop(c, u, 2, Precision::Confusion());
++#else
+     Geom2dLProp_CLProps2d prop(c, u, 2, Precision::Confusion());
++#endif
+     if (prop.IsTangentDefined()) {
+         prop.Tangent(dir);
+         return true;
+@@ -233,7 +242,11 @@ bool Geom2dCurve::tangent(double u, gp_Dir2d& dir) const
+ Base::Vector2d Geom2dCurve::pointAtParameter(double u) const
+ {
+     Handle(Geom2d_Curve) c = Handle(Geom2d_Curve)::DownCast(handle());
++#if OCC_VERSION_HEX >= 0x080000
++    GeomLProp_CLProps2d prop(c, u, 0, Precision::Confusion());
++#else
+     Geom2dLProp_CLProps2d prop(c, u, 0, Precision::Confusion());
++#endif
+ 
+     const gp_Pnt2d& point = prop.Value();
+     return {point.X(), point.Y()};
+@@ -242,7 +255,11 @@ Base::Vector2d Geom2dCurve::pointAtParameter(double u) const
+ Base::Vector2d Geom2dCurve::firstDerivativeAtParameter(double u) const
+ {
+     Handle(Geom2d_Curve) c = Handle(Geom2d_Curve)::DownCast(handle());
++#if OCC_VERSION_HEX >= 0x080000
++    GeomLProp_CLProps2d prop(c, u, 1, Precision::Confusion());
++#else
+     Geom2dLProp_CLProps2d prop(c, u, 1, Precision::Confusion());
++#endif
+ 
+     const gp_Vec2d& vec = prop.D1();
+     return {vec.X(), vec.Y()};
+@@ -251,7 +268,11 @@ Base::Vector2d Geom2dCurve::firstDerivativeAtParameter(double u) const
+ Base::Vector2d Geom2dCurve::secondDerivativeAtParameter(double u) const
+ {
+     Handle(Geom2d_Curve) c = Handle(Geom2d_Curve)::DownCast(handle());
++#if OCC_VERSION_HEX >= 0x080000
++    GeomLProp_CLProps2d prop(c, u, 2, Precision::Confusion());
++#else
+     Geom2dLProp_CLProps2d prop(c, u, 2, Precision::Confusion());
++#endif
+ 
+     const gp_Vec2d& vec = prop.D2();
+     return {vec.X(), vec.Y()};
+@@ -260,7 +281,11 @@ Base::Vector2d Geom2dCurve::secondDerivativeAtParameter(double u) const
+ bool Geom2dCurve::normal(double u, gp_Dir2d& dir) const
+ {
+     Handle(Geom2d_Curve) c = Handle(Geom2d_Curve)::DownCast(handle());
++#if OCC_VERSION_HEX >= 0x080000
++    GeomLProp_CLProps2d prop(c, u, 2, Precision::Confusion());
++#else
+     Geom2dLProp_CLProps2d prop(c, u, 2, Precision::Confusion());
++#endif
+     if (prop.IsTangentDefined()) {
+         prop.Normal(dir);
+         return true;
+@@ -466,10 +491,10 @@ bool Geom2dBSplineCurve::join(const Handle(Geom2d_BSplineCurve) & spline)
+ void Geom2dBSplineCurve::interpolate(const std::vector<gp_Pnt2d>& p, const std::vector<gp_Vec2d>& t)
+ {
+     if (p.size() < 2) {
+-        Standard_ConstructionError::Raise();
++        throw Standard_ConstructionError();
+     }
+     if (p.size() != t.size()) {
+-        Standard_ConstructionError::Raise();
++        throw Standard_ConstructionError();
+     }
+ 
+     double tol3d = Precision::Approximation();
+@@ -499,10 +524,10 @@ void Geom2dBSplineCurve::getCardinalSplineTangents(
+ {
+     // https://de.wikipedia.org/wiki/Kubisch_Hermitescher_Spline#Cardinal_Spline
+     if (p.size() < 2) {
+-        Standard_ConstructionError::Raise();
++        throw Standard_ConstructionError();
+     }
+     if (p.size() != c.size()) {
+-        Standard_ConstructionError::Raise();
++        throw Standard_ConstructionError();
+     }
+ 
+     t.resize(p.size());
+@@ -533,7 +558,7 @@ void Geom2dBSplineCurve::getCardinalSplineTangents(
+ {
+     // https://de.wikipedia.org/wiki/Kubisch_Hermitescher_Spline#Cardinal_Spline
+     if (p.size() < 2) {
+-        Standard_ConstructionError::Raise();
++        throw Standard_ConstructionError();
+     }
+ 
+     t.resize(p.size());
+@@ -563,7 +588,7 @@ void Geom2dBSplineCurve::makeC1Continuous(double tol)
+ 
+ std::list<Geometry2d*> Geom2dBSplineCurve::toBiArcs(double /*tolerance*/) const
+ {
+-    Standard_Failure::Raise("Not yet implemented");
++    throw Standard_Failure("Not yet implemented");
+     return {};
+ }
+ 
+@@ -960,7 +985,7 @@ void Geom2dArcOfCircle::setHandle(const Handle(Geom2d_TrimmedCurve) & c)
+ {
+     Handle(Geom2d_Circle) basis = Handle(Geom2d_Circle)::DownCast(c->BasisCurve());
+     if (basis.IsNull()) {
+-        Standard_Failure::Raise("Basis curve is not a circle");
++        throw Standard_Failure("Basis curve is not a circle");
+     }
+     this->myCurve = Handle(Geom2d_TrimmedCurve)::DownCast(c->Copy());
+ }
+@@ -1238,7 +1263,7 @@ void Geom2dArcOfEllipse::setHandle(const Handle(Geom2d_TrimmedCurve) & c)
+ {
+     Handle(Geom2d_Ellipse) basis = Handle(Geom2d_Ellipse)::DownCast(c->BasisCurve());
+     if (basis.IsNull()) {
+-        Standard_Failure::Raise("Basis curve is not an ellipse");
++        throw Standard_Failure("Basis curve is not an ellipse");
+     }
+     this->myCurve = Handle(Geom2d_TrimmedCurve)::DownCast(c->Copy());
+ }
+@@ -1534,7 +1559,7 @@ void Geom2dArcOfHyperbola::setHandle(const Handle(Geom2d_TrimmedCurve) & c)
+ {
+     Handle(Geom2d_Hyperbola) basis = Handle(Geom2d_Hyperbola)::DownCast(c->BasisCurve());
+     if (basis.IsNull()) {
+-        Standard_Failure::Raise("Basis curve is not an hyperbola");
++        throw Standard_Failure("Basis curve is not an hyperbola");
+     }
+     this->myCurve = Handle(Geom2d_TrimmedCurve)::DownCast(c->Copy());
+ }
+@@ -1775,7 +1800,7 @@ void Geom2dArcOfParabola::setHandle(const Handle(Geom2d_TrimmedCurve) & c)
+ {
+     Handle(Geom2d_Parabola) basis = Handle(Geom2d_Parabola)::DownCast(c->BasisCurve());
+     if (basis.IsNull()) {
+-        Standard_Failure::Raise("Basis curve is not a parabola");
++        throw Standard_Failure("Basis curve is not a parabola");
+     }
+     this->myCurve = Handle(Geom2d_TrimmedCurve)::DownCast(c->Copy());
+ }
+@@ -2001,7 +2026,7 @@ void Geom2dLineSegment::setHandle(const Handle(Geom2d_TrimmedCurve) & c)
+ {
+     Handle(Geom2d_Line) basis = Handle(Geom2d_Line)::DownCast(c->BasisCurve());
+     if (basis.IsNull()) {
+-        Standard_Failure::Raise("Basis curve is not a line");
++        throw Standard_Failure("Basis curve is not a line");
+     }
+     this->myCurve = Handle(Geom2d_TrimmedCurve)::DownCast(c->Copy());
+ }
+@@ -2040,7 +2065,7 @@ void Geom2dLineSegment::setPoints(const Base::Vector2d& Start, const Base::Vecto
+     try {
+         // Create line out of two points
+         if (p1.Distance(p2) < gp::Resolution()) {
+-            Standard_Failure::Raise("Both points are equal");
++            throw Standard_Failure("Both points are equal");
+         }
+         GCE2d_MakeSegment ms(p1, p2);
+         if (!ms.IsDone()) {
+diff --git a/src/Mod/Part/App/GeometrySurfacePyImp.cpp b/src/Mod/Part/App/GeometrySurfacePyImp.cpp
+index bd4bc2bb628b..6db3ce073e9d 100644
+--- a/src/Mod/Part/App/GeometrySurfacePyImp.cpp
++++ b/src/Mod/Part/App/GeometrySurfacePyImp.cpp
+@@ -835,7 +835,7 @@ PyObject* GeometrySurfacePy::toBSpline(PyObject* args, PyObject* kwds) const
+             return new BSplineSurfacePy(new GeomBSplineSurface(cvt.Surface()));
+         }
+         else {
+-            Standard_Failure::Raise("Cannot convert to B-spline surface");
++            throw Standard_Failure("Cannot convert to B-spline surface");
+         }
+     }
+     catch (Standard_Failure& e) {
+diff --git a/src/Mod/Part/App/LinePyImp.cpp b/src/Mod/Part/App/LinePyImp.cpp
+index 9b3d057e60d9..9b2c9e63b65d 100644
+--- a/src/Mod/Part/App/LinePyImp.cpp
++++ b/src/Mod/Part/App/LinePyImp.cpp
+@@ -83,7 +83,7 @@ int LinePy::PyInit(PyObject* args, PyObject* /*kwd*/)
+             // Create line out of two points
+             double distance = Base::Distance(v1, v2);
+             if (distance < gp::Resolution()) {
+-                Standard_Failure::Raise("Both points are equal");
++                throw Standard_Failure("Both points are equal");
+             }
+             GC_MakeLine ms(gp_Pnt(v1.x, v1.y, v1.z), gp_Pnt(v2.x, v2.y, v2.z));
+             if (!ms.IsDone()) {
+diff --git a/src/Mod/Part/App/LineSegmentPyImp.cpp b/src/Mod/Part/App/LineSegmentPyImp.cpp
+index ccbeca9ec670..31c7a354d3d5 100644
+--- a/src/Mod/Part/App/LineSegmentPyImp.cpp
++++ b/src/Mod/Part/App/LineSegmentPyImp.cpp
+@@ -136,7 +136,7 @@ int LineSegmentPy::PyInit(PyObject* args, PyObject* /*kwd*/)
+             // Create line out of two points
+             double distance = Base::Distance(v1, v2);
+             if (distance < gp::Resolution()) {
+-                Standard_Failure::Raise("Both points are equal");
++                throw Standard_Failure("Both points are equal");
+             }
+             GC_MakeSegment ms(gp_Pnt(v1.x, v1.y, v1.z), gp_Pnt(v2.x, v2.y, v2.z));
+             if (!ms.IsDone()) {
+@@ -239,7 +239,7 @@ void LineSegmentPy::setStartPoint(Py::Object arg)
+     try {
+         // Create line out of two points
+         if (p1.Distance(p2) < gp::Resolution()) {
+-            Standard_Failure::Raise("Both points are equal");
++            throw Standard_Failure("Both points are equal");
+         }
+         GC_MakeSegment ms(p1, p2);
+         if (!ms.IsDone()) {
+@@ -297,7 +297,7 @@ void LineSegmentPy::setEndPoint(Py::Object arg)
+     try {
+         // Create line out of two points
+         if (p1.Distance(p2) < gp::Resolution()) {
+-            Standard_Failure::Raise("Both points are equal");
++            throw Standard_Failure("Both points are equal");
+         }
+         GC_MakeSegment ms(p1, p2);
+         if (!ms.IsDone()) {
+diff --git a/src/Mod/Part/App/OpenCascadeAll.h b/src/Mod/Part/App/OpenCascadeAll.h
+index 869cc3869852..dae44e174165 100644
+--- a/src/Mod/Part/App/OpenCascadeAll.h
++++ b/src/Mod/Part/App/OpenCascadeAll.h
+@@ -38,7 +38,9 @@
+ #include <Standard_Character.hxx>
+ #include <Standard_ConstructionError.hxx>
+ #include <Standard_CString.hxx>
+-#include <Standard_ConstructionError.hxx>
++#if OCC_VERSION_HEX < 0x080000
++# include <Standard_ConstructionError.hxx>
++#endif
+ #include <Standard_DefineHandle.hxx>
+ #include <Standard_DimensionError.hxx>
+ #include <Standard_DimensionMismatch.hxx>
+@@ -70,13 +72,17 @@
+ #include <Standard_OutOfRange.hxx>
+ #include <Standard_Overflow.hxx>
+ #include <Standard_Persistent.hxx>
+-#include <Standard_PrimitiveTypes.hxx>
++#if OCC_VERSION_HEX < 0x080000
++# include <Standard_PrimitiveTypes.hxx>
++#endif
+ #include <Standard_ProgramError.hxx>
+ #include <Standard_RangeError.hxx>
+ #include <Standard_Real.hxx>
+ #include <Standard_ShortReal.hxx>
+ #include <Standard_SStream.hxx>
+-#include <Standard_Stream.hxx>
++#if OCC_VERSION_HEX < 0x080000
++# include <Standard_Stream.hxx>
++#endif
+ #include <Standard_Transient.hxx>
+ #include <Standard_Type.hxx>
+ #include <Standard_TypeDef.hxx>
+@@ -148,7 +154,11 @@
+ #include <BRepBuilderAPI_Transform.hxx>
+ 
+ #include <BRepCheck_Analyzer.hxx>
+-#include <BRepCheck_ListIteratorOfListOfStatus.hxx>
++#if OCC_VERSION_HEX >= 0x080000
++# include <BRepCheck_ListOfStatus.hxx>
++#else
++# include <BRepCheck_ListIteratorOfListOfStatus.hxx>
++#endif
+ #include <BRepCheck_Result.hxx>
+ #include <BRepCheck_Solid.hxx>
+ #include <BRepClass_FaceClassifier.hxx>
+@@ -169,7 +179,11 @@
+ #include <BRepGProp_Face.hxx>
+ #include <BRepIntCurveSurface_Inter.hxx>
+ #include <BRepLProp_CLProps.hxx>
+-#include <BRepLProp_CurveTool.hxx>
++#if OCC_VERSION_HEX >= 0x080000
++# include <LProp_CurveUtils.hxx>
++#else
++# include <BRepLProp_CurveTool.hxx>
++#endif
+ #include <BRepLProp_SLProps.hxx>
+ #include <BRepLib.hxx>
+ #include <BRepLib_FindSurface.hxx>
+@@ -293,7 +307,11 @@
+ #include <Geom2dConvert_ApproxCurve.hxx>
+ #include <Geom2dConvert_BSplineCurveToBezierCurve.hxx>
+ #include <Geom2dConvert_CompCurveToBSplineCurve.hxx>
+-#include <Geom2dLProp_CLProps2d.hxx>
++#if OCC_VERSION_HEX >= 0x080000
++# include <GeomLProp_CLProps.hxx>
++#else
++# include <Geom2dLProp_CLProps2d.hxx>
++#endif
+ #include <GeomAdaptor_Curve.hxx>
+ #include <GeomAbs_CurveType.hxx>
+ #include <GeomAdaptor.hxx>
+@@ -478,7 +496,9 @@
+ #include <TColStd_Array2OfReal.hxx>
+ #include <TColStd_HArray1OfBoolean.hxx>
+ #include <TColStd_HSequenceOfTransient.hxx>
+-#include <TColStd_MapIteratorOfMapOfTransient.hxx>
++#if OCC_VERSION_HEX < 0x080000
++# include <TColStd_MapIteratorOfMapOfTransient.hxx>
++#endif
+ #include <TColStd_MapOfTransient.hxx>
+ #include <TColStd_SequenceOfExtendedString.hxx>
+ 
+@@ -498,15 +518,18 @@
+ #include <TopExp.hxx>
+ #include <TopExp_Explorer.hxx>
+ #include <TopLoc_Location.hxx>
+-#include <TopTools_DataMapIteratorOfDataMapOfShapeShape.hxx>
+-#include <TopTools_DataMapIteratorOfDataMapOfIntegerListOfShape.hxx>
++#if OCC_VERSION_HEX < 0x080000
++# include <TopTools_DataMapIteratorOfDataMapOfShapeShape.hxx>
++# include <TopTools_DataMapIteratorOfDataMapOfIntegerListOfShape.hxx>
++#endif
+ #include <TopTools_DataMapOfIntegerListOfShape.hxx>
+ #include <TopTools_DataMapOfIntegerShape.hxx>
+ #include <TopTools_HSequenceOfShape.hxx>
+ #include <TopTools_IndexedDataMapOfShapeListOfShape.hxx>
+ #include <TopTools_IndexedMapOfShape.hxx>
+-#include <TopTools_ListIteratorOfListOfShape.hxx>
+-#include <TopTools_ListIteratorOfListOfShape.hxx>
++#if OCC_VERSION_HEX < 0x080000
++# include <TopTools_ListIteratorOfListOfShape.hxx>
++#endif
+ #include <TopTools_ListOfShape.hxx>
+ #include <TopTools_MapOfShape.hxx>
+ 
+diff --git a/src/Mod/Part/App/PartFeature.cpp b/src/Mod/Part/App/PartFeature.cpp
+index c7b66efe0091..c104f298040b 100644
+--- a/src/Mod/Part/App/PartFeature.cpp
++++ b/src/Mod/Part/App/PartFeature.cpp
+@@ -53,7 +53,7 @@
+ #include <TopExp_Explorer.hxx>
+ #include <TopoDS.hxx>
+ #include <TopTools_IndexedMapOfShape.hxx>
+-#include <TopTools_ListIteratorOfListOfShape.hxx>
++#include <TopTools_ListOfShape.hxx>
+ 
+ 
+ #include <App/Application.h>
+@@ -479,7 +479,11 @@ App::DocumentObject* Feature::getSubObject(
+         Standard_CString msg = e.GetMessageString();
+ 
+         // Avoid name mangling
++#if OCC_VERSION_HEX >= 0x080000
++        str << e.ExceptionType() << " ";
++#else
+         str << e.DynamicType()->get_type_name() << " ";
++#endif
+ 
+         if (msg) {
+             str << msg;
+diff --git a/src/Mod/Part/App/PartFeatures.cpp b/src/Mod/Part/App/PartFeatures.cpp
+index 4049b8dd337b..0f962b1a17a1 100644
+--- a/src/Mod/Part/App/PartFeatures.cpp
++++ b/src/Mod/Part/App/PartFeatures.cpp
+@@ -40,7 +40,7 @@
+ #include <TopoDS_Iterator.hxx>
+ #include <TopoDS_Shell.hxx>
+ #include <TopTools_HSequenceOfShape.hxx>
+-#include <TopTools_ListIteratorOfListOfShape.hxx>
++#include <TopTools_ListOfShape.hxx>
+ 
+ 
+ #include <App/Link.h>
+diff --git a/src/Mod/Part/App/PrimitiveFeature.cpp b/src/Mod/Part/App/PrimitiveFeature.cpp
+index 3edb27df1428..08749e8ec0ba 100644
+--- a/src/Mod/Part/App/PrimitiveFeature.cpp
++++ b/src/Mod/Part/App/PrimitiveFeature.cpp
+@@ -914,11 +914,11 @@ App::DocumentObjectExecReturn* Helix::execute()
+         Standard_Boolean myLocalCS = LocalCoord.getValue() ? Standard_True : Standard_False;
+         Standard_Real mySegLen = SegmentLength.getValue();
+         if (myPitch < Precision::Confusion()) {
+-            Standard_Failure::Raise("Pitch too small");
++            throw Standard_Failure("Pitch too small");
+         }
+         Standard_Real nbTurns = myHeight / myPitch;
+         if (nbTurns > 1e4) {
+-            Standard_Failure::Raise("Number of turns too high (> 1e4)");
++            throw Standard_Failure("Number of turns too high (> 1e4)");
+         }
+         Standard_Real myRadiusTop = myRadius + myHeight * tan(Base::toRadians<double>(myAngle));
+ 
+@@ -1001,7 +1001,7 @@ App::DocumentObjectExecReturn* Spiral::execute()
+         Standard_Real mySegLen = SegmentLength.getValue();
+ 
+         if (myNumRot < Precision::Confusion()) {
+-            Standard_Failure::Raise("Number of rotations too small");
++            throw Standard_Failure("Number of rotations too small");
+         }
+ 
+         this->Shape.setValue(
+diff --git a/src/Mod/Part/App/PropertyTopoShape.cpp b/src/Mod/Part/App/PropertyTopoShape.cpp
+index 01553963dab8..9e7d94b2839b 100644
+--- a/src/Mod/Part/App/PropertyTopoShape.cpp
++++ b/src/Mod/Part/App/PropertyTopoShape.cpp
+@@ -33,6 +33,7 @@
+ #include <Standard_Failure.hxx>
+ #include <Standard_Version.hxx>
+ #include <TopoDS.hxx>
++#include <TopTools_IndexedMapOfShape.hxx>
+ 
+ #include <App/Application.h>
+ #include <App/Document.h>
+diff --git a/src/Mod/Part/App/ShapeFix/ShapeFix_FacePyImp.cpp b/src/Mod/Part/App/ShapeFix/ShapeFix_FacePyImp.cpp
+index c25a4792e03f..b123a1de009d 100644
+--- a/src/Mod/Part/App/ShapeFix/ShapeFix_FacePyImp.cpp
++++ b/src/Mod/Part/App/ShapeFix/ShapeFix_FacePyImp.cpp
+@@ -24,6 +24,7 @@
+ 
+ #include <Mod/Part/PartGlobal.h>
+ 
++#include <TopTools_SequenceOfShape.hxx>
+ #include <TopoDS.hxx>
+ 
+ 
+diff --git a/src/Mod/Part/App/ShapeUpgrade/UnifySameDomainPyImp.cpp b/src/Mod/Part/App/ShapeUpgrade/UnifySameDomainPyImp.cpp
+index f3493576940b..daa14108556a 100644
+--- a/src/Mod/Part/App/ShapeUpgrade/UnifySameDomainPyImp.cpp
++++ b/src/Mod/Part/App/ShapeUpgrade/UnifySameDomainPyImp.cpp
+@@ -29,6 +29,7 @@
+ 
+ // Needed for OCCT 7.5.2
+ #include <TopoDS_Edge.hxx>
++#include <TopTools_MapOfShape.hxx>
+ 
+ #include <Base/PyWrapParseTupleAndKeywords.h>
+ 
+diff --git a/src/Mod/Part/App/Tools.cpp b/src/Mod/Part/App/Tools.cpp
+index 365448e50fb0..ecfe29702e48 100644
+--- a/src/Mod/Part/App/Tools.cpp
++++ b/src/Mod/Part/App/Tools.cpp
+@@ -56,10 +56,11 @@
+ #include <Standard_Mutex.hxx>
+ #include <Standard_TypeMismatch.hxx>
+ #include <Standard_Version.hxx>
+-#include <TColStd_ListIteratorOfListOfTransient.hxx>
+ #include <TColStd_ListOfTransient.hxx>
+ #include <TColgp_SequenceOfXY.hxx>
+ #include <TColgp_SequenceOfXYZ.hxx>
++#include <TColStd_Array1OfInteger.hxx>
++#include <TColgp_Array1OfPnt.hxx>
+ #include <TopoDS.hxx>
+ #if OCC_VERSION_HEX < 0x070600
+ # include <Adaptor3d_HCurveOnSurface.hxx>
+@@ -164,7 +165,7 @@ Handle(Geom_Surface) Part::Tools::makeSurface(
+             const Handle(Standard_Transient) & aCur = anIt.Value();
+             if (aCur.IsNull()) {
+                 assert(0);
+-                Standard_ConstructionError::Raise("Tools::makeSurface()");
++                throw Standard_ConstructionError("Tools::makeSurface()");
+             }
+ #if OCC_VERSION_HEX >= 0x070600
+             else if (aCur->IsKind(STANDARD_TYPE(Adaptor3d_CurveOnSurface))) {
+@@ -218,12 +219,12 @@ Handle(Geom_Surface) Part::Tools::makeSurface(
+                 aPlateBuilder.Add(aConst);
+             }
+             else {
+-                Standard_TypeMismatch::Raise("Tools::makeSurface()");
++                throw Standard_TypeMismatch("Tools::makeSurface()");
+             }
+         }
+     }
+     else {
+-        Standard_ConstructionError::Raise("Tools::makeSurface()");
++        throw Standard_ConstructionError("Tools::makeSurface()");
+     }
+ 
+     // construct
+diff --git a/src/Mod/Part/App/TopoShape.cpp b/src/Mod/Part/App/TopoShape.cpp
+index 6cf3bd98d8ec..d4f26135a538 100644
+--- a/src/Mod/Part/App/TopoShape.cpp
++++ b/src/Mod/Part/App/TopoShape.cpp
+@@ -56,8 +56,8 @@
+ #include <BRepBuilderAPI_Sewing.hxx>
+ #include <BRepBuilderAPI_Transform.hxx>
+ #include <BRepCheck_Analyzer.hxx>
++#include <BRepCheck_ListOfStatus.hxx>
+ #include <BRepClass_FaceClassifier.hxx>
+-#include <BRepCheck_ListIteratorOfListOfStatus.hxx>
+ #include <BRepCheck_Result.hxx>
+ #include <BRepFill_CompatibleWires.hxx>
+ #include <BRepGProp.hxx>
+@@ -139,10 +139,10 @@
+ #include <TopoDS_Vertex.hxx>
+ #include <TopExp.hxx>
+ #include <TopExp_Explorer.hxx>
+-#include <TopTools_ListIteratorOfListOfShape.hxx>
+ #include <TopTools_HSequenceOfShape.hxx>
+ #include <Transfer_FinderProcess.hxx>
+ #include <Transfer_TransientProcess.hxx>
++#include <TColgp_Array1OfPnt.hxx>
+ #include <XSControl_TransferWriter.hxx>
+ #include <XSControl_WorkSession.hxx>
+ 
+@@ -1855,7 +1855,7 @@ TopoDS_Shape TopoShape::fuse(TopoDS_Shape shape) const
+ TopoDS_Shape TopoShape::fuse(const std::vector<TopoDS_Shape>& shapes, Standard_Real tolerance) const
+ {
+     if (this->_Shape.IsNull()) {
+-        Standard_Failure::Raise("Base shape is null");
++        throw Standard_Failure("Base shape is null");
+     }
+ 
+     FCBRepAlgoAPI_Fuse mkFuse;
+@@ -1893,10 +1893,10 @@ TopoDS_Shape TopoShape::fuse(const std::vector<TopoDS_Shape>& shapes, Standard_R
+ TopoDS_Shape TopoShape::section(TopoDS_Shape shape, Standard_Boolean approximate) const
+ {
+     if (this->_Shape.IsNull()) {
+-        Standard_Failure::Raise("Base shape is null");
++        throw Standard_Failure("Base shape is null");
+     }
+     if (shape.IsNull()) {
+-        Standard_Failure::Raise("Tool shape is null");
++        throw Standard_Failure("Tool shape is null");
+     }
+     FCBRepAlgoAPI_Section mkSection;
+     mkSection.Init1(this->_Shape);
+@@ -1920,7 +1920,7 @@ TopoDS_Shape TopoShape::section(
+ ) const
+ {
+     if (this->_Shape.IsNull()) {
+-        Standard_Failure::Raise("Base shape is null");
++        throw Standard_Failure("Base shape is null");
+     }
+ 
+     FCBRepAlgoAPI_Section mkSection;
+@@ -1994,7 +1994,7 @@ TopoDS_Shape TopoShape::generalFuse(
+ ) const
+ {
+     if (this->_Shape.IsNull()) {
+-        Standard_Failure::Raise("Base shape is null");
++        throw Standard_Failure("Base shape is null");
+     }
+ 
+     BRepAlgoAPI_BuilderAlgo mkGFA;
+@@ -2036,13 +2036,13 @@ TopoDS_Shape TopoShape::generalFuse(
+ TopoDS_Shape TopoShape::makePipe(const TopoDS_Shape& profile) const
+ {
+     if (this->_Shape.IsNull()) {
+-        Standard_Failure::Raise("Cannot sweep along empty spine");
++        throw Standard_Failure("Cannot sweep along empty spine");
+     }
+     if (this->_Shape.ShapeType() != TopAbs_WIRE) {
+-        Standard_Failure::Raise("Spine shape is not a wire");
++        throw Standard_Failure("Spine shape is not a wire");
+     }
+     if (profile.IsNull()) {
+-        Standard_Failure::Raise("Cannot sweep empty profile");
++        throw Standard_Failure("Cannot sweep empty profile");
+     }
+     BRepOffsetAPI_MakePipe mkPipe(TopoDS::Wire(this->_Shape), profile);
+     return mkPipe.Shape();
+@@ -2056,10 +2056,10 @@ TopoDS_Shape TopoShape::makePipeShell(
+ ) const
+ {
+     if (this->_Shape.IsNull()) {
+-        Standard_Failure::Raise("Cannot sweep along empty spine");
++        throw Standard_Failure("Cannot sweep along empty spine");
+     }
+     if (this->_Shape.ShapeType() != TopAbs_WIRE) {
+-        Standard_Failure::Raise("Spine shape is not a wire");
++        throw Standard_Failure("Spine shape is not a wire");
+     }
+ 
+     BRepOffsetAPI_MakePipeShell mkPipeShell(TopoDS::Wire(this->_Shape));
+@@ -2124,7 +2124,7 @@ TopoDS_Shape TopoShape::makeTube(double radius, double tol, int cont, int maxdeg
+     Standard_Integer theMaxSegment = maxsegm;
+ 
+     if (this->_Shape.IsNull()) {
+-        Standard_Failure::Raise("Cannot sweep along empty spine");
++        throw Standard_Failure("Cannot sweep along empty spine");
+     }
+ 
+ #if OCC_VERSION_HEX >= 0x070600
+@@ -2145,7 +2145,7 @@ TopoDS_Shape TopoShape::makeTube(double radius, double tol, int cont, int maxdeg
+ #endif
+ 
+     else {
+-        Standard_Failure::Raise("Spine shape is not an edge");
++        throw Standard_Failure("Spine shape is not an edge");
+     }
+ 
+     // circular profile
+@@ -2180,17 +2180,17 @@ TopoDS_Shape TopoShape::makeSweep(const TopoDS_Shape& profile, double tol, int f
+ {
+     // http://opencascade.blogspot.com/2009/10/surface-modeling-part2.html
+     if (this->_Shape.IsNull()) {
+-        Standard_Failure::Raise("Cannot sweep along empty spine");
++        throw Standard_Failure("Cannot sweep along empty spine");
+     }
+     if (this->_Shape.ShapeType() != TopAbs_EDGE) {
+-        Standard_Failure::Raise("Spine shape is not an edge");
++        throw Standard_Failure("Spine shape is not an edge");
+     }
+ 
+     if (profile.IsNull()) {
+-        Standard_Failure::Raise("Cannot sweep with empty profile");
++        throw Standard_Failure("Cannot sweep with empty profile");
+     }
+     if (profile.ShapeType() != TopAbs_EDGE) {
+-        Standard_Failure::Raise("Profile shape is not an edge");
++        throw Standard_Failure("Profile shape is not an edge");
+     }
+ 
+     const TopoDS_Edge& path_edge = TopoDS::Edge(this->_Shape);
+@@ -2206,7 +2206,7 @@ TopoDS_Shape TopoShape::makeSweep(const TopoDS_Shape& profile, double tol, int f
+     hPath = Handle(Geom_Curve)::DownCast(hPath->Transformed(loc1.Transformation()));
+ 
+     if (hPath.IsNull()) {
+-        Standard_Failure::Raise("invalid curve in path edge");
++        throw Standard_Failure("invalid curve in path edge");
+     }
+ 
+     BRepAdaptor_Curve prof_adapt(prof_edge);
+@@ -2219,7 +2219,7 @@ TopoDS_Shape TopoShape::makeSweep(const TopoDS_Shape& profile, double tol, int f
+     hProfile = Handle(Geom_Curve)::DownCast(hProfile->Transformed(loc2.Transformation()));
+ 
+     if (hProfile.IsNull()) {
+-        Standard_Failure::Raise("invalid curve in profile edge");
++        throw Standard_Failure("invalid curve in profile edge");
+     }
+ 
+     GeomFill_Pipe mkSweep(hPath, hProfile, static_cast<GeomFill_Trihedron>(fillMode));
+@@ -2287,29 +2287,29 @@ TopoDS_Shape TopoShape::makeHelix(
+     using std::numbers::pi;
+ 
+     if (fabs(pitch) < Precision::Confusion()) {
+-        Standard_Failure::Raise("Pitch of helix too small");
++        throw Standard_Failure("Pitch of helix too small");
+     }
+ 
+     if (fabs(height) < Precision::Confusion()) {
+-        Standard_Failure::Raise("Height of helix too small");
++        throw Standard_Failure("Height of helix too small");
+     }
+ 
+     if ((height > 0 && pitch < 0) || (height < 0 && pitch > 0)) {
+-        Standard_Failure::Raise("Pitch and height of helix not compatible");
++        throw Standard_Failure("Pitch and height of helix not compatible");
+     }
+ 
+     gp_Ax2 cylAx2(gp_Pnt(0.0, 0.0, 0.0), gp::DZ());
+     Handle(Geom_Surface) surf;
+     if (angle < Precision::Confusion()) {
+         if (radius < Precision::Confusion()) {
+-            Standard_Failure::Raise("Radius of helix too small");
++            throw Standard_Failure("Radius of helix too small");
+         }
+         surf = new Geom_CylindricalSurface(cylAx2, radius);
+     }
+     else {
+         angle = Base::toRadians(angle);
+         if (angle < Precision::Confusion()) {
+-            Standard_Failure::Raise("Angle of helix too small");
++            throw Standard_Failure("Angle of helix too small");
+         }
+         surf = new Geom_ConicalSurface(gp_Ax3(cylAx2), angle, radius);
+     }
+@@ -2361,11 +2361,11 @@ TopoDS_Shape TopoShape::makeLongHelix(
+     using std::numbers::pi;
+ 
+     if (pitch < Precision::Confusion()) {
+-        Standard_Failure::Raise("Pitch of helix too small");
++        throw Standard_Failure("Pitch of helix too small");
+     }
+ 
+     if (height < Precision::Confusion()) {
+-        Standard_Failure::Raise("Height of helix too small");
++        throw Standard_Failure("Height of helix too small");
+     }
+ 
+     gp_Ax2 cylAx2(gp_Pnt(0.0, 0.0, 0.0), gp::DZ());
+@@ -2374,7 +2374,7 @@ TopoDS_Shape TopoShape::makeLongHelix(
+ 
+     if (std::fabs(angle) < Precision::Confusion()) {  // Cylindrical helix
+         if (radius < Precision::Confusion()) {
+-            Standard_Failure::Raise("Radius of helix too small");
++            throw Standard_Failure("Radius of helix too small");
+         }
+         surf = new Geom_CylindricalSurface(cylAx2, radius);
+         isCylinder = true;
+@@ -2451,13 +2451,13 @@ TopoDS_Shape TopoShape::makeSpiralHelix(
+     // 1000 periods is an OCCT limit. The 3D curve gets truncated
+     // if the 2D curve spans beyond this limit.
+     if ((breakperiod < 0) || (breakperiod > 1000)) {
+-        Standard_Failure::Raise("Break period must be in [0, 1000]");
++        throw Standard_Failure("Break period must be in [0, 1000]");
+     }
+     if (breakperiod == 0) {
+         breakperiod = 1000;
+     }
+     if (nbturns <= 0) {
+-        Standard_Failure::Raise("Number of turns must be greater than 0");
++        throw Standard_Failure("Number of turns must be greater than 0");
+     }
+ 
+     Standard_Real nbPeriods = nbturns / breakperiod;
+@@ -2517,19 +2517,19 @@ TopoDS_Shape TopoShape::makeThread(
+ {
+     using std::numbers::pi;
+     if (pitch < Precision::Confusion()) {
+-        Standard_Failure::Raise("Pitch of thread too small");
++        throw Standard_Failure("Pitch of thread too small");
+     }
+ 
+     if (depth < Precision::Confusion()) {
+-        Standard_Failure::Raise("Depth of thread too small");
++        throw Standard_Failure("Depth of thread too small");
+     }
+ 
+     if (height < Precision::Confusion()) {
+-        Standard_Failure::Raise("Height of thread too small");
++        throw Standard_Failure("Height of thread too small");
+     }
+ 
+     if (radius < Precision::Confusion()) {
+-        Standard_Failure::Raise("Radius of thread too small");
++        throw Standard_Failure("Radius of thread too small");
+     }
+ 
+     // Threading : Create Surfaces
+@@ -2609,7 +2609,7 @@ TopoDS_Shape TopoShape::makeLoft(
+     }
+ 
+     if (countShapes < 2) {
+-        Standard_Failure::Raise("Need at least two vertices, edges or wires to create loft face");
++        throw Standard_Failure("Need at least two vertices, edges or wires to create loft face");
+     }
+     else {
+         // close loft by duplicating initial profile as last profile.  not perfect.
+@@ -2651,7 +2651,7 @@ TopoDS_Shape TopoShape::makeLoft(
+     aGenerator.Build();
+ #endif
+     if (!aGenerator.IsDone()) {
+-        Standard_Failure::Raise("Failed to create loft face");
++        throw Standard_Failure("Failed to create loft face");
+     }
+ 
+     // Base::Console().message("DEBUG: TopoShape::makeLoft returns.\n");
+@@ -2661,7 +2661,7 @@ TopoDS_Shape TopoShape::makeLoft(
+ TopoDS_Shape TopoShape::makePrism(const gp_Vec& vec) const
+ {
+     if (this->_Shape.IsNull()) {
+-        Standard_Failure::Raise("cannot sweep empty shape");
++        throw Standard_Failure("cannot sweep empty shape");
+     }
+     BRepPrimAPI_MakePrism mkPrism(this->_Shape, vec);
+     return mkPrism.Shape();
+@@ -2670,7 +2670,7 @@ TopoDS_Shape TopoShape::makePrism(const gp_Vec& vec) const
+ TopoDS_Shape TopoShape::revolve(const gp_Ax1& axis, double d, Standard_Boolean isSolid) const
+ {
+     if (this->_Shape.IsNull()) {
+-        Standard_Failure::Raise("cannot revolve empty shape");
++        throw Standard_Failure("cannot revolve empty shape");
+     }
+ 
+     TopoDS_Face f;
+@@ -2755,7 +2755,7 @@ TopoDS_Shape TopoShape::makeOffsetShape(
+     );
+ 
+     if (!mkOffset.IsDone()) {
+-        Standard_Failure::Raise("BRepOffsetAPI_MakeOffsetShape not done");
++        throw Standard_Failure("BRepOffsetAPI_MakeOffsetShape not done");
+     }
+     const TopoDS_Shape& res = mkOffset.Shape();
+     if (!fill) {
+@@ -2767,7 +2767,7 @@ TopoDS_Shape TopoShape::makeOffsetShape(
+     ShapeAnalysis_FreeBoundsProperties freeCheck(this->_Shape);
+     freeCheck.Perform();
+     if (freeCheck.NbClosedFreeBounds() < 1) {
+-        Standard_Failure::Raise("no closed bounds");
++        throw Standard_Failure("no closed bounds");
+     }
+ 
+     BRep_Builder builder;
+@@ -2783,7 +2783,7 @@ TopoDS_Shape TopoShape::makeOffsetShape(
+         TopExp_Explorer xp;
+         for (xp.Init(originalWire, TopAbs_EDGE); xp.More(); xp.Next()) {
+             if (!img.HasImage(xp.Current())) {
+-                Standard_Failure::Raise("no image for shape");
++                throw Standard_Failure("no image for shape");
+             }
+             const TopTools_ListOfShape& currentImage = img.Image(xp.Current());
+             TopTools_ListIteratorOfListOfShape listIt;
+@@ -2800,7 +2800,7 @@ TopoDS_Shape TopoShape::makeOffsetShape(
+             if (edgeCount != 1) {
+                 std::ostringstream stream;
+                 stream << "wrong edge count: " << edgeCount << std::endl;
+-                Standard_Failure::Raise(stream.str().c_str());
++                throw Standard_Failure(stream.str().c_str());
+             }
+             builder.Add(offsetWire, mappedEdge);
+         }
+@@ -2817,7 +2817,7 @@ TopoDS_Shape TopoShape::makeOffsetShape(
+         aGenerator.Build();
+ #endif
+         if (!aGenerator.IsDone()) {
+-            Standard_Failure::Raise("ThruSections failed");
++            throw Standard_Failure("ThruSections failed");
+         }
+ 
+         builder.Add(perimeterCompound, aGenerator.Shape());
+@@ -3259,7 +3259,7 @@ void TopoShape::transformGeometry(const Base::Matrix4D& rclMat)
+ {
+     try {
+         if (this->_Shape.IsNull()) {
+-            Standard_Failure::Raise("Cannot transform null shape");
++            throw Standard_Failure("Cannot transform null shape");
+         }
+ 
+         *this = makeGTransform(rclMat);
+@@ -3296,7 +3296,7 @@ void TopoShape::bakeInTransform()
+ TopoDS_Shape TopoShape::transformGShape(const Base::Matrix4D& rclTrf, bool copy) const
+ {
+     if (this->_Shape.IsNull()) {
+-        Standard_Failure::Raise("Cannot transform null shape");
++        throw Standard_Failure("Cannot transform null shape");
+     }
+ 
+     gp_GTrsf mat;
+@@ -3322,7 +3322,7 @@ TopoDS_Shape TopoShape::transformGShape(const Base::Matrix4D& rclTrf, bool copy)
+ bool TopoShape::transformShape(const Base::Matrix4D& rclTrf, bool copy, bool checkScale)
+ {
+     if (this->_Shape.IsNull()) {
+-        Standard_Failure::Raise("Cannot transform null shape");
++        throw Standard_Failure("Cannot transform null shape");
+     }
+ 
+     return _makeTransform(TopoShape(*this), rclTrf, nullptr, checkScale, copy);
+@@ -3339,7 +3339,7 @@ TopoDS_Shape TopoShape::mirror(const gp_Ax2& ax2) const
+ TopoDS_Shape TopoShape::toNurbs() const
+ {
+     if (this->_Shape.IsNull()) {
+-        Standard_Failure::Raise("Cannot convert null shape to NURBS");
++        throw Standard_Failure("Cannot convert null shape to NURBS");
+     }
+ 
+     BRepBuilderAPI_NurbsConvert mkNurbs(this->_Shape);
+@@ -3484,7 +3484,7 @@ bool TopoShape::removeInternalWires(double minArea)
+ TopoDS_Shape TopoShape::removeSplitter() const
+ {
+     if (_Shape.IsNull()) {
+-        Standard_Failure::Raise("Cannot remove splitter from empty shape");
++        throw Standard_Failure("Cannot remove splitter from empty shape");
+     }
+ 
+     if (_Shape.ShapeType() == TopAbs_SOLID) {
+@@ -3504,7 +3504,7 @@ TopoDS_Shape TopoShape::removeSplitter() const
+                 }
+             }
+             else {
+-                Standard_Failure::Raise("Removing splitter failed");
++                throw Standard_Failure("Removing splitter failed");
+                 return _Shape;
+             }
+         }
+@@ -3517,7 +3517,7 @@ TopoDS_Shape TopoShape::removeSplitter() const
+             return uniter.getShell();
+         }
+         else {
+-            Standard_Failure::Raise("Removing splitter failed");
++            throw Standard_Failure("Removing splitter failed");
+         }
+     }
+     else if (_Shape.ShapeType() == TopAbs_COMPOUND) {
+@@ -4026,7 +4026,7 @@ void TopoShape::getFacesFromSubElement(
+ TopoDS_Shape TopoShape::defeaturing(const std::vector<TopoDS_Shape>& s) const
+ {
+     if (this->_Shape.IsNull()) {
+-        Standard_Failure::Raise("Base shape is null");
++        throw Standard_Failure("Base shape is null");
+     }
+     BRepAlgoAPI_Defeaturing defeat;
+     defeat.SetRunParallel(true);
+diff --git a/src/Mod/Part/App/TopoShapeCache.h b/src/Mod/Part/App/TopoShapeCache.h
+index 75aff066a24f..b4cbdb61b8a1 100644
+--- a/src/Mod/Part/App/TopoShapeCache.h
++++ b/src/Mod/Part/App/TopoShapeCache.h
+@@ -32,7 +32,8 @@
+ #include <TopoDS_Vertex.hxx>
+ #include <TopExp.hxx>
+ #include <TopExp_Explorer.hxx>
+-#include <TopTools_ListIteratorOfListOfShape.hxx>
++#include <TopTools_IndexedDataMapOfShapeListOfShape.hxx>
++#include <TopTools_IndexedMapOfShape.hxx>
+ #include <utility>
+ 
+ #include <App/ElementMap.h>
+diff --git a/src/Mod/Part/App/TopoShapeCompSolidPyImp.cpp b/src/Mod/Part/App/TopoShapeCompSolidPyImp.cpp
+index da3fc1e6c165..3952b9d7fbcf 100644
+--- a/src/Mod/Part/App/TopoShapeCompSolidPyImp.cpp
++++ b/src/Mod/Part/App/TopoShapeCompSolidPyImp.cpp
+@@ -95,7 +95,7 @@ PyObject* TopoShapeCompSolidPy::add(PyObject* args)
+                 builder.Add(comp, ts.getShape());
+             }
+             else {
+-                Standard_Failure::Raise("Cannot empty shape to compound solid");
++                throw Standard_Failure("Cannot empty shape to compound solid");
+             }
+         }
+         auto& self = *getTopoShapePtr();
+diff --git a/src/Mod/Part/App/TopoShapeEdgePyImp.cpp b/src/Mod/Part/App/TopoShapeEdgePyImp.cpp
+index 35772d84355e..823ae1251ca1 100644
+--- a/src/Mod/Part/App/TopoShapeEdgePyImp.cpp
++++ b/src/Mod/Part/App/TopoShapeEdgePyImp.cpp
+@@ -29,7 +29,6 @@
+ #include <BRepBuilderAPI_MakeWire.hxx>
+ #include <BRepGProp.hxx>
+ #include <BRepLProp_CLProps.hxx>
+-#include <BRepLProp_CurveTool.hxx>
+ #include <GProp_GProps.hxx>
+ #include <GProp_PrincipalProps.hxx>
+ #include <Geom_Circle.hxx>
+@@ -62,6 +61,7 @@
+ #include <GCPnts_TangentialDeflection.hxx>
+ #include <GCPnts_UniformAbscissa.hxx>
+ #include <GCPnts_UniformDeflection.hxx>
++#include <TColStd_HArray1OfReal.hxx>
+ 
+ #include <Base/GeometryPyCXX.h>
+ #include <Base/PyWrapParseTupleAndKeywords.h>
+@@ -214,8 +214,8 @@ PyObject* TopoShapeEdgePy::getParameterByLength(PyObject* args) const
+     BRepAdaptor_Curve adapt(e);
+ 
+     // transform value of [0,Length] to [First,Last]
+-    double first = BRepLProp_CurveTool::FirstParameter(adapt);
+-    double last = BRepLProp_CurveTool::LastParameter(adapt);
++    double first = adapt.FirstParameter();
++    double last = adapt.LastParameter();
+     if (!Precision::IsInfinite(first) && !Precision::IsInfinite(last)) {
+         double length = GCPnts_AbscissaPoint::Length(adapt, t);
+ 
+diff --git a/src/Mod/Part/App/TopoShapeExpansion.cpp b/src/Mod/Part/App/TopoShapeExpansion.cpp
+index 9016caaca80f..bcf5e73f7f8f 100644
+--- a/src/Mod/Part/App/TopoShapeExpansion.cpp
++++ b/src/Mod/Part/App/TopoShapeExpansion.cpp
+@@ -4986,9 +4986,17 @@ TopoShape& TopoShape::makeElementBSplineFace(
+         auto e4 = mk4.Edge();
+ 
+         ShapeMapper mapper;
+-        mapper.populate(MappingStatus::Modified, e, {e1, e2, e3, e4});
+-        mapper.populate(MappingStatus::Generated, v, {TopExp::FirstVertex(e1)});
+-        mapper.populate(MappingStatus::Generated, v, {TopExp::LastVertex(e4)});
++        mapper.populate(MappingStatus::Modified, e, std::vector<Part::TopoShape> {e1, e2, e3, e4});
++        mapper.populate(
++            MappingStatus::Generated,
++            v,
++            std::vector<Part::TopoShape> {TopExp::FirstVertex(e1)}
++        );
++        mapper.populate(
++            MappingStatus::Generated,
++            v,
++            std::vector<Part::TopoShape> {TopExp::LastVertex(e4)}
++        );
+ 
+         BRep_Builder builder;
+         TopoDS_Compound comp;
+@@ -5093,7 +5101,7 @@ TopoShape& TopoShape::makeElementBSplineFace(
+                     Handle(Geom_BSplineCurve) spline
+                         = scc.ConvertToBSpline(c_geom, u1, u2, Precision::Confusion());
+                     if (spline.IsNull()) {
+-                        Standard_Failure::Raise(
++                        throw Standard_Failure(
+                             "A curve was not a B-spline and could not be converted into one."
+                         );
+                     }
+diff --git a/src/Mod/Part/App/TopoShapeFacePyImp.cpp b/src/Mod/Part/App/TopoShapeFacePyImp.cpp
+index f3c947536687..1af2ec83e529 100644
+--- a/src/Mod/Part/App/TopoShapeFacePyImp.cpp
++++ b/src/Mod/Part/App/TopoShapeFacePyImp.cpp
+@@ -303,11 +303,11 @@ int TopoShapeFacePy::PyInit(PyObject* args, PyObject* /*kwd*/)
+                         wires.push_back(TopoDS::Wire(sh));
+                     }
+                     else {
+-                        Standard_Failure::Raise("shape is not a wire");
++                        throw Standard_Failure("shape is not a wire");
+                     }
+                 }
+                 else {
+-                    Standard_Failure::Raise("shape is not a wire");
++                    throw Standard_Failure("shape is not a wire");
+                 }
+             }
+ 
+@@ -316,19 +316,19 @@ int TopoShapeFacePy::PyInit(PyObject* args, PyObject* /*kwd*/)
+                 if (!mkFace.IsDone()) {
+                     switch (mkFace.Error()) {
+                         case BRepBuilderAPI_NoFace:
+-                            Standard_Failure::Raise("No face");
++                            throw Standard_Failure("No face");
+                             break;
+                         case BRepBuilderAPI_NotPlanar:
+-                            Standard_Failure::Raise("Not planar");
++                            throw Standard_Failure("Not planar");
+                             break;
+                         case BRepBuilderAPI_CurveProjectionFailed:
+-                            Standard_Failure::Raise("Curve projection failed");
++                            throw Standard_Failure("Curve projection failed");
+                             break;
+                         case BRepBuilderAPI_ParametersOutOfRange:
+-                            Standard_Failure::Raise("Parameters out of range");
++                            throw Standard_Failure("Parameters out of range");
+                             break;
+                         default:
+-                            Standard_Failure::Raise("Unknown failure");
++                            throw Standard_Failure("Unknown failure");
+                             break;
+                     }
+                 }
+@@ -340,7 +340,7 @@ int TopoShapeFacePy::PyInit(PyObject* args, PyObject* /*kwd*/)
+                 return 0;
+             }
+             else {
+-                Standard_Failure::Raise("no wires in list");
++                throw Standard_Failure("no wires in list");
+             }
+         }
+         catch (Standard_Failure& e) {
+@@ -812,11 +812,11 @@ PyObject* TopoShapeFacePy::cutHoles(PyObject* args)
+                         wires.push_back(TopoDS::Wire(sh));
+                     }
+                     else {
+-                        Standard_Failure::Raise("shape is not a wire");
++                        throw Standard_Failure("shape is not a wire");
+                     }
+                 }
+                 else {
+-                    Standard_Failure::Raise("argument is not a shape");
++                    throw Standard_Failure("argument is not a shape");
+                 }
+             }
+ 
+@@ -829,19 +829,19 @@ PyObject* TopoShapeFacePy::cutHoles(PyObject* args)
+                 if (!mkFace.IsDone()) {
+                     switch (mkFace.Error()) {
+                         case BRepBuilderAPI_NoFace:
+-                            Standard_Failure::Raise("No face");
++                            throw Standard_Failure("No face");
+                             break;
+                         case BRepBuilderAPI_NotPlanar:
+-                            Standard_Failure::Raise("Not planar");
++                            throw Standard_Failure("Not planar");
+                             break;
+                         case BRepBuilderAPI_CurveProjectionFailed:
+-                            Standard_Failure::Raise("Curve projection failed");
++                            throw Standard_Failure("Curve projection failed");
+                             break;
+                         case BRepBuilderAPI_ParametersOutOfRange:
+-                            Standard_Failure::Raise("Parameters out of range");
++                            throw Standard_Failure("Parameters out of range");
+                             break;
+                         default:
+-                            Standard_Failure::Raise("Unknown failure");
++                            throw Standard_Failure("Unknown failure");
+                             break;
+                     }
+                 }
+@@ -850,7 +850,7 @@ PyObject* TopoShapeFacePy::cutHoles(PyObject* args)
+                 Py_Return;
+             }
+             else {
+-                Standard_Failure::Raise("empty wire list");
++                throw Standard_Failure("empty wire list");
+             }
+         }
+         catch (Standard_Failure& e) {
+diff --git a/src/Mod/Part/App/TopoShapePyImp.cpp b/src/Mod/Part/App/TopoShapePyImp.cpp
+index b93fa6c9ade4..002078b1c5b2 100644
+--- a/src/Mod/Part/App/TopoShapePyImp.cpp
++++ b/src/Mod/Part/App/TopoShapePyImp.cpp
+@@ -63,8 +63,10 @@
+ #include <TopoDS.hxx>
+ #include <TopoDS_Iterator.hxx>
+ #include <TopTools_IndexedMapOfShape.hxx>
+-#include <TopTools_ListIteratorOfListOfShape.hxx>
+ #include <TopTools_ListOfShape.hxx>
++#include <TopTools_IndexedDataMapOfShapeListOfShape.hxx>
++#include <TopTools_HSequenceOfShape.hxx>
++#include <BRepExtrema_MapOfIntegerPackedMapOfInteger.hxx>
+ 
+ #include <App/PropertyStandard.h>
+ #include <App/StringHasherPy.h>
+@@ -476,11 +478,13 @@ PyObject* TopoShapePy::dumpToString(PyObject* args) const
+         PyErr_SetString(PartExceptionOCCError, e.what());
+         return nullptr;
+     }
++#if OCC_VERSION_HEX < 0x080000
+     catch (Standard_Failure& e) {
+ 
+         PyErr_SetString(PartExceptionOCCError, e.GetMessageString());
+         return nullptr;
+     }
++#endif
+ }
+ 
+ PyObject* TopoShapePy::exportBrepToString(PyObject* args) const
+@@ -503,10 +507,12 @@ PyObject* TopoShapePy::exportBrepToString(PyObject* args) const
+         PyErr_SetString(PartExceptionOCCError, e.what());
+         return nullptr;
+     }
++#if OCC_VERSION_HEX < 0x080000
+     catch (Standard_Failure& e) {
+         PyErr_SetString(PartExceptionOCCError, e.GetMessageString());
+         return nullptr;
+     }
++#endif
+ }
+ 
+ PyObject* TopoShapePy::importBrep(PyObject* args)
+@@ -593,10 +599,12 @@ PyObject* TopoShapePy::importBrepFromString(PyObject* args)
+         PyErr_SetString(PartExceptionOCCError, e.what());
+         return nullptr;
+     }
++#if OCC_VERSION_HEX < 0x080000
+     catch (Standard_Failure& e) {
+         PyErr_SetString(PartExceptionOCCError, e.GetMessageString());
+         return nullptr;
+     }
++#endif
+ 
+     Py_Return;
+ }
+@@ -1541,7 +1549,7 @@ PyObject* TopoShapePy::isClosed(PyObject* args) const
+ 
+     try {
+         if (getTopoShapePtr()->getShape().IsNull()) {
+-            Standard_Failure::Raise("Cannot determine the 'Closed'' flag of an empty shape");
++            throw Standard_Failure("Cannot determine the 'Closed'' flag of an empty shape");
+         }
+         return Py_BuildValue("O", (getTopoShapePtr()->isClosed() ? Py_True : Py_False));
+     }
+diff --git a/src/Mod/Part/App/TopoShapeShellPyImp.cpp b/src/Mod/Part/App/TopoShapeShellPyImp.cpp
+index 81e6f41c1496..a8e498ffd5d4 100644
+--- a/src/Mod/Part/App/TopoShapeShellPyImp.cpp
++++ b/src/Mod/Part/App/TopoShapeShellPyImp.cpp
+@@ -120,7 +120,7 @@ PyObject* TopoShapeShellPy::add(PyObject* args)
+             }
+         }
+         else {
+-            Standard_Failure::Raise("cannot add empty shape");
++            throw Standard_Failure("cannot add empty shape");
+         }
+     }
+     catch (Standard_Failure& e) {
+diff --git a/src/Mod/Part/App/WireJoiner.cpp b/src/Mod/Part/App/WireJoiner.cpp
+index ff0aa47b03a4..18a21fbe11ac 100644
+--- a/src/Mod/Part/App/WireJoiner.cpp
++++ b/src/Mod/Part/App/WireJoiner.cpp
+@@ -53,6 +53,9 @@
+ #include <TopExp.hxx>
+ #include <TopExp_Explorer.hxx>
+ #include <TopTools_HSequenceOfShape.hxx>
++#include <IntRes2d_SequenceOfIntersectionPoint.hxx>
++#include <TColStd_SequenceOfReal.hxx>
++#include <TColgp_SequenceOfPnt.hxx>
+ 
+ #include <BRepTools_History.hxx>
+ #include <ShapeBuild_ReShape.hxx>
+diff --git a/src/Mod/Part/App/modelRefine.cpp b/src/Mod/Part/App/modelRefine.cpp
+index b4d111de898a..9cd48d805f82 100644
+--- a/src/Mod/Part/App/modelRefine.cpp
++++ b/src/Mod/Part/App/modelRefine.cpp
+@@ -63,10 +63,11 @@
+ #include <TopoDS_Shape.hxx>
+ #include <TopExp.hxx>
+ #include <TopExp_Explorer.hxx>
+-#include <TopTools_DataMapIteratorOfDataMapOfIntegerListOfShape.hxx>
+-#include <TopTools_DataMapIteratorOfDataMapOfShapeShape.hxx>
+-#include <TopTools_ListIteratorOfListOfShape.hxx>
+ #include <TopTools_ListOfShape.hxx>
++#include <TopTools_IndexedMapOfShape.hxx>
++#include <TopTools_DataMapOfShapeShape.hxx>
++#include <TopTools_DataMapOfIntegerListOfShape.hxx>
++#include <TopTools_DataMapOfIntegerShape.hxx>
+ 
+ #include <Base/Console.h>
+ 
+@@ -1325,7 +1326,7 @@ void Part::BRepBuilderAPI_RefineModel::Build()
+ #endif
+ {
+     if (myShape.IsNull()) {
+-        Standard_Failure::Raise("Cannot remove splitter from empty shape");
++        throw Standard_Failure("Cannot remove splitter from empty shape");
+     }
+ 
+     if (myShape.ShapeType() == TopAbs_SOLID) {
+@@ -1346,7 +1347,7 @@ void Part::BRepBuilderAPI_RefineModel::Build()
+                 }
+             }
+             else {
+-                Standard_Failure::Raise("Removing splitter failed");
++                throw Standard_Failure("Removing splitter failed");
+             }
+         }
+         myShape = mkSolid.Solid();
+@@ -1360,7 +1361,7 @@ void Part::BRepBuilderAPI_RefineModel::Build()
+             LogModifications(uniter);
+         }
+         else {
+-            Standard_Failure::Raise("Removing splitter failed");
++            throw Standard_Failure("Removing splitter failed");
+         }
+     }
+     else if (myShape.ShapeType() == TopAbs_COMPOUND) {
+diff --git a/src/Mod/Part/CMakeLists.txt b/src/Mod/Part/CMakeLists.txt
+index 8dda0a1710fb..43a26a745066 100644
+--- a/src/Mod/Part/CMakeLists.txt
++++ b/src/Mod/Part/CMakeLists.txt
+@@ -1,5 +1,7 @@
+ # SPDX-License-Identifier: LGPL-2.1-or-later
+ 
++disable_occt8_deprecation_warnings()
++
+ if(BUILD_TRACY_FRAME_PROFILER)
+     add_definitions(-DBUILD_TRACY_FRAME_PROFILER)
+ endif()
+diff --git a/src/Mod/Part/Gui/DlgProjectionOnSurface.cpp b/src/Mod/Part/Gui/DlgProjectionOnSurface.cpp
+index 9b987014425a..92e7798bb8e8 100644
+--- a/src/Mod/Part/Gui/DlgProjectionOnSurface.cpp
++++ b/src/Mod/Part/Gui/DlgProjectionOnSurface.cpp
+@@ -43,6 +43,8 @@
+ #include <TopoDS_Builder.hxx>
+ #include <TopoDS_Edge.hxx>
+ #include <TopoDS_Face.hxx>
++#include <TopTools_HSequenceOfShape.hxx>
++#include <TopTools_IndexedMapOfShape.hxx>
+ 
+ 
+ #include <App/Document.h>
+diff --git a/src/Mod/Part/Gui/TaskCheckGeometry.cpp b/src/Mod/Part/Gui/TaskCheckGeometry.cpp
+index 52a77c5c3334..7a3241ac0e86 100644
+--- a/src/Mod/Part/Gui/TaskCheckGeometry.cpp
++++ b/src/Mod/Part/Gui/TaskCheckGeometry.cpp
+@@ -38,7 +38,7 @@
+ #include <BRepBndLib.hxx>
+ #include <BRepBuilderAPI_Copy.hxx>
+ #include <BRepCheck_Analyzer.hxx>
+-#include <BRepCheck_ListIteratorOfListOfStatus.hxx>
++#include <BRepCheck_ListOfStatus.hxx>
+ #include <BRepCheck_Result.hxx>
+ #include <BRepTools_ShapeSet.hxx>
+ #include <ShapeAnalysis_FreeBounds.hxx>
+diff --git a/src/Mod/PartDesign/App/FeatureTransformed.cpp b/src/Mod/PartDesign/App/FeatureTransformed.cpp
+index adaff0c4a4e0..9c78caf67bfa 100644
+--- a/src/Mod/PartDesign/App/FeatureTransformed.cpp
++++ b/src/Mod/PartDesign/App/FeatureTransformed.cpp
+@@ -445,7 +445,7 @@ TopoDS_Shape Transformed::getRemainingSolids(const TopoDS_Shape& shape)
+     builder.MakeCompound(compShape);
+ 
+     if (shape.IsNull()) {
+-        Standard_Failure::Raise("Shape is null");
++        throw Standard_Failure("Shape is null");
+     }
+     TopExp_Explorer xp;
+     xp.Init(shape, TopAbs_SOLID);
+diff --git a/src/Mod/PartDesign/CMakeLists.txt b/src/Mod/PartDesign/CMakeLists.txt
+index 58ceaa4c3a23..30691ae1f47f 100644
+--- a/src/Mod/PartDesign/CMakeLists.txt
++++ b/src/Mod/PartDesign/CMakeLists.txt
+@@ -1,4 +1,6 @@
+ 
++disable_occt8_deprecation_warnings()
++
+ add_subdirectory(App)
+ if(BUILD_GUI)
+     add_subdirectory(Gui)
+diff --git a/src/Mod/ReverseEngineering/App/AppReverseEngineering.cpp b/src/Mod/ReverseEngineering/App/AppReverseEngineering.cpp
+index a13b122818a9..2d07e546aab2 100644
+--- a/src/Mod/ReverseEngineering/App/AppReverseEngineering.cpp
++++ b/src/Mod/ReverseEngineering/App/AppReverseEngineering.cpp
+@@ -23,6 +23,7 @@
+  ***************************************************************************/
+ 
+ #include <Geom_BSplineSurface.hxx>
++#include <Standard_Version.hxx>
+ #include <TColgp_Array1OfPnt.hxx>
+ 
+ 
+@@ -403,7 +404,11 @@ class Module : public Py::ExtensionModule<Module>
+                 }
+             }
+ 
++#if OCC_VERSION_HEX >= 0x080000
++            TColgp_Array1OfPnt clPoints(pts.size()-1);
++#else
+             TColgp_Array1OfPnt clPoints(0, pts.size()-1);
++#endif
+             if (clPoints.Length() < uPoles * vPoles) {
+                 throw Py::ValueError("Too less data points for the specified number of poles");
+             }
+diff --git a/src/Mod/ReverseEngineering/App/ApproxSurface.cpp b/src/Mod/ReverseEngineering/App/ApproxSurface.cpp
+index fad3dc567f89..f8b0dad9603f 100644
+--- a/src/Mod/ReverseEngineering/App/ApproxSurface.cpp
++++ b/src/Mod/ReverseEngineering/App/ApproxSurface.cpp
+@@ -63,7 +63,7 @@ SplineBasisfunction::SplineBasisfunction(
+ 
+     if (vKnots.Length() != vMults.Length() || iSize != sum) {
+         // Throw exception
+-        Standard_ConstructionError::Raise("BSplineBasis");
++        throw Standard_ConstructionError("BSplineBasis");
+     }
+ 
+     int k = 0;
+@@ -89,7 +89,7 @@ SplineBasisfunction::~SplineBasisfunction() = default;
+ void SplineBasisfunction::SetKnots(TColStd_Array1OfReal& vKnots, int iOrder)
+ {
+     if (_vKnotVector.Length() != vKnots.Length()) {
+-        Standard_RangeError::Raise("BSplineBasis");
++        throw Standard_RangeError("BSplineBasis");
+     }
+ 
+     _vKnotVector = vKnots;
+@@ -105,7 +105,7 @@ void SplineBasisfunction::SetKnots(TColStd_Array1OfReal& vKnots, TColStd_Array1O
+ 
+     if (vKnots.Length() != vMults.Length() || _vKnotVector.Length() != sum) {
+         // Throw exception
+-        Standard_RangeError::Raise("BSplineBasis");
++        throw Standard_RangeError("BSplineBasis");
+     }
+     int k = 0;
+     for (int i = vMults.Lower(); i <= vMults.Upper(); i++) {
+@@ -166,7 +166,7 @@ int BSplineBasis::FindSpan(double fParam)
+ void BSplineBasis::AllBasisFunctions(double fParam, TColStd_Array1OfReal& vFuncVals)
+ {
+     if (vFuncVals.Length() != _iOrder) {
+-        Standard_RangeError::Raise("BSplineBasis");
++        throw Standard_RangeError("BSplineBasis");
+     }
+ 
+     int iIndex = FindSpan(fParam);
+@@ -268,7 +268,7 @@ void BSplineBasis::DerivativesOfBasisFunction(
+ {
+     int iMax = iMaxDer;
+     if (Derivat.Length() != iMax + 1) {
+-        Standard_RangeError::Raise("BSplineBasis");
++        throw Standard_RangeError("BSplineBasis");
+     }
+     // kth derivatives (k> degrees) are zero
+     if (iMax >= _iOrder) {
+diff --git a/src/Mod/ReverseEngineering/CMakeLists.txt b/src/Mod/ReverseEngineering/CMakeLists.txt
+index a282f1dbf0cf..3ffa8f7de0f7 100644
+--- a/src/Mod/ReverseEngineering/CMakeLists.txt
++++ b/src/Mod/ReverseEngineering/CMakeLists.txt
+@@ -1,5 +1,7 @@
+ # SPDX-License-Identifier: LGPL-2.1-or-later
+ 
++disable_occt8_deprecation_warnings()
++
+ add_subdirectory(App)
+ if(BUILD_GUI)
+     add_subdirectory(Gui)
+diff --git a/src/Mod/Robot/CMakeLists.txt b/src/Mod/Robot/CMakeLists.txt
+index 0bfb4c3bad97..b141d4396b3c 100644
+--- a/src/Mod/Robot/CMakeLists.txt
++++ b/src/Mod/Robot/CMakeLists.txt
+@@ -1,4 +1,6 @@
+ 
++disable_occt8_deprecation_warnings()
++
+ add_subdirectory(App)
+ if(BUILD_GUI)
+     add_subdirectory(Gui)
+diff --git a/src/Mod/Sketcher/CMakeLists.txt b/src/Mod/Sketcher/CMakeLists.txt
+index eed8b11f1d0d..b9a1d3ab3ea1 100644
+--- a/src/Mod/Sketcher/CMakeLists.txt
++++ b/src/Mod/Sketcher/CMakeLists.txt
+@@ -1,4 +1,6 @@
+ 
++disable_occt8_deprecation_warnings()
++
+ add_subdirectory(App)
+ if(BUILD_GUI)
+     add_subdirectory(Gui)
+diff --git a/src/Mod/Sketcher/Gui/DrawSketchHandlerOffset.h b/src/Mod/Sketcher/Gui/DrawSketchHandlerOffset.h
+index 58352149dd92..d140a3cecb2a 100644
+--- a/src/Mod/Sketcher/Gui/DrawSketchHandlerOffset.h
++++ b/src/Mod/Sketcher/Gui/DrawSketchHandlerOffset.h
+@@ -42,6 +42,7 @@
+ #include <BRepBuilderAPI.hxx>
+ #include <BRepExtrema_DistShapeShape.hxx>
+ #include <TopoDS.hxx>
++#include <TopExp_Explorer.hxx>
+ #include <gp_Pln.hxx>
+ 
+ #include <Base/Exception.h>
+diff --git a/src/Mod/Surface/App/Blending/BlendCurve.cpp b/src/Mod/Surface/App/Blending/BlendCurve.cpp
+index dc3b62ec2ef2..42e895d5392d 100644
+--- a/src/Mod/Surface/App/Blending/BlendCurve.cpp
++++ b/src/Mod/Surface/App/Blending/BlendCurve.cpp
+@@ -72,7 +72,7 @@ Handle(Geom_BezierCurve) BlendCurve::compute()
+ 
+         Handle(Geom_BezierCurve) curve;
+         if (num_poles > (curve->MaxDegree() + 1)) {  // use Geom_BezierCurve max degree
+-            Standard_Failure::Raise("number of constraints exceeds bezier curve capacity");
++            throw Standard_Failure("number of constraints exceeds bezier curve capacity");
+         }
+ 
+         TColStd_Array1OfReal knots(1, 2 * num_poles);
+@@ -114,15 +114,15 @@ Handle(Geom_BezierCurve) BlendCurve::compute()
+         math_Gauss gauss(OCCmatrix);
+         gauss.Solve(res_x);
+         if (!gauss.IsDone()) {
+-            Standard_Failure::Raise("Failed to solve equations");
++            throw Standard_Failure("Failed to solve equations");
+         }
+         gauss.Solve(res_y);
+         if (!gauss.IsDone()) {
+-            Standard_Failure::Raise("Failed to solve equations");
++            throw Standard_Failure("Failed to solve equations");
+         }
+         gauss.Solve(res_z);
+         if (!gauss.IsDone()) {
+-            Standard_Failure::Raise("Failed to solve equations");
++            throw Standard_Failure("Failed to solve equations");
+         }
+ 
+         TColgp_Array1OfPnt poles(1, num_poles);
+diff --git a/src/Mod/Surface/App/FeatureFilling.cpp b/src/Mod/Surface/App/FeatureFilling.cpp
+index eaa6f3458372..c90f4d9d29eb 100644
+--- a/src/Mod/Surface/App/FeatureFilling.cpp
++++ b/src/Mod/Surface/App/FeatureFilling.cpp
+@@ -165,7 +165,7 @@ void Filling::addConstraints(
+                                 builder.Add(TopoDS::Edge(edge), cont, bnd);
+                             }
+                             else {
+-                                Standard_Failure::Raise(
++                                throw Standard_Failure(
+                                     "Boundary edges must be added in a consecutive order"
+                                 );
+                             }
+@@ -185,25 +185,25 @@ void Filling::addConstraints(
+                                     builder.Add(TopoDS::Edge(edge), TopoDS::Face(face), cont, bnd);
+                                 }
+                                 else {
+-                                    Standard_Failure::Raise(
++                                    throw Standard_Failure(
+                                         "Boundary edges must be added in a consecutive order"
+                                     );
+                                 }
+                             }
+                         }
+                         else {
+-                            Standard_Failure::Raise("Sub-shape is not a face");
++                            throw Standard_Failure("Sub-shape is not a face");
+                         }
+                     }
+                 }
+                 else {
+-                    Standard_Failure::Raise("Sub-shape is not an edge");
++                    throw Standard_Failure("Sub-shape is not an edge");
+                 }
+             }
+         }
+     }
+     else {
+-        Standard_Failure::Raise("Number of links does not match with the number of orders");
++        throw Standard_Failure("Number of links does not match with the number of orders");
+     }
+ }
+ 
+@@ -230,13 +230,13 @@ void Filling::addConstraints(
+                     builder.Add(TopoDS::Face(face), cont);
+                 }
+                 else {
+-                    Standard_Failure::Raise("Sub-shape is not a face");
++                    throw Standard_Failure("Sub-shape is not a face");
+                 }
+             }
+         }
+     }
+     else {
+-        Standard_Failure::Raise("Number of links does not match with the number of orders");
++        throw Standard_Failure("Number of links does not match with the number of orders");
+     }
+ }
+ 
+@@ -319,7 +319,7 @@ App::DocumentObjectExecReturn* Filling::execute()
+             builder.Build();
+         }
+         if (!builder.IsDone()) {
+-            Standard_Failure::Raise("Failed to create a face from constraints");
++            throw Standard_Failure("Failed to create a face from constraints");
+         }
+ 
+         // Return the face
+diff --git a/src/Mod/Surface/App/FeatureGeomFillSurface.cpp b/src/Mod/Surface/App/FeatureGeomFillSurface.cpp
+index a6e140b17dfa..e14add7cf7d9 100644
+--- a/src/Mod/Surface/App/FeatureGeomFillSurface.cpp
++++ b/src/Mod/Surface/App/FeatureGeomFillSurface.cpp
+@@ -69,7 +69,7 @@ void ShapeValidator::initValidator()
+ void ShapeValidator::checkEdge(const TopoDS_Shape& shape)
+ {
+     if (shape.IsNull() || shape.ShapeType() != TopAbs_EDGE) {
+-        Standard_Failure::Raise("Shape is not an edge.\n");
++        throw Standard_Failure("Shape is not an edge.\n");
+     }
+ 
+     TopoDS_Edge etmp = TopoDS::Edge(shape);                             // Curve TopoDS_Edge
+@@ -120,7 +120,7 @@ void ShapeValidator::checkAndAdd(
+         }
+     }
+     catch (Standard_Failure&) {  // any OCC exception means an inappropriate shape in the selection
+-        Standard_Failure::Raise("Wrong shape type.\n");
++        throw Standard_Failure("Wrong shape type.\n");
+     }
+ }
+ 
+@@ -200,7 +200,7 @@ GeomFill_FillingStyle GeomFillSurface::getFillingStyle()
+         case GeomFill_CurvedStyle:
+             return static_cast<GeomFill_FillingStyle>(FillType.getValue());
+         default:
+-            Standard_Failure::Raise("Filling style must be 0 (Stretch), 1 (Coons), or 2 (Curved).\n");
++            throw Standard_Failure("Filling style must be 0 (Stretch), 1 (Coons), or 2 (Curved).\n");
+             return GeomFill_StretchStyle;  // this is to shut up the compiler
+     }
+ }
+@@ -212,7 +212,7 @@ bool GeomFillSurface::getWire(TopoDS_Wire& aWire)
+ 
+     std::vector<App::PropertyLinkSubList::SubSet> boundary = BoundaryList.getSubListValues();
+     if (boundary.size() > 4) {  // if too many not even try
+-        Standard_Failure::Raise("Only 2-4 curves are allowed\n");
++        throw Standard_Failure("Only 2-4 curves are allowed\n");
+     }
+ 
+     ShapeValidator validator;
+@@ -224,12 +224,12 @@ bool GeomFillSurface::getWire(TopoDS_Wire& aWire)
+             }
+         }
+         else {
+-            Standard_Failure::Raise("Curve not from Part::Feature\n");
++            throw Standard_Failure("Curve not from Part::Feature\n");
+         }
+     }
+ 
+     if (validator.numEdges() < 2 || validator.numEdges() > 4) {
+-        Standard_Failure::Raise("Only 2-4 curves are allowed\n");
++        throw Standard_Failure("Only 2-4 curves are allowed\n");
+     }
+ 
+     // Reorder the curves and fix the wire if required
+@@ -244,7 +244,7 @@ bool GeomFillSurface::getWire(TopoDS_Wire& aWire)
+     aWire = aShFW->Wire();  // Healed Wire
+ 
+     if (aWire.IsNull()) {
+-        Standard_Failure::Raise("Wire unable to be constructed\n");
++        throw Standard_Failure("Wire unable to be constructed\n");
+     }
+ 
+     return validator.isBezier();
+@@ -261,10 +261,10 @@ void GeomFillSurface::createFace(const Handle(Geom_BoundedSurface) & aSurface)
+     TopoDS_Face aFace = aFaceBuilder.Face();
+ 
+     if (!aFaceBuilder.IsDone()) {
+-        Standard_Failure::Raise("Face unable to be constructed\n");
++        throw Standard_Failure("Face unable to be constructed\n");
+     }
+     if (aFace.IsNull()) {
+-        Standard_Failure::Raise("Resulting Face is null\n");
++        throw Standard_Failure("Resulting Face is null\n");
+     }
+     this->Shape.setValue(aFace);
+ }
+@@ -291,7 +291,7 @@ void GeomFillSurface::createBezierSurface(TopoDS_Wire& aWire)
+             curves.push_back(bezier);
+         }
+         else {
+-            Standard_Failure::Raise("Curve not a Bezier Curve");
++            throw Standard_Failure("Curve not a Bezier Curve");
+         }
+     }
+ 
+@@ -360,7 +360,7 @@ void GeomFillSurface::createBSplineSurface(TopoDS_Wire& aWire)
+                 Handle(Geom_BSplineCurve) spline
+                     = scc.ConvertToBSpline(c_geom, u1, u2, Precision::Confusion());
+                 if (spline.IsNull()) {
+-                    Standard_Failure::Raise(
++                    throw Standard_Failure(
+                         "A curve was not a B-spline and could not be converted into one."
+                     );
+                 }
+diff --git a/src/Mod/Surface/App/FeatureSections.cpp b/src/Mod/Surface/App/FeatureSections.cpp
+index 704179145d5b..0730060fff23 100644
+--- a/src/Mod/Surface/App/FeatureSections.cpp
++++ b/src/Mod/Surface/App/FeatureSections.cpp
+@@ -29,6 +29,7 @@
+ #include <Geom_TrimmedCurve.hxx>
+ #include <Precision.hxx>
+ #include <Standard_Version.hxx>
++#include <TColGeom_SequenceOfCurve.hxx>
+ #include <TopLoc_Location.hxx>
+ #include <TopoDS.hxx>
+ 
+diff --git a/src/Mod/Surface/App/FeatureSewing.cpp b/src/Mod/Surface/App/FeatureSewing.cpp
+index 834df9b8dd39..a425f77edde0 100644
+--- a/src/Mod/Surface/App/FeatureSewing.cpp
++++ b/src/Mod/Surface/App/FeatureSewing.cpp
+@@ -84,7 +84,7 @@ App::DocumentObjectExecReturn* Sewing::execute()
+                 }
+             }
+             else {
+-                Standard_Failure::Raise("Shape item not from Part::Feature");
++                throw Standard_Failure("Shape item not from Part::Feature");
+             }
+         }
+ 
+diff --git a/src/Mod/Surface/CMakeLists.txt b/src/Mod/Surface/CMakeLists.txt
+index 72506c76e52c..e6c105b41b09 100644
+--- a/src/Mod/Surface/CMakeLists.txt
++++ b/src/Mod/Surface/CMakeLists.txt
+@@ -1,5 +1,7 @@
+ # SPDX-License-Identifier: LGPL-2.1-or-later
+ 
++disable_occt8_deprecation_warnings()
++
+ add_subdirectory(App)
+ if(BUILD_GUI)
+     add_subdirectory(Gui)
+diff --git a/src/Mod/Surface/Gui/PreCompiled.h b/src/Mod/Surface/Gui/PreCompiled.h
+index a38b1d12d7e6..6ad11eb64a2b 100644
+--- a/src/Mod/Surface/Gui/PreCompiled.h
++++ b/src/Mod/Surface/Gui/PreCompiled.h
+@@ -38,13 +38,16 @@
+ #include <QTimer>
+ 
+ // OpenCasCade
++#include <Standard_Version.hxx>
+ #include <BRepAdaptor_Curve.hxx>
+ #include <GeomAPI_ProjectPointOnCurve.hxx>
+ #include <GeomAbs_Shape.hxx>
+ #include <TopExp.hxx>
+ #include <TopTools_IndexedDataMapOfShapeListOfShape.hxx>
+ #include <TopTools_IndexedMapOfShape.hxx>
+-#include <TopTools_ListIteratorOfListOfShape.hxx>
++#if OCC_VERSION_HEX < 0x080000
++# include <TopTools_ListIteratorOfListOfShape.hxx>
++#endif
+ #include <TopoDS_Edge.hxx>
+ #include <TopoDS_Shape.hxx>
+ 
+diff --git a/src/Mod/Surface/Gui/TaskFilling.cpp b/src/Mod/Surface/Gui/TaskFilling.cpp
+index 9ddc11561956..611e05d277bd 100644
+--- a/src/Mod/Surface/Gui/TaskFilling.cpp
++++ b/src/Mod/Surface/Gui/TaskFilling.cpp
+@@ -31,7 +31,6 @@
+ #include <TopExp.hxx>
+ #include <TopTools_IndexedDataMapOfShapeListOfShape.hxx>
+ #include <TopTools_IndexedMapOfShape.hxx>
+-#include <TopTools_ListIteratorOfListOfShape.hxx>
+ 
+ #include <App/Document.h>
+ #include <Base/Tools.h>
+diff --git a/src/Mod/Surface/Gui/TaskFillingEdge.cpp b/src/Mod/Surface/Gui/TaskFillingEdge.cpp
+index 37264eac5358..64bbe2c59f60 100644
+--- a/src/Mod/Surface/Gui/TaskFillingEdge.cpp
++++ b/src/Mod/Surface/Gui/TaskFillingEdge.cpp
+@@ -31,7 +31,6 @@
+ #include <TopExp.hxx>
+ #include <TopTools_IndexedDataMapOfShapeListOfShape.hxx>
+ #include <TopTools_IndexedMapOfShape.hxx>
+-#include <TopTools_ListIteratorOfListOfShape.hxx>
+ 
+ #include <App/Document.h>
+ #include <Base/Tools.h>
+diff --git a/src/Mod/TechDraw/App/DrawComplexSection.cpp b/src/Mod/TechDraw/App/DrawComplexSection.cpp
+index e410b80a9899..99567686178a 100644
+--- a/src/Mod/TechDraw/App/DrawComplexSection.cpp
++++ b/src/Mod/TechDraw/App/DrawComplexSection.cpp
+@@ -84,6 +84,7 @@
+ #include <ShapeExtend_WireData.hxx>
+ #include <TopExp.hxx>
+ #include <TopExp_Explorer.hxx>
++#include <TopTools_IndexedMapOfShape.hxx>
+ #include <TopoDS.hxx>
+ #include <TopoDS_Compound.hxx>
+ #include <TopoDS_Edge.hxx>
+diff --git a/src/Mod/TechDraw/App/DrawProjectSplit.cpp b/src/Mod/TechDraw/App/DrawProjectSplit.cpp
+index 118c40b82adf..8495772bbef4 100644
+--- a/src/Mod/TechDraw/App/DrawProjectSplit.cpp
++++ b/src/Mod/TechDraw/App/DrawProjectSplit.cpp
+@@ -32,7 +32,6 @@
+ #include <BRepBndLib.hxx>
+ #include <BRepBuilderAPI_Copy.hxx>
+ #include <BRepBuilderAPI_MakeEdge.hxx>
+-#include <BRepLProp_CurveTool.hxx>
+ #include <Geom_Curve.hxx>
+ #include <GeomLib_Tool.hxx>
+ #include <gp_Ax2.hxx>
+@@ -216,8 +215,8 @@ std::vector<TopoDS_Edge> DrawProjectSplit::split1Edge(TopoDS_Edge e, std::vector
+ 
+     BRepAdaptor_Curve adapt(e);
+     Handle(Geom_Curve) c = adapt.Curve().Curve();
+-    double first = BRepLProp_CurveTool::FirstParameter(adapt);
+-    double last = BRepLProp_CurveTool::LastParameter(adapt);
++    double first = adapt.FirstParameter();
++    double last = adapt.LastParameter();
+     if (first > last) {
+         //TODO parms.reverse();
+         Base::Console().message("DPS::split1Edge - edge is backwards!\n");
+diff --git a/src/Mod/TechDraw/App/DrawUtil.cpp b/src/Mod/TechDraw/App/DrawUtil.cpp
+index 414e774faded..20d9f41c6ab8 100644
+--- a/src/Mod/TechDraw/App/DrawUtil.cpp
++++ b/src/Mod/TechDraw/App/DrawUtil.cpp
+@@ -38,7 +38,6 @@
+ #include <BRepBuilderAPI_MakeEdge.hxx>
+ #include <BRepExtrema_DistShapeShape.hxx>
+ #include <BRepLProp_CLProps.hxx>
+-#include <BRepLProp_CurveTool.hxx>
+ #include <BRepLProp_SLProps.hxx>
+ #include <BRepTools.hxx>
+ #include <BRep_Builder.hxx>
+@@ -1172,8 +1171,8 @@ bool DrawUtil::isCrazy(TopoDS_Edge e)
+         return true;
+     }
+ 
+-    double start = BRepLProp_CurveTool::FirstParameter(adapt);
+-    double end = BRepLProp_CurveTool::LastParameter(adapt);
++    double start = adapt.FirstParameter();
++    double end = adapt.LastParameter();
+     BRepLProp_CLProps propStart(adapt, start, 0, Precision::Confusion());
+     const gp_Pnt& vStart = propStart.Value();
+     BRepLProp_CLProps propEnd(adapt, end, 0, Precision::Confusion());
+@@ -1934,8 +1933,8 @@ void DrawUtil::dump1Vertex(const char* text, const TopoDS_Vertex& v)
+ void DrawUtil::dumpEdge(const char* label, int i, TopoDS_Edge e)
+ {
+     BRepAdaptor_Curve adapt(e);
+-    double start = BRepLProp_CurveTool::FirstParameter(adapt);
+-    double end = BRepLProp_CurveTool::LastParameter(adapt);
++    double start = adapt.FirstParameter();
++    double end = adapt.LastParameter();
+     BRepLProp_CLProps propStart(adapt, start, 0, Precision::Confusion());
+     const gp_Pnt& vStart = propStart.Value();
+     BRepLProp_CLProps propEnd(adapt, end, 0, Precision::Confusion());
+diff --git a/src/Mod/TechDraw/App/DrawViewDimension.cpp b/src/Mod/TechDraw/App/DrawViewDimension.cpp
+index bf2d5e6230e3..e0ab793f18a5 100644
+--- a/src/Mod/TechDraw/App/DrawViewDimension.cpp
++++ b/src/Mod/TechDraw/App/DrawViewDimension.cpp
+@@ -52,6 +52,7 @@
+ #include <TopExp_Explorer.hxx>
+ #include <TopoDS_Edge.hxx>
+ #include <TopoDS_Shape.hxx>
++#include <TopTools_IndexedMapOfShape.hxx>
+ 
+ #include <App/Application.h>
+ #include <App/Document.h>
+diff --git a/src/Mod/TechDraw/App/Geometry.cpp b/src/Mod/TechDraw/App/Geometry.cpp
+index d28dc2cd7bdf..70e5be0bedbc 100644
+--- a/src/Mod/TechDraw/App/Geometry.cpp
++++ b/src/Mod/TechDraw/App/Geometry.cpp
+@@ -33,7 +33,6 @@
+ # include <BRepLib.hxx>
+ # include <BRepLProp_CLProps.hxx>
+ # include <BRepTools.hxx>
+-# include <BRepLProp_CurveTool.hxx>
+ # include <GC_MakeArcOfCircle.hxx>
+ # include <GC_MakeEllipse.hxx>
+ # include <GC_MakeCircle.hxx>
+@@ -1681,17 +1680,13 @@ bool GeometryUtils::isLine(const TopoDS_Edge& occEdge)
+     // from start to end
+     double endPointLength = (endPoint - startPoint).Length();
+ 
+-    int low = 0;
+-    int high = spline->NbPoles() - 1;
+-    TColgp_Array1OfPnt poles(low, high);
+-    spline->Poles(poles);
++    const TColgp_Array1OfPnt& poles = spline->Poles();
+     double lenTotal = 0.0;
+-    for (int i = 0; i < high; i++) {
+-        gp_Pnt p1 = poles(i);
+-        Base::Vector3d v1 = Base::convertTo<Base::Vector3d>(p1);
+-        gp_Pnt p2 = poles(i+1);
+-        Base::Vector3d v2 = Base::convertTo<Base::Vector3d>(p2);
+-        lenTotal += (v2-v1).Length();
++    for (int i = poles.Lower(); i < poles.Upper() - 1; i++) {
++        gp_Pnt p1 = poles.Value(i);
++        gp_Pnt p2 = poles.Value(i+1);
++        auto v = Base::convertTo<Base::Vector3d>(p2.XYZ() - p1.XYZ());
++        lenTotal += v.Length();
+     }
+ 
+     return DrawUtil::fpCompare(lenTotal, endPointLength, tolerance);
+@@ -1719,8 +1714,8 @@ double GeometryUtils::edgeLength(TopoDS_Edge occEdge)
+ {
+     BRepAdaptor_Curve adapt(occEdge);
+     const Handle(Geom_Curve) curve = adapt.Curve().Curve();
+-    double first = BRepLProp_CurveTool::FirstParameter(adapt);
+-    double last = BRepLProp_CurveTool::LastParameter(adapt);
++    double first = adapt.FirstParameter();
++    double last = adapt.LastParameter();
+     try {
+         GeomAdaptor_Curve adaptor(curve);
+         return GCPnts_AbscissaPoint::Length(adaptor,first,last,Precision::Confusion());
+diff --git a/src/Mod/TechDraw/App/GeometryObject.cpp b/src/Mod/TechDraw/App/GeometryObject.cpp
+index df1b43f8a0db..8aed5c9e1c52 100644
+--- a/src/Mod/TechDraw/App/GeometryObject.cpp
++++ b/src/Mod/TechDraw/App/GeometryObject.cpp
+@@ -31,7 +31,6 @@
+ #include <BRepBuilderAPI_MakeFace.hxx>
+ #include <BRepBuilderAPI_Transform.hxx>
+ #include <BRepLProp_CLProps.hxx>
+-#include <BRepLProp_CurveTool.hxx>
+ #include <BRepLib.hxx>
+ #include <BRepMesh_IncrementalMesh.hxx>
+ #include <BRepTools.hxx>
+diff --git a/src/Mod/TechDraw/App/ShapeUtils.cpp b/src/Mod/TechDraw/App/ShapeUtils.cpp
+index 5d72967b2cac..186283f602f1 100644
+--- a/src/Mod/TechDraw/App/ShapeUtils.cpp
++++ b/src/Mod/TechDraw/App/ShapeUtils.cpp
+@@ -32,7 +32,6 @@
+ #include <BRepBuilderAPI_MakeFace.hxx>
+ #include <BRepBuilderAPI_Transform.hxx>
+ #include <BRepLProp_CLProps.hxx>
+-#include <BRepLProp_CurveTool.hxx>
+ #include <BRepLib.hxx>
+ #include <BRepMesh_IncrementalMesh.hxx>
+ #include <BRepTools.hxx>
+diff --git a/src/Mod/TechDraw/App/TechDrawExport.cpp b/src/Mod/TechDraw/App/TechDrawExport.cpp
+index ea00c013a5bf..6da528fc228f 100644
+--- a/src/Mod/TechDraw/App/TechDrawExport.cpp
++++ b/src/Mod/TechDraw/App/TechDrawExport.cpp
+@@ -44,6 +44,7 @@
+ # include <Standard_Failure.hxx>
+ # include <Standard_Version.hxx>
+ # include <TColStd_Array1OfReal.hxx>
++# include <TColgp_Array1OfPnt.hxx>
+ # include <TopExp_Explorer.hxx>
+ # include <TopoDS.hxx>
+ # include <TopoDS_Edge.hxx>
+@@ -290,7 +291,7 @@ void SVGOutput::printBezier(const BRepAdaptor_Curve& c, int id, std::ostream& ou
+                 printBSpline(spline, id, out);
+             }
+             else {
+-                Standard_Failure::Raise("do it the generic way");
++                throw Standard_Failure("do it the generic way");
+             }
+ 
+             return;
+@@ -301,7 +302,7 @@ void SVGOutput::printBezier(const BRepAdaptor_Curve& c, int id, std::ostream& ou
+         str << p1.X() << ", " << p1.Y();
+         if (bezier->Degree() == 3) {
+             if (poles != 4)
+-                Standard_Failure::Raise("do it the generic way");
++                throw Standard_Failure("do it the generic way");
+             gp_Pnt p2 = bezier->Pole(2);
+             gp_Pnt p3 = bezier->Pole(3);
+             gp_Pnt p4 = bezier->Pole(4);
+@@ -312,7 +313,7 @@ void SVGOutput::printBezier(const BRepAdaptor_Curve& c, int id, std::ostream& ou
+         }
+         else if (bezier->Degree() == 2) {
+             if (poles != 3)
+-                Standard_Failure::Raise("do it the generic way");
++                throw Standard_Failure("do it the generic way");
+             gp_Pnt p2 = bezier->Pole(2);
+             gp_Pnt p3 = bezier->Pole(3);
+             str << " Q"
+@@ -321,12 +322,12 @@ void SVGOutput::printBezier(const BRepAdaptor_Curve& c, int id, std::ostream& ou
+         }
+         else if (bezier->Degree() == 1) {
+             if (poles != 2)
+-                Standard_Failure::Raise("do it the generic way");
++                throw Standard_Failure("do it the generic way");
+             gp_Pnt p2 = bezier->Pole(2);
+             str << " L" << p2.X() << ", " << p2.Y() << " ";
+         }
+         else {
+-            Standard_Failure::Raise("do it the generic way");
++            throw Standard_Failure("do it the generic way");
+         }
+ 
+         str << "\" />";
+@@ -367,7 +368,7 @@ void SVGOutput::printBSpline(const BRepAdaptor_Curve& c, int id, std::ostream& o
+             }
+             if (bezier->Degree() == 3) {
+                 if (poles != 4)
+-                    Standard_Failure::Raise("do it the generic way");
++                    throw Standard_Failure("do it the generic way");
+                 gp_Pnt p2 = bezier->Pole(2);
+                 gp_Pnt p3 = bezier->Pole(3);
+                 gp_Pnt p4 = bezier->Pole(4);
+@@ -378,7 +379,7 @@ void SVGOutput::printBSpline(const BRepAdaptor_Curve& c, int id, std::ostream& o
+             }
+             else if (bezier->Degree() == 2) {
+                 if (poles != 3)
+-                    Standard_Failure::Raise("do it the generic way");
++                    throw Standard_Failure("do it the generic way");
+                 gp_Pnt p2 = bezier->Pole(2);
+                 gp_Pnt p3 = bezier->Pole(3);
+                 str << " Q"
+@@ -387,12 +388,12 @@ void SVGOutput::printBSpline(const BRepAdaptor_Curve& c, int id, std::ostream& o
+             }
+             else if (bezier->Degree() == 1) {
+                 if (poles != 2)
+-                    Standard_Failure::Raise("do it the generic way");
++                    throw Standard_Failure("do it the generic way");
+                 gp_Pnt p2 = bezier->Pole(2);
+                 str << " L" << p2.X() << ", " << p2.Y() << " ";
+             }
+             else {
+-                Standard_Failure::Raise("do it the generic way");
++                throw Standard_Failure("do it the generic way");
+             }
+         }
+ 
+diff --git a/src/Mod/TechDraw/CMakeLists.txt b/src/Mod/TechDraw/CMakeLists.txt
+index 5279e5fc7a1c..88856316afa0 100644
+--- a/src/Mod/TechDraw/CMakeLists.txt
++++ b/src/Mod/TechDraw/CMakeLists.txt
+@@ -1,3 +1,4 @@
++disable_occt8_deprecation_warnings()
+ 
+ add_definitions(-DMOD_TECHDRAW_HANDLE_FACES=1)
+ 
+diff --git a/tests/src/Mod/Part/App/TopoShapeExpansion.cpp b/tests/src/Mod/Part/App/TopoShapeExpansion.cpp
+index 66a5fd70c587..d4b89789fe12 100644
+--- a/tests/src/Mod/Part/App/TopoShapeExpansion.cpp
++++ b/tests/src/Mod/Part/App/TopoShapeExpansion.cpp
+@@ -1,5 +1,6 @@
+ // SPDX-License-Identifier: LGPL-2.1-or-later
+ 
++#include <TColgp_Array2OfPnt.hxx>
+ #include <gtest/gtest.h>
+ #include "src/App/InitApplication.h"
+ #include <Mod/Part/App/TopoShape.h>
+@@ -29,6 +30,7 @@
+ #include <ShapeBuild_ReShape.hxx>
+ #include <TopExp_Explorer.hxx>
+ #include <TopoDS_Edge.hxx>
++#include <TColgp_Array1OfPnt.hxx>
+ 
+ // NOLINTBEGIN(readability-magic-numbers,cppcoreguidelines-avoid-magic-numbers)
+ 
