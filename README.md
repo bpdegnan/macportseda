@@ -263,6 +263,13 @@ A few details:
   only knows the default tree's PortGroups, not local ones. It's cosmetic:
   parsing, indexing and building all work.
 
+There's one other local PortGroup, `eda-hdf5`
+(`_resources/port1.0/group/eda-hdf5-1.0.tcl`). It works around the broken CMake
+config in MacPorts hdf5 2.1.1_1 (described under cause 5 in the FreeCAD notes),
+and CSXCAD, openEMS and eda-freecad include it. charon and trilinos-charon don't
+need it, because `HDF5_ALLOW_PREFIND=FALSE` skips that config. Once the hdf5
+port is fixed, delete the file and the three `PortGroup eda-hdf5 1.0` lines.
+
 ## The distfiles archive
 
 `distfiles/` holds a copy of every source tarball the ports here fetch.
@@ -705,8 +712,12 @@ was fixed:
    `/opt/local//opt/local/lib/cmake/hdf5/…`. This looks like a regression from
    the MacPorts commit for trac #74514. `pre-configure` copies the config into
    the work directory, fixes both lines there and points `HDF5_DIR` at the copy,
-   so the installed hdf5 is left alone. Drop this when the hdf5 port is fixed;
-   the second bug is worth reporting upstream.
+   so the installed hdf5 is left alone. This now lives in the shared `eda-hdf5`
+   PortGroup, because CSXCAD and openEMS hit the same config. CSXCAD also needed
+   the libaec header directories set explicitly: it caps CMake policies at
+   3.10, so `libaec_ROOT` alone doesn't reach `lib/libaec/include`. Drop the
+   PortGroup when the hdf5 port is fixed; the second bug is worth reporting
+   upstream.
 
 Rev 7 was checked on macOS 15.3 / x86_64 on 2026-10-31.
 `FreeCAD.Version()` reports 1.1.3 (Revision 20260725), with Python 3.12.16,
@@ -1498,6 +1509,9 @@ Python 3.9 and 3.12 headers in one build. The FreeCAD notes have the details.
   CSXCAD from a sibling checkout. Their setup.py needs
   `CSXCAD_INSTALL_PATH`/`OPENEMS_INSTALL_PATH` set to `${prefix}`. py313-openems
   needs py313-csxcad at build time, because cython cimports its .pxd files.
+- CSXCAD and openEMS include the `eda-hdf5` PortGroup. Since 2026-10 the
+  MacPorts hdf5 2.1.1_1 CMake config is broken, and CSXCAD failed at configure
+  with `Could NOT find libaec`. See the FreeCAD notes, cause 5.
 - Left out on purpose: QCSXCAD/AppCSXCAD, the GUI viewer, which would pull Qt5
   and VTK rendering back in (use ParaView to look at field dumps if you need
   to), and MPI.

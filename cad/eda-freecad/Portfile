@@ -3,6 +3,7 @@
 PortSystem          1.0
 PortGroup           eda-github 1.0
 PortGroup           cmake 1.1
+PortGroup           eda-hdf5 1.0
 PortGroup           qt6 1.0
 # Versioned boost, NOT the umbrella `boost` port -- see the BOOST note below.
 PortGroup           boost 1.0
@@ -165,8 +166,6 @@ configure.args-append \
     -DPySide6_DIR=${py_framework}/lib/python${py_ver}/site-packages/PySide6/lib/cmake/PySide6 \
     -DShiboken6_DIR=${py_framework}/lib/python${py_ver}/site-packages/shiboken6/lib/cmake/Shiboken6 \
     -DShiboken6Tools_DIR=${py_framework}/lib/python${py_ver}/site-packages/shiboken6_generator/lib/cmake/Shiboken6Tools \
-    -Dlibaec_ROOT=${prefix}/lib/libaec \
-    -DHDF5_DIR=${workpath}/hdf5-cmake \
     -DCoin_DIR=${edaprefix}/lib/cmake/Coin-${coin_version} \
     -DCOIN3D_VERSION=${coin_version} \
     -DCOIN3D_MAJOR_VERSION=${coin_major} \
@@ -206,38 +205,10 @@ configure.args-append \
 # That is the same python-header mixing that once made freecad abort at launch
 # (see the CMAKE_FIND_FRAMEWORK note below).
 #
-# TWO WORKAROUNDS FOR MacPorts hdf5 2.1.1_1 (not FreeCAD's fault; drop them when
-# the hdf5 port is fixed). FreeCAD's SMESH setup loads VTK 9.7, whose
-# FindHDF5 loads hdf5's own hdf5-config.cmake, which is broken twice:
-#   1. find_dependency(libaec) cannot find libaec: MacPorts installs it under
-#      ${prefix}/lib/libaec/{lib,include}, off every default path, and the
-#      config passes no hint.  ->  -Dlibaec_ROOT (documented by Findlibaec).
-#   2. It includes its own files at ${PACKAGE_PREFIX_DIR}/${PACKAGE_PREFIX_DIR}/
-#      lib/cmake/hdf5/..., i.e. /opt/local//opt/local/...: the hdf5 port's
-#      2026-10-14 "Fix #74514" set HDF5_INSTALL_CMAKE_DIR to an ABSOLUTE path,
-#      and the config template prefixes it again. Every CMake consumer of hdf5
-#      breaks.  ->  pre-configure below writes a corrected copy of the config
-#      into ${workpath}/hdf5-cmake and HDF5_DIR points CMake at it. The copy
-#      pins PACKAGE_PREFIX_DIR to ${prefix} and un-doubles the prefix; it still
-#      includes the real targets files from ${prefix}/lib/cmake/hdf5. If hdf5
-#      gets fixed, the copy is simply an equivalent, correct config.
-pre-configure {
-    set hsrc ${prefix}/lib/cmake/hdf5
-    set hdst ${workpath}/hdf5-cmake
-    delete ${hdst}
-    copy ${hsrc} ${hdst}
-    foreach f [glob -nocomplain ${hdst}/*.cmake] {
-        set fd [open ${f} r]; set c [read ${fd}]; close ${fd}
-        set n [string map [list \
-            {get_filename_component(PACKAGE_PREFIX_DIR "${CMAKE_CURRENT_LIST_DIR}/../../../" ABSOLUTE)} \
-            "set(PACKAGE_PREFIX_DIR \"${prefix}\")" \
-            {${PACKAGE_PREFIX_DIR}/${PACKAGE_PREFIX_DIR}/} \
-            {${PACKAGE_PREFIX_DIR}/}] ${c}]
-        if {${n} ne ${c}} {
-            set fd [open ${f} w]; puts -nonewline ${fd} ${n}; close ${fd}
-        }
-    }
-}
+# MacPorts hdf5 2.1.1_1 ships a broken CMake config (libaec not found, and a
+# doubled /opt/local//opt/local include path). FreeCAD hits it because SMESH
+# loads VTK, whose FindHDF5 loads that config. The workaround lives in the
+# eda-hdf5 PortGroup (PortGroup line at the top), shared with CSXCAD and openEMS.
 
 # TBB is linked into everything (see the onetbb note above). Harmless: every
 # FreeCAD library already loads it through OCCT's TKernel.
