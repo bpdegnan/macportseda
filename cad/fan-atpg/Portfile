@@ -12,7 +12,7 @@ github.setup        NTU-LaDS-II FAN_ATPG ${fan_commit}
 github.tarball_from archive
 name                fan-atpg
 version             2023.20250702
-revision            0
+revision            1
 
 # The GitHub archive of a commit extracts to FAN_ATPG-<full sha>.
 distname            FAN_ATPG-${fan_commit}
@@ -53,6 +53,18 @@ checksums           rmd160  83e62ed1bcb1365892cc151361b64850fade9fbf \
 patchfiles-append   patch-tm_usage-macos-memory.diff \
                     patch-main-macos-meminfo.diff
 
+# --- cells of more than one primitive ----------------------------------------
+# Upstream's benchmarks use only one-primitive cells (AND2, NAND2, INV, ...),
+# and two places in pkg/core/src/circuit.cpp hold only for those:
+#  - determineGateType sized each gate by the netlist cell's port count, not
+#    its primitive's, so a mux or adder's gates came out the wrong width or
+#    Gate::NA;
+#  - createCircuitComb took the circuit depth from the last cell's first
+#    primitive, so POs and PPOs sat at levels below their drivers.
+# Either made run_atpg loop forever on a design with a mux (even upstream's
+# own Nangate MUX2_X1). Both are fixed; one-primitive cells are unchanged.
+patchfiles-append   patch-circuit-multi-primitive-cells.diff
+
 depends_build-append \
     port:bison \
     port:flex
@@ -88,7 +100,9 @@ destroot {
 }
 
 # Smoke test: start the shell, run a script that just exits, and check the
-# banner and goodbye lines (which exercise both patched memory paths).
+# banner and goodbye lines (which exercise both patched memory paths). Then
+# run ATPG on one Nangate MUX2_X1, which never finishes without the
+# multi-primitive patch (perl's alarm bounds it; macOS has no timeout(1)).
 test.run            yes
 test {
     set script ${workpath}/smoke.script
@@ -105,6 +119,23 @@ test {
     if {[string match "*cannot get memory usage*" ${out}] ||
         [string match "*Memory:   UNKNOWN*" ${out}]} {
         error "macOS memory patches not effective: ${out}"
+    }
+
+    set fp [open ${workpath}/mux.v w]
+    puts ${fp} "module top (a, b, s, y);\ninput a;\ninput b;\ninput s;\noutput y;"
+    puts ${fp} "MUX2_X1 u0 (.A(a), .B(b), .S(s), .Z(y));\nendmodule"
+    close ${fp}
+    set fp [open ${workpath}/mux.script w]
+    puts ${fp} "read_lib ${worksrcpath}/techlib/mod_nangate45.mdt\nread_netlist mux.v"
+    puts ${fp} "build_circuit --frame 1\nset_fault_type saf\nadd_fault --all"
+    puts ${fp} "run_atpg\nreport_statistics\nexit"
+    close ${fp}
+    system -W ${workpath} "perl -e 'alarm 60; exec @ARGV' ${worksrcpath}/bin/opt/fan -f mux.script < /dev/null > ${workpath}/mux.out 2>&1 || true"
+    set fp [open ${workpath}/mux.out r]
+    set out [read ${fp}]
+    close ${fp}
+    if {![regexp {test coverage\s+100%} ${out}]} {
+        error "ATPG on a MUX2_X1 did not finish with 100% coverage: ${out}"
     }
 }
 

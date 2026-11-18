@@ -1,0 +1,148 @@
+--- pkg/core/src/circuit.cpp.orig
++++ pkg/core/src/circuit.cpp
+@@ -309,6 +309,12 @@ void Circuit::createCircuitComb()
+ {
+ 	Cell *top = pNetlist_->getTop();
+ 
++	// The circuit's depth is its deepest combinational gate. Upstream took
++	// the level of the last cell's first primitive, which is the deepest
++	// gate only when every cell is one primitive; with a multi-primitive
++	// cell (a mux, a full adder) POs and PPOs got levels below their
++	// drivers and run_atpg never finished.
++	int maxCombLvl = -1;
+ 	for (int i = numPPI_; i < (int)top->getNCell(); ++i)
+ 	{
+ 		Cell *cellInTop = top->getCell(i);
+@@ -321,11 +327,15 @@ void Circuit::createCircuitComb()
+ 
+ 			Pmt *pmt = (Pmt *)cellInTop->libc_->getCell(j);
+ 			createCircuitPmt(combGateID, cellInTop, pmt);
++			if (circuitGates_[combGateID].numLevel_ > maxCombLvl)
++			{
++				maxCombLvl = circuitGates_[combGateID].numLevel_;
++			}
+ 		}
+ 	}
+ 	if ((int)top->getNCell() > 0)
+ 	{
+-		circuitLvl_ = circuitGates_[cellIndexToGateIndex_[top->getNCell() - 1]].numLevel_ + 2;
++		circuitLvl_ = maxCombLvl + 2;
+ 	}
+ }
+ 
+@@ -460,6 +470,11 @@ void Circuit::createCircuitPmt(const int &gateID, const Cell *const cell,
+ void Circuit::determineGateType(const int &gateID, const Cell *const cell,
+                                 const Pmt *const pmt)
+ {
++	// The gate's width is its primitive's: pmt's ports are its inputs and
++	// its output. Upstream counted the netlist cell's ports, which equals
++	// that only for a cell of one primitive, so the gates of a mux or an
++	// adder came out the wrong width or Gate::NA.
++	(void)cell;
+ 	switch (pmt->type_)
+ 	{
+ 		case Pmt::BUF:
+@@ -473,15 +488,15 @@ void Circuit::determineGateType(const int &gateID, const Cell *const cell,
+ 			circuitGates_[gateID].gateType_ = Gate::MUX;
+ 			break;
+ 		case Pmt::AND:
+-			if (cell->getNPort() == 3)
++			if (pmt->getNPort() == 3)
+ 			{
+ 				circuitGates_[gateID].gateType_ = Gate::AND2;
+ 			}
+-			else if (cell->getNPort() == 4)
++			else if (pmt->getNPort() == 4)
+ 			{
+ 				circuitGates_[gateID].gateType_ = Gate::AND3;
+ 			}
+-			else if (cell->getNPort() == 5)
++			else if (pmt->getNPort() == 5)
+ 			{
+ 				circuitGates_[gateID].gateType_ = Gate::AND4;
+ 			}
+@@ -491,15 +506,15 @@ void Circuit::determineGateType(const int &gateID, const Cell *const cell,
+ 			}
+ 			break;
+ 		case Pmt::NAND:
+-			if (cell->getNPort() == 3)
++			if (pmt->getNPort() == 3)
+ 			{
+ 				circuitGates_[gateID].gateType_ = Gate::NAND2;
+ 			}
+-			else if (cell->getNPort() == 4)
++			else if (pmt->getNPort() == 4)
+ 			{
+ 				circuitGates_[gateID].gateType_ = Gate::NAND3;
+ 			}
+-			else if (cell->getNPort() == 5)
++			else if (pmt->getNPort() == 5)
+ 			{
+ 				circuitGates_[gateID].gateType_ = Gate::NAND4;
+ 			}
+@@ -509,15 +524,15 @@ void Circuit::determineGateType(const int &gateID, const Cell *const cell,
+ 			}
+ 			break;
+ 		case Pmt::OR:
+-			if (cell->getNPort() == 3)
++			if (pmt->getNPort() == 3)
+ 			{
+ 				circuitGates_[gateID].gateType_ = Gate::OR2;
+ 			}
+-			else if (cell->getNPort() == 4)
++			else if (pmt->getNPort() == 4)
+ 			{
+ 				circuitGates_[gateID].gateType_ = Gate::OR3;
+ 			}
+-			else if (cell->getNPort() == 5)
++			else if (pmt->getNPort() == 5)
+ 			{
+ 				circuitGates_[gateID].gateType_ = Gate::OR4;
+ 			}
+@@ -527,15 +542,15 @@ void Circuit::determineGateType(const int &gateID, const Cell *const cell,
+ 			}
+ 			break;
+ 		case Pmt::NOR:
+-			if (cell->getNPort() == 3)
++			if (pmt->getNPort() == 3)
+ 			{
+ 				circuitGates_[gateID].gateType_ = Gate::NOR2;
+ 			}
+-			else if (cell->getNPort() == 4)
++			else if (pmt->getNPort() == 4)
+ 			{
+ 				circuitGates_[gateID].gateType_ = Gate::NOR3;
+ 			}
+-			else if (cell->getNPort() == 5)
++			else if (pmt->getNPort() == 5)
+ 			{
+ 				circuitGates_[gateID].gateType_ = Gate::NOR4;
+ 			}
+@@ -545,11 +560,11 @@ void Circuit::determineGateType(const int &gateID, const Cell *const cell,
+ 			}
+ 			break;
+ 		case Pmt::XOR:
+-			if (cell->getNPort() == 3)
++			if (pmt->getNPort() == 3)
+ 			{
+ 				circuitGates_[gateID].gateType_ = Gate::XOR2;
+ 			}
+-			else if (cell->getNPort() == 4)
++			else if (pmt->getNPort() == 4)
+ 			{
+ 				circuitGates_[gateID].gateType_ = Gate::XOR3;
+ 			}
+@@ -559,11 +574,11 @@ void Circuit::determineGateType(const int &gateID, const Cell *const cell,
+ 			}
+ 			break;
+ 		case Pmt::XNOR:
+-			if (cell->getNPort() == 3)
++			if (pmt->getNPort() == 3)
+ 			{
+ 				circuitGates_[gateID].gateType_ = Gate::XNOR2;
+ 			}
+-			else if (cell->getNPort() == 4)
++			else if (pmt->getNPort() == 4)
+ 			{
+ 				circuitGates_[gateID].gateType_ = Gate::XNOR3;
+ 			}
