@@ -1,0 +1,111 @@
+# -*- coding: utf-8; mode: tcl; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- vim:fenc=utf-8:ft=tcl:et:sw=4:ts=4:sts=4
+
+PortSystem          1.0
+PortGroup           eda-github 1.0
+PortGroup           github 1.0
+
+# Upstream publishes no tags or releases. Pinned to the head of main on
+# 2025-07-02 (a README-only commit; the last code change is 2023-11-20).
+# The version is upstream's "v2023" label plus that commit's date.
+set fan_commit      26b2b36c0e9db11a4b6d9e759df6e44357121f39
+github.setup        NTU-LaDS-II FAN_ATPG ${fan_commit}
+github.tarball_from archive
+name                fan-atpg
+version             2023.20250702
+revision            0
+
+# The GitHub archive of a commit extracts to FAN_ATPG-<full sha>.
+distname            FAN_ATPG-${fan_commit}
+worksrcdir          ${distname}
+
+categories          cad science
+license             MIT
+maintainers         {@bpdegnan} openmaintainer
+platforms           macosx
+
+description         FAN-algorithm ATPG and fault simulator (stuck-at and transition)
+long_description    FAN_ATPG, from the Laboratory of Dependable Systems at \
+                    National Taiwan University, is a command-line automatic \
+                    test pattern generator and fault simulator built on the \
+                    FAN (fan-out-oriented) algorithm. It reads a structural \
+                    Verilog netlist plus a cell library in Mentor FastScan \
+                    .mdt format and handles stuck-at and transition-delay \
+                    (launch-on-capture and launch-on-shift) faults, with \
+                    fault collapsing, parallel-pattern fault simulation, \
+                    static and dynamic compaction, and STIL / ASCII pattern \
+                    output. Installed as fan-atpg.
+
+homepage            https://github.com/NTU-LaDS-II/FAN_ATPG
+
+checksums           rmd160  83e62ed1bcb1365892cc151361b64850fade9fbf \
+                    sha256  bb01a6049be44ad8cfd4b94d725cb40d53c5cb7a52a89a2c2e3505bb10d9dd74 \
+                    size    3735262
+
+# --- macOS memory reporting -------------------------------------------------
+# Upstream reads Linux's /proc for memory figures. On macOS fopen() just fails:
+# TmUsage::checkUsage() then prints "cannot get memory usage" and returns
+# false on every call, and the banner prints "Memory: UNKNOWN".
+#  - tm_usage.cpp: process memory via Mach task_info(MACH_TASK_BASIC_INFO).
+#    Resident / peak-resident size stands in for VmSize / VmPeak, since macOS
+#    virtual size is dominated by the shared region and means nothing here.
+#  - main.cpp: installed RAM via sysctlbyname("hw.memsize").
+# Both are #ifdef __APPLE__, so the Linux code path is untouched.
+patchfiles-append   patch-tm_usage-macos-memory.diff \
+                    patch-main-macos-meminfo.diff
+
+depends_build-append \
+    port:bison \
+    port:flex
+
+use_configure       no
+
+# common.mk hard-codes CXX = g++ and GCC-only -Wno-* flags. Command-line
+# variables override the makefile's and propagate to each pkg/ sub-make.
+# The executable is linked with $(CXX) $(CFLAGS), so CFLAGS must carry the
+# arch flags for both steps. ${configure.ldflags} is left out on purpose: the
+# binary links only libSystem/libc++, and -L${prefix}/lib on every compile
+# line drew ~150 -Wunused-command-line-argument warnings.
+# Apple's bison 2.3 is too old; use MacPorts' bison and flex explicitly.
+build.target        all
+build.args-append   MODE=opt \
+                    CXX="${configure.cxx} -std=c++11" \
+                    CC="${configure.cc}" \
+                    CFLAGS="-Wall -O3 ${configure.cxx_archflags}" \
+                    LEX=${prefix}/bin/flex \
+                    YACC=${prefix}/bin/bison
+
+# Install only the binary and documentation. techlib/ (Nangate Open Cell
+# Library, non-commercial licence that also forbids benchmarking) and the
+# benchmark netlists are deliberately NOT installed. "fan" alone is too
+# generic a name for ${prefix}/bin.
+destroot {
+    xinstall -m 0755 ${worksrcpath}/bin/opt/fan ${destroot}${prefix}/bin/fan-atpg
+
+    set docdir ${destroot}${prefix}/share/doc/${name}
+    xinstall -d ${docdir}
+    xinstall -m 0644 -W ${worksrcpath} \
+        README.md LICENSE ATPG_UserGuide.pdf ${docdir}
+}
+
+# Smoke test: start the shell, run a script that just exits, and check the
+# banner and goodbye lines (which exercise both patched memory paths).
+test.run            yes
+test {
+    set script ${workpath}/smoke.script
+    set fp [open ${script} w]
+    puts ${fp} "exit"
+    close ${fp}
+    system -W ${workpath} "${worksrcpath}/bin/opt/fan -f ${script} < /dev/null > ${workpath}/smoke.out 2>&1 || true"
+    set fp [open ${workpath}/smoke.out r]
+    set out [read ${fp}]
+    close ${fp}
+    if {![string match "*Goodbye*" ${out}]} {
+        error "fan did not run: ${out}"
+    }
+    if {[string match "*cannot get memory usage*" ${out}] ||
+        [string match "*Memory:   UNKNOWN*" ${out}]} {
+        error "macOS memory patches not effective: ${out}"
+    }
+}
+
+livecheck.type      none

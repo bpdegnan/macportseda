@@ -1,0 +1,45 @@
+--- pkg/common/src/tm_usage.cpp.orig
++++ pkg/common/src/tm_usage.cpp
+@@ -10,6 +10,9 @@
+ #include <cstdio>
+ #include <cstring>
+ #include <cstdlib>
++#ifdef __APPLE__
++#include <mach/mach.h> // for task_info(); macOS has no /proc
++#endif
+ 
+ #include "tm_usage.h"
+ 
+@@ -90,6 +93,25 @@ bool TmUsage::checkUsage(TmStat &st) const
+ 	st.rTime = tReal.tv_sec * 1000000 + tReal.tv_usec;
+ 
+ 	// check current memory and peak memory
++#ifdef __APPLE__
++	// macOS has no /proc. Its total virtual size (the analogue of VmSize) is
++	// meaningless here -- every process maps a multi-GB shared region -- so
++	// report resident and peak resident size instead, in kB like /proc.
++	mach_task_basic_info_data_t info;
++	mach_msg_type_number_t count = MACH_TASK_BASIC_INFO_COUNT;
++	if (task_info(mach_task_self(), MACH_TASK_BASIC_INFO,
++								(task_info_t)&info, &count) != KERN_SUCCESS)
++	{
++		fprintf(stderr,
++						"**ERROR TmUsage::checkUsage(): cannot get memory usage\n");
++		st.vmSize = 0;
++		st.vmPeak = 0;
++		return false;
++	}
++	st.vmSize = (long)(info.resident_size / 1024);
++	st.vmPeak = (long)(info.resident_size_max / 1024);
++	return true;
++#else
+ 	FILE *fmem = fopen("/proc/self/status", "r");
+ 	if (!fmem)
+ 	{
+@@ -116,4 +138,5 @@ bool TmUsage::checkUsage(TmStat &st) const
+ 	}
+ 	fclose(fmem);
+ 	return true;
++#endif
+ }
+\ No newline at end of file

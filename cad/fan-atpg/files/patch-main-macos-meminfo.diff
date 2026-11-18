@@ -1,0 +1,37 @@
+--- pkg/fan/src/main.cpp.orig
++++ pkg/fan/src/main.cpp
+@@ -6,6 +6,10 @@
+ // **************************************************************************
+ 
+ #include <cstdlib>
++#ifdef __APPLE__
++#include <cstdint>
++#include <sys/sysctl.h> // for sysctlbyname(); macOS has no /proc
++#endif
+ 
+ #include "common/sys_cmd.h"
+ #include "setup_cmd.h"
+@@ -119,6 +123,15 @@ void printWelcome()
+ 	}
+ 
+ 	// memory
++#ifdef __APPLE__
++	uint64_t memBytes = 0;
++	size_t memLen = sizeof(memBytes);
++	std::cout << "#  Memory:   ";
++	if (sysctlbyname("hw.memsize", &memBytes, &memLen, NULL, 0) != 0)
++		std::cout << "UNKNOWN" << "\n";
++	else
++		std::cout << (double)memBytes / 1048576.0 << " MB" << "\n";
++#else
+ 	FILE *meminfo = fopen("/proc/meminfo", "r");
+ 	std::cout << "#  Memory:   ";
+ 	if (!meminfo)
+@@ -136,6 +149,7 @@ void printWelcome()
+ 		}
+ 		fclose(meminfo);
+ 	}
++#endif
+ 
+ 	std::cout << "#" << "\n";
+ }

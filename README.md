@@ -74,6 +74,9 @@ macportseda/
     │   └── Portfile
     ├── openscad/       # script-based 3D CAD, dev snapshot (shadows stock; CGAL 6)
     │   └── Portfile
+    ├── fan-atpg/       # NTU FAN ATPG + fault sim (stuck-at, transition; macOS memory patches)
+    │   ├── Portfile
+    │   └── files/
     └── (see science/ and x11/ for the rest)
 x11/
 ├── gtksheet/          # GtkSheet widget lib (lepton-attrib dependency)
